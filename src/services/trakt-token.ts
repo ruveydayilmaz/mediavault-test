@@ -1,0 +1,42 @@
+import type { StorageService } from "./storage";
+import { refreshAccessToken } from "../api/trakt-auth";
+
+const REFRESH_BUFFER_MS = 5 * 60 * 1000; // refresh 5 minutes before actual expiry
+
+/**
+ * Ensures the stored Trakt access token is valid, refreshing it first if
+ * it's expired (or close to it). Returns null if Trakt isn't connected at
+ * all. Call this before any Trakt API operation — TraktService itself only
+ * reads whatever token is currently in settings; it doesn't refresh.
+ */
+export async function ensureValidTraktToken(storage: StorageService): Promise<string | null> {
+	const settings = storage.settings.get();
+
+	if (!settings.traktAccessToken || !settings.traktRefreshToken) {
+		return null;
+	}
+
+	const expiresAt = settings.traktTokenExpiresAt ?? 0;
+	if (Date.now() < expiresAt - REFRESH_BUFFER_MS) {
+		return settings.traktAccessToken;
+	}
+
+	// Token expired or about to — refresh it.
+	const refreshed = await refreshAccessToken(settings.traktClientId, settings.traktClientSecret, settings.traktRefreshToken);
+
+	await storage.settings.update({
+		traktAccessToken: refreshed.accessToken,
+		traktRefreshToken: refreshed.refreshToken,
+		traktTokenExpiresAt: Date.now() + refreshed.expiresInSeconds * 1000,
+	});
+
+	return refreshed.accessToken;
+}
+
+export async function disconnectTrakt(storage: StorageService): Promise<void> {
+	await storage.settings.update({
+		traktAccessToken: null,
+		traktRefreshToken: null,
+		traktTokenExpiresAt: null,
+	});
+}

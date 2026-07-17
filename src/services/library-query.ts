@@ -1,0 +1,163 @@
+import { MediaItem } from "../models/media";
+import { MediaType, MediaStatus } from "../types/enums";
+import { PagedResult } from "../types/common";
+
+export type LibraryFilter = "all" | "movies" | "shows" | "favorites" | "comfort";
+
+/**
+ * Progress Tabs (roadmap Milestone 3). Each tab maps directly onto the
+ * `status` field that StatusService already derives and persists — this is
+ * a thin filter over that single source of truth, not a second status
+ * calculation. "All" has no status predicate. Note On Hold has no tab yet;
+ * it remains reachable via search/sort only until a future milestone.
+ */
+export type ProgressTab =
+	| "all"
+	| "watching"
+	| "up_to_date"
+	| "plan_to_watch"
+	| "watch_later"
+	| "finished"
+	| "waiting_for_new_season"
+	| "dropped";
+
+export const PROGRESS_TABS: { value: ProgressTab; label: string }[] = [
+	{ value: "all", label: "All" },
+	{ value: "watching", label: "Watching" },
+	{ value: "up_to_date", label: "Up To Date" },
+	{ value: "plan_to_watch", label: "Plan to Watch" },
+	{ value: "finished", label: "Finished" },
+	{ value: "waiting_for_new_season", label: "Waiting for New Season" },
+	{ value: "dropped", label: "Dropped" },
+];
+
+const PROGRESS_TAB_STATUSES: Partial<Record<ProgressTab, MediaStatus[]>> = {
+	watching: [MediaStatus.Watching, MediaStatus.Rewatching],
+	up_to_date: [MediaStatus.UpToDate],
+	plan_to_watch: [MediaStatus.PlanToWatch],
+	watch_later: [MediaStatus.WatchLater],
+	finished: [MediaStatus.Completed],
+	waiting_for_new_season: [MediaStatus.WaitingForNewSeason],
+	dropped: [MediaStatus.Dropped],
+};
+
+export function applyProgressTab(items: MediaItem[], tab: ProgressTab): MediaItem[] {
+	if (tab === "all") return items;
+	const statuses = PROGRESS_TAB_STATUSES[tab];
+	if (!statuses) return items;
+	return items.filter((m) => statuses.includes(m.status));
+}
+
+export type LibrarySortField = "recent" | "title" | "rating" | "watchCount" | "year" | "runtime";
+export type SortDirection = "asc" | "desc";
+
+export interface LibraryQuery {
+	searchText: string;
+	filter: LibraryFilter;
+	progressTab: ProgressTab;
+	sortField: LibrarySortField;
+	sortDirection: SortDirection;
+	page: number;
+	pageSize: number;
+}
+
+export const DEFAULT_LIBRARY_QUERY: LibraryQuery = {
+	searchText: "",
+	filter: "all",
+	progressTab: "all",
+	sortField: "recent",
+	sortDirection: "desc",
+	page: 1,
+	pageSize: 24,
+};
+
+/**
+ * Shared ordering key for "Recent" sorting (roadmap Milestone 5): latest
+ * watch date if the item has watch history, otherwise date added. Exported
+ * so `list-service.ts`'s "recent" ListSortMode can reuse the exact same
+ * rule instead of re-deriving it — per the project's no-duplicated-logic
+ * convention for anything status/ordering related.
+ */
+export function recentSortKey(item: MediaItem): string {
+	return item.lastWatchedDate ?? item.createdAt;
+}
+
+export function applyLibraryFilter(items: MediaItem[], filter: LibraryFilter): MediaItem[] {
+	switch (filter) {
+		case "movies":
+			return items.filter((m) => m.type === MediaType.Movie);
+		case "shows":
+			return items.filter((m) => m.type === MediaType.TVShow);
+		case "favorites":
+			return items.filter((m) => m.isFavorite === true);
+		case "comfort":
+			return items.filter((m) => m.status === MediaStatus.ComfortMedia);
+		case "all":
+		default:
+			return items;
+	}
+}
+
+export function applyLibrarySearch(items: MediaItem[], searchText: string): MediaItem[] {
+	const q = searchText.trim().toLowerCase();
+	if (!q) return items;
+	return items.filter(
+		(m) =>
+			m.title.toLowerCase().includes(q) ||
+			(m.originalTitle?.toLowerCase().includes(q) ?? false) ||
+			m.genres.some((g) => g.toLowerCase().includes(q)) ||
+			m.tags.some((t) => t.toLowerCase().includes(q))
+	);
+}
+
+export function sortLibrary(items: MediaItem[], field: LibrarySortField, direction: SortDirection): MediaItem[] {
+	const sorted = [...items].sort((a, b) => {
+		let cmp = 0;
+		switch (field) {
+			case "recent":
+				cmp = recentSortKey(a).localeCompare(recentSortKey(b));
+				break;
+			case "title":
+				cmp = a.title.localeCompare(b.title);
+				break;
+			case "rating":
+				cmp = (a.averageRating ?? -1) - (b.averageRating ?? -1);
+				break;
+			case "watchCount":
+				cmp = a.watchCount - b.watchCount;
+				break;
+			case "year":
+				cmp = (a.year ?? 0) - (b.year ?? 0);
+				break;
+			case "runtime":
+				cmp = (a.runtime ?? 0) - (b.runtime ?? 0);
+				break;
+		}
+		return direction === "asc" ? cmp : -cmp;
+	});
+	return sorted;
+}
+
+export function paginate<T>(items: T[], page: number, pageSize: number): PagedResult<T> {
+	const total = items.length;
+	const totalPages = Math.max(1, Math.ceil(total / pageSize));
+	const clampedPage = Math.min(Math.max(1, page), totalPages);
+	const start = (clampedPage - 1) * pageSize;
+	const pageItems = items.slice(start, start + pageSize);
+
+	return {
+		items: pageItems,
+		total,
+		page: clampedPage,
+		pageSize,
+	};
+}
+
+/** Runs the full filter -> progress tab -> search -> sort -> paginate pipeline in one call. */
+export function runLibraryQuery(allItems: MediaItem[], query: LibraryQuery): PagedResult<MediaItem> {
+	const filtered = applyLibraryFilter(allItems, query.filter);
+	const tabbed = applyProgressTab(filtered, query.progressTab);
+	const searched = applyLibrarySearch(tabbed, query.searchText);
+	const sorted = sortLibrary(searched, query.sortField, query.sortDirection);
+	return paginate(sorted, query.page, query.pageSize);
+}

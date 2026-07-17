@@ -1,0 +1,36 @@
+{
+	"name": "mediavault",
+	"version": "3.1.0",
+	"description": "Track movies, TV shows, reviews, rewatches, and mood-based comfort media inside Obsidian.",
+	"main": "main.js",
+	"scripts": {
+		"dev": "node esbuild.config.mjs",
+		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"lint": "eslint src --ext .ts",
+		"test": "vitest run"
+	},
+	"keywords": [
+		"obsidian-plugin",
+		"movies",
+		"tv-tracking",
+		"media"
+	],
+	"author": "",
+	"license": "MIT",
+	"dependencies": {
+		"chart.js": "^4.4.1"
+	},
+	"devDependencies": {
+		"@types/node": "^20.11.0",
+		"@typescript-eslint/eslint-plugin": "^7.0.0",
+		"@typescript-eslint/parser": "^7.0.0",
+		"builtin-modules": "^3.3.0",
+		"esbuild": "^0.20.0",
+		"eslint": "^8.56.0",
+		"jsdom": "^29.1.1",
+		"obsidian": "latest",
+		"tslib": "2.6.2",
+		"typescript": "~5.9.3",
+		"vitest": "^1.2.0"
+	}
+}
