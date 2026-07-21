@@ -2,6 +2,21 @@
 
 All notable changes to MediaVault are documented in this file.
 
+## [4.7.0] — GDPR Import Matching Accuracy & Diagnostics
+
+### Milestone 1 — Improve GDPR Import Matching Accuracy
+- New `extractTitleMetadata()` (`services/importer/normalize.ts`): every imported title is now run through a full parenthetical-metadata extractor before TMDB search, not just a year-only regex. Classifies trailing `(...)` groups as a release year, an ISO country code (`(KR)`, `(US)`, ...), a spelled-out language name (`(Korean)`), or — when none of those apply — a probable alternate/original title (`(First Sequence)`, `(Nanatsu no Taizai)`), and strips them from the search title.
+- `tmdb-match.ts` scoring now takes country/language hints into account as a tiebreaker between otherwise-similar candidates (weighted ~10-15%, neutral when no hint was extracted, so titles without any parenthetical are scored exactly as before).
+- `TMDBSearchResult` now carries `country`/`language` (TMDB's TV search results already return `origin_country`/`original_language` — previously discarded during normalization).
+- Every GDPR construction site in `gdpr.ts` (watches, reviews, ratings, favorites, list items) now attaches these hints via a shared `titleMatchHints()` helper.
+
+### Milestone 2 — Investigate Missing Watch Time & Import Completeness
+- Audited the full GDPR pipeline against a real TV Time export and found two real bugs:
+  - `tracking-prod-records.csv` rows with `type: "rewatch"` (real movie rewatch events, own runtime/release date) were silently dropped by a filter that only accepted `type: "watch"`. Now imported identically to a `"watch"` row.
+  - Rows where TV Time puts a year in the `season_number` column (anthology/podcast-style entries like "Rotten Mango," "Formula 1," "Studio Ghibli" collections) were silently turned into bogus episode watches that could never match a real TMDB episode. These are now diverted to a diagnosed warning (`looksLikeYearNotSeason()`) instead of failing invisibly downstream.
+- `ImportReport` gained a full diagnostics block: `totalRecordsParsed`, `matchedMediaCount`/`unmatchedMediaCount`, `matchedEpisodes`/`unmatchedEpisodes`, `totalImportedRuntimeSeconds`, and `skippedByReason` (a tally of every skip site in the pipeline, grouped by human-readable reason).
+- The import report modal now shows a "Diagnostics" section with these totals plus a "Why records were skipped" breakdown, so a gap against TV Time's own reported watch time is explainable rather than a black box.
+
 ## [2.7.0] — TV Time Style Lists (New roadmap, Milestone 7)
 
 - Redesigned the Lists grid cards: the four-poster banner now fills the whole card as a wide strip with title/description/meta (item count · last updated · owner) overlaid at the bottom behind a gradient scrim, instead of sitting in a separate info block underneath — matches the visual direction of the provided TV Time reference image (markup/CSS built from scratch, not copied)

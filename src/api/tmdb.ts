@@ -20,6 +20,9 @@ import {
 	TMDBNormalizedEpisode,
 	TMDBRawCastMember,
 	TMDBRawCrewMember,
+	TMDBRawPersonDetails,
+	TMDBPersonDetails,
+	TMDBFilmographyItem,
 } from "../types/tmdb";
 import { PagedResult } from "../types/common";
 
@@ -70,11 +73,17 @@ export class TMDBService {
 
 	// ---- Search ----
 
-	async searchMovies(query: string, page = 1): Promise<PagedResult<TMDBSearchResult>> {
-		const key = `search:movie:${query}:${page}:${this.language}`;
+	async searchMovies(query: string, page = 1, year: number | null = null): Promise<PagedResult<TMDBSearchResult>> {
+		const key = `search:movie:${query}:${page}:${year ?? ""}:${this.language}`;
 		return this.cached(key, async () => {
 			const raw = await this.http.get<TMDBRawSearchResponse>("/search/movie", {
-				params: { query, page, language: this.language, include_adult: "false" },
+				params: {
+					query,
+					page,
+					language: this.language,
+					include_adult: "false",
+					...(year !== null ? { primary_release_year: year } : {}),
+				},
 			});
 			return {
 				items: raw.results.map((r) => normalizeSearchResult(r, "movie")),
@@ -85,11 +94,17 @@ export class TMDBService {
 		});
 	}
 
-	async searchShows(query: string, page = 1): Promise<PagedResult<TMDBSearchResult>> {
-		const key = `search:tv:${query}:${page}:${this.language}`;
+	async searchShows(query: string, page = 1, year: number | null = null): Promise<PagedResult<TMDBSearchResult>> {
+		const key = `search:tv:${query}:${page}:${year ?? ""}:${this.language}`;
 		return this.cached(key, async () => {
 			const raw = await this.http.get<TMDBRawSearchResponse>("/search/tv", {
-				params: { query, page, language: this.language, include_adult: "false" },
+				params: {
+					query,
+					page,
+					language: this.language,
+					include_adult: "false",
+					...(year !== null ? { first_air_date_year: year } : {}),
+				},
 			});
 			return {
 				items: raw.results.map((r) => normalizeSearchResult(r, "tv")),
@@ -149,6 +164,58 @@ export class TMDBService {
 	async getCredits(tmdbId: number, kind: "movie" | "tv"): Promise<TMDBNormalizedDetails["cast"]> {
 		const details = kind === "movie" ? await this.getMovie(tmdbId) : await this.getTV(tmdbId);
 		return details.cast;
+	}
+
+	/**
+	 * Actor/actress bio + combined filmography (Milestone 4: Cast &
+	 * Filmography System), for the Actor Details modal opened from a Cast
+	 * tab. One request via `append_to_response=combined_credits` rather
+	 * than a separate movie_credits + tv_credits call, cached like
+	 * everything else so re-opening the same actor doesn't re-hit TMDB.
+	 */
+	async getPersonDetails(personId: number): Promise<TMDBPersonDetails> {
+		const key = `person:${personId}:${this.language}`;
+		return this.cached(key, async () => {
+			const raw = await this.http.get<TMDBRawPersonDetails>(`/person/${personId}`, {
+				params: { language: this.language, append_to_response: "combined_credits" },
+			});
+			// TV_PROGRAM_GENRE_IDS: TMDB's TV genre IDs for Talk (10767),
+			// Reality (10764), Documentary (99), and News (10763) — the
+			// closest native signal to "reality/talk/variety/game
+			// shows/documentaries/specials" from the spec, since TMDB
+			// doesn't distinguish "program" vs "series" as a media type.
+			const TV_PROGRAM_GENRE_IDS = new Set([10767, 10764, 99, 10763]);
+
+			const filmography = (raw.combined_credits?.cast ?? [])
+				.filter((c) => c.media_type === "movie" || c.media_type === "tv")
+				.map((c) => {
+					const mediaKind = c.media_type as "movie" | "tv";
+					const isProgram = mediaKind === "tv" && (c.genre_ids ?? []).some((g) => TV_PROGRAM_GENRE_IDS.has(g));
+					const category: TMDBFilmographyItem["category"] =
+						mediaKind === "movie" ? "movie" : isProgram ? "tv_program" : "tv_series";
+					return {
+						tmdbId: c.id,
+						mediaKind,
+						category,
+						title: c.title ?? c.name ?? "Untitled",
+						posterPath: c.poster_path ?? null,
+						year: (c.release_date || c.first_air_date || "").slice(0, 4) || null,
+						character: c.character ?? null,
+						popularity: c.popularity ?? 0,
+					};
+				})
+				// Newest releases first by default, per spec — falls back to popularity only when years tie/are unknown.
+				.sort((a, b) => (b.year ?? "").localeCompare(a.year ?? "") || b.popularity - a.popularity);
+
+			return {
+				tmdbPersonId: raw.id,
+				name: raw.name,
+				profilePath: raw.profile_path ?? null,
+				birthday: raw.birthday ?? null,
+				placeOfBirth: raw.place_of_birth ?? null,
+				filmography,
+			};
+		});
 	}
 
 	// ---- Episodes ----

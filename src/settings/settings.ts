@@ -78,6 +78,14 @@ export interface MediaVaultSettings {
 	notificationTimezone: string;
 	/** ISO calendar date (YYYY-MM-DD) the daily check last ran, so it fires at most once per day. */
 	notificationLastCheckedDate: string | null;
+
+	/**
+	 * Comments Languages (Milestone 2: Localized Trakt Comments). Trakt
+	 * comments are filtered to only these languages, in priority order —
+	 * primary first, then each additional language.
+	 */
+	commentsPrimaryLanguage: string;
+	commentsAdditionalLanguages: string[];
 }
 
 export const DEFAULT_SETTINGS: MediaVaultSettings = {
@@ -115,4 +123,6 @@ export const DEFAULT_SETTINGS: MediaVaultSettings = {
 	notificationSilent: false,
 	notificationTimezone: "",
 	notificationLastCheckedDate: null,
+	commentsPrimaryLanguage: "en",
+	commentsAdditionalLanguages: [],
 };

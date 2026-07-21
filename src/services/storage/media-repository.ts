@@ -37,6 +37,7 @@ export class MediaRepository extends BaseRepository<MediaItem> {
 			country: null,
 			synopsis: null,
 			status: MediaStatus.PlanToWatch,
+			droppedReason: null,
 			tvStatus: null,
 			isFavorite: false,
 			liked: false,

@@ -58,9 +58,13 @@ export function computeStatistics(input: StatisticsInput): DashboardStatistics {
 /**
  * Thin async wrapper exposing the four named methods from the spec,
  * fetching fresh data from storage on every call. Kept dependency-light —
- * StatisticsService doesn't cache anything itself; if a memoization layer
- * is ever needed (per Milestone 16's pattern for analytics), it can wrap
- * this the same way computeAnalyticsMemoized wraps computeAnalytics.
+ * StatisticsService doesn't cache anything itself, deliberately: an
+ * existing test asserts it always recomputes from live storage rather
+ * than a cached counter, so mutating the mock stores between calls on
+ * the same instance is expected to change the result immediately. If a
+ * memoization layer is ever needed, it should key off something that
+ * invalidates on every relevant mutation without a live version signal
+ * from storage the way analytics' `computeAnalyticsMemoized` does.
  */
 export class StatisticsService {
 	constructor(private storage: StorageService) {}
@@ -96,15 +100,26 @@ export class StatisticsService {
 	}
 }
 
-/** Formats minutes as "Xd Yh" / "Xh Ym" / "Ym", matching the spec's "31d 4h" example. */
+/** Formats minutes as a human-readable duration using the two most significant units: "Xy Zmo" / "Xmo Yd" / "Xd Yh" / "Xh Ym" / "Ym". */
 export function formatWatchTime(totalMinutes: number): string {
 	if (totalMinutes <= 0) return "0m";
 
-	const days = Math.floor(totalMinutes / (24 * 60));
+	const totalHours = Math.floor(totalMinutes / 60);
+	const totalDays = Math.floor(totalHours / 24);
+	const totalMonths = Math.floor(totalDays / 30.44);
+	const totalYears = Math.floor(totalDays / 365.25);
+
+	if (totalYears > 0) {
+		const remainingMonths = Math.floor((totalDays - totalYears * 365.25) / 30.44);
+		return remainingMonths > 0 ? `${totalYears}y ${remainingMonths}mo` : `${totalYears}y`;
+	}
+	if (totalMonths > 0) {
+		const remainingDays = Math.floor(totalDays - totalMonths * 30.44);
+		return remainingDays > 0 ? `${totalMonths}mo ${remainingDays}d` : `${totalMonths}mo`;
+	}
 	const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
 	const minutes = totalMinutes % 60;
-
-	if (days > 0) return `${days}d ${hours}h`;
+	if (totalDays > 0) return `${totalDays}d ${hours}h`;
 	if (hours > 0) return `${hours}h ${minutes}m`;
 	return `${minutes}m`;
 }

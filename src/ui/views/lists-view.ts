@@ -11,6 +11,8 @@ import { ListDetailModal } from "../modals/list-detail-modal";
 export class ListsView extends ItemView {
 	private plugin: MediaVaultPlugin;
 	private gridEl!: HTMLElement;
+	/** Generation counter guarding against overlapping refresh() calls (defense in depth — see notifyChanged() in list-detail-modal.ts for the root cause this protects against). A refresh whose token goes stale mid-await discards its render instead of appending alongside a newer one. */
+	private refreshToken = 0;
 
 	constructor(leaf: WorkspaceLeaf, plugin: MediaVaultPlugin) {
 		super(leaf);
@@ -51,9 +53,15 @@ export class ListsView extends ItemView {
 	}
 
 	async refresh(): Promise<void> {
-		this.gridEl.empty();
+		const token = ++this.refreshToken;
 
 		const [lists, allMedia] = await Promise.all([this.plugin.storage.customLists.getAll(), this.plugin.storage.media.getAll()]);
+
+		// A newer refresh() started while we were awaiting — let it own the
+		// DOM instead of both of us rendering into the same grid.
+		if (token !== this.refreshToken) return;
+
+		this.gridEl.empty();
 
 		if (lists.length === 0) {
 			this.gridEl.createEl("p", {
@@ -103,7 +111,7 @@ export class ListsView extends ItemView {
 		}
 
 		card.addEventListener("click", () => {
-			new ListDetailModal(this.app, this.plugin, list, () => void this.refresh()).open();
+			new ListDetailModal(this.app, this.plugin, list).open();
 		});
 	}
 }

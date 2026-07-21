@@ -36,6 +36,43 @@ const migrations: Record<number, Migration> = {
 			}))
 			: [],
 	}),
+
+	// v3 -> v4: MediaItem gains `droppedReason` (Milestone 3: Dropped TV
+	// Series) — additive-optional, backfilled null for every existing record.
+	3: (data) => ({
+		...data,
+		media: Array.isArray(data.media)
+			? (data.media as Record<string, unknown>[]).map((m) => ({
+					droppedReason: null,
+					...m,
+			}))
+			: [],
+	}),
+
+	// v4 -> v5: movies with partial progress are now Dropped rather than
+	// Watching (roadmap Milestone 2: Dropped Movies) — "Watching" was never
+	// a real auto-derived state for a movie (a movie is either watched or
+	// not), so any movie left at Watching purely because it had a
+	// `movieProgress` record under the old rule is reclassified once here.
+	// A movie explicitly resumed later (Resume Watching) writes Watching
+	// again directly, which this migration never runs against a second time.
+	4: (data) => {
+		const progressMediaIds = new Set(
+			Array.isArray(data.movieProgress)
+				? (data.movieProgress as Record<string, unknown>[]).map((p) => p.mediaId)
+				: []
+		);
+		return {
+			...data,
+			media: Array.isArray(data.media)
+				? (data.media as Record<string, unknown>[]).map((m) =>
+						m.type === "movie" && m.status === "watching" && progressMediaIds.has(m.id)
+							? { ...m, status: "dropped" }
+							: m
+					)
+				: [],
+		};
+	},
 };
 
 /**
@@ -56,6 +93,12 @@ function withDefaultsApplied(data: Record<string, unknown>): VaultData {
 		episodeProgress: Array.isArray(data.episodeProgress)
 			? (data.episodeProgress as VaultData["episodeProgress"])
 			: empty.episodeProgress,
+		episodeWatches: Array.isArray(data.episodeWatches)
+			? (data.episodeWatches as VaultData["episodeWatches"])
+			: empty.episodeWatches,
+		movieProgress: Array.isArray(data.movieProgress)
+			? (data.movieProgress as VaultData["movieProgress"])
+			: empty.movieProgress,
 		comfortProfiles: Array.isArray(data.comfortProfiles)
 			? (data.comfortProfiles as VaultData["comfortProfiles"])
 			: empty.comfortProfiles,

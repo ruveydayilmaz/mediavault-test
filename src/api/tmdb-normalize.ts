@@ -29,6 +29,8 @@ export function normalizeSearchResult(raw: TMDBRawSearchResultItem, mediaKind: T
 		posterPath: raw.poster_path,
 		backdropPath: raw.backdrop_path,
 		overview: raw.overview ?? "",
+		country: raw.origin_country?.[0] ?? null,
+		language: raw.original_language ?? null,
 	};
 }
 
@@ -67,6 +69,7 @@ export function normalizeMovieDetails(raw: TMDBRawMovieDetails): TMDBNormalizedD
 			department: c.department,
 			profilePath: c.profile_path,
 		})),
+		tmdbRating: raw.vote_average ?? null,
 	};
 }
 
@@ -114,6 +117,7 @@ export function normalizeTVDetails(raw: TMDBRawTVDetails): TMDBNormalizedDetails
 				airDate: s.air_date,
 			})),
 		tvStatus: raw.status,
+		tmdbRating: raw.vote_average ?? null,
 	};
 }
 

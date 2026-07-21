@@ -118,8 +118,25 @@ export async function checkMetadataUpdates(
 			const knownEpisodes = await storage.episodes.findByMediaId(show.id);
 			const knownMaxSeason = knownEpisodes.reduce((max, e) => Math.max(max, e.seasonNumber), 0);
 
+			// Milestone 3 (Notification Date Validation): a show with no
+			// locally-imported episodes yet (`knownEpisodes.length === 0`)
+			// isn't necessarily a show with no seasons on TMDB — episode
+			// import is a separate, independently-scheduled process
+			// (Milestone 9), so there's a real window where a just-added
+			// show has zero local episodes even though it's had several
+			// seasons for years. Comparing season numbers against a
+			// baseline of 0 in that window made every existing season look
+			// "new." Guard with the season's actual air date instead: only
+			// ever notify for a season/episode that aired on or after the
+			// show was added to the library — that's the only sense in
+			// which content the user "started tracking" can be new.
+			const trackedSince = show.createdAt.slice(0, 10);
+
 			for (const season of details.seasons) {
 				if (season.seasonNumber === 0) continue; // specials
+				const seasonIsHistorical = season.airDate !== null && season.airDate < trackedSince;
+				if (seasonIsHistorical) continue;
+
 				if (enabled.newSeason && season.seasonNumber > knownMaxSeason) {
 					pending.push({
 						type: "new_season",

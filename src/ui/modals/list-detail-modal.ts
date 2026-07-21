@@ -1,10 +1,10 @@
-import { App, Modal, Notice } from "obsidian";
+import { App, Modal, Notice, Menu } from "obsidian";
 import type { StorageService } from "../../services/storage";
 import type MediaVaultPlugin from "../../main";
 import { CustomList, ListSortMode } from "../../models/list";
 import { MediaItem } from "../../models/media";
 import { sortListMedia, formatRelativeDate } from "../../services/list-service";
-import { renderPoster } from "../components/media-render";
+import { renderPoster, getMediaPercentWatched, renderProgressOverlay } from "../components/media-render";
 import { SelectMediaModal } from "./select-media-modal";
 
 const SORT_MODE_OPTIONS: { value: ListSortMode; label: string }[] = [
@@ -35,9 +35,23 @@ export class ListDetailModal extends Modal {
 		void this.render();
 	}
 
+	/**
+	 * Single fan-out for "this list changed": drives every view that can
+	 * show list data (Lists page + the Home dashboard's Lists carousel)
+	 * through the plugin's own leaf-iterating refresh methods. Callers
+	 * used to *also* pass their own view's `refresh()` as `onChanged` —
+	 * since `refreshListViews()`/`refreshLibraryViews()` already find and
+	 * refresh that exact same leaf, that fired two overlapping, unguarded
+	 * `refresh()` calls on one view. Each does `empty()` then an async
+	 * re-render; interleaved, the second call's `empty()` could run after
+	 * the first had already started appending cards, leaving both sets of
+	 * cards in the DOM. That race — not anything in list creation or
+	 * storage — was the source of "lists appear twice."
+	 */
 	private notifyChanged(): void {
-		this.onChanged?.();
+		this.plugin.refreshLibraryViews();
 		this.plugin.refreshListViews();
+		this.onChanged?.();
 	}
 
 	private async render(): Promise<void> {
@@ -47,55 +61,88 @@ export class ListDetailModal extends Modal {
 
 		const fresh = await this.storage.customLists.findById(this.list.id);
 		if (!fresh) {
-			contentEl.createEl("p", { text: "This list no longer exists." });
+			contentEl.createDiv({
+				cls: "mediavault-empty-state mediavault-list-detail-gone",
+				text: "This list no longer exists.",
+			});
 			return;
 		}
 		this.list = fresh;
 		const allMedia = await this.storage.media.getAll();
 
-		// --- Header: title / description / metadata (banner collage removed — Milestone 7: it now lives only in the library overview) ---
+		// --- Header: read-only title + hamburger menu ---
 		const header = contentEl.createDiv({ cls: "mediavault-list-detail-header" });
 
-		const metaRow = header.createDiv({ cls: "mediavault-list-detail-meta" });
-		metaRow.createSpan({ text: `${this.list.mediaIds.length} item${this.list.mediaIds.length === 1 ? "" : "s"}` });
-		metaRow.createSpan({ text: `Updated ${formatRelativeDate(this.list.updatedAt)}` });
-		metaRow.createSpan({ text: this.list.owner ?? "You" });
-
-		const titleInput = header.createEl("input", { type: "text", cls: "mediavault-list-title-input" });
-		titleInput.value = this.list.title;
-		titleInput.addEventListener("change", async () => {
-			const title = titleInput.value.trim();
-			if (!title) {
-				titleInput.value = this.list.title;
-				return;
-			}
-			const updated = await this.storage.customLists.update(this.list.id, { title });
-			if (updated) this.list = updated;
-			this.notifyChanged();
+		const titleRow = header.createDiv({ cls: "mediavault-list-detail-title-row" });
+		const titleEl = titleRow.createDiv({
+			cls: "mediavault-list-detail-title-text",
+			text: this.list.title,
 		});
-
-		const descInput = header.createEl("textarea", {
-			cls: "mediavault-list-description-input",
-			attr: { placeholder: "Description..." },
-		});
-		descInput.value = this.list.description ?? "";
-		descInput.addEventListener("change", async () => {
-			const updated = await this.storage.customLists.update(this.list.id, { description: descInput.value || null });
-			if (updated) this.list = updated;
-			this.notifyChanged();
-		});
-
 		if (this.list.isImported) {
-			header.createDiv({
+			titleRow.createDiv({
 				cls: "mediavault-list-imported-badge",
 				text: `Imported${this.list.importSource ? ` — ${this.list.importSource}` : ""}`,
 			});
 		}
 
-		// --- Action row: sort mode, duplicate, delete ---
-		const actionsRow = contentEl.createDiv({ cls: "mediavault-list-actions-row" });
+		// Hamburger menu button
+		const menuBtn = titleRow.createEl("button", {
+			cls: "mediavault-list-detail-menu-btn clickable-icon",
+			attr: { "aria-label": "List actions" },
+		});
+		menuBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>`;
+		menuBtn.addEventListener("click", (evt) => {
+			const menu = new Menu();
 
-		const sortSelect = actionsRow.createEl("select");
+			menu.addItem((item) => {
+				item.setTitle("Edit title & description")
+					.setIcon("pencil")
+					.onClick(() => this.enterEditMode(titleEl, descEl));
+			});
+
+			menu.addItem((item) => {
+				item.setTitle("Add media")
+					.setIcon("plus")
+					.onClick(() => this.addMedia());
+			});
+
+			menu.addItem((item) => {
+				item.setTitle("Duplicate list")
+					.setIcon("copy")
+					.onClick(() => this.duplicateList());
+			});
+
+			menu.addSeparator();
+
+			menu.addItem((item) => {
+				item.setTitle("Delete list")
+					.setIcon("trash")
+					.onClick(() => this.deleteList());
+			});
+
+			menu.showAtMouseEvent(evt);
+		});
+
+		// Meta pills
+		const metaRow = header.createDiv({ cls: "mediavault-list-detail-meta" });
+		const addMetaPill = (text: string) => metaRow.createSpan({ cls: "mediavault-list-detail-meta-pill", text });
+		addMetaPill(`${this.list.mediaIds.length} item${this.list.mediaIds.length === 1 ? "" : "s"}`);
+		addMetaPill(`Updated ${formatRelativeDate(this.list.updatedAt)}`);
+		addMetaPill(this.list.owner ?? "You");
+
+		// Description (read-only)
+		const descEl = header.createDiv({ cls: "mediavault-list-detail-description" });
+		if (this.list.description) {
+			descEl.setText(this.list.description);
+		} else {
+			descEl.addClass("is-placeholder");
+			descEl.setText("No description");
+		}
+
+		// --- Sort row ---
+		const sortRow = contentEl.createDiv({ cls: "mediavault-list-sort-row" });
+		sortRow.createSpan({ cls: "mediavault-list-sort-label", text: "Sort by" });
+		const sortSelect = sortRow.createEl("select", { cls: "mediavault-list-sort-select" });
 		SORT_MODE_OPTIONS.forEach((opt) => sortSelect.createEl("option", { value: opt.value, text: opt.label }));
 		sortSelect.value = this.list.sortMode;
 		sortSelect.addEventListener("change", async () => {
@@ -107,50 +154,21 @@ export class ListDetailModal extends Modal {
 			await this.render();
 		});
 
-		const addBtn = actionsRow.createEl("button", { text: "+ Add media", cls: "mod-cta" });
-		addBtn.addEventListener("click", async () => {
-			const all = await this.storage.media.getAll();
-			const candidates = all.filter((m) => !this.list.mediaIds.includes(m.id));
-			if (candidates.length === 0) {
-				new Notice("MediaVault: every item in your library is already in this list.");
-				return;
-			}
-			new SelectMediaModal(this.app, candidates, async (media) => {
-				const updated = await this.storage.customLists.addMedia(this.list.id, media.id);
-				if (updated) this.list = updated;
-				this.notifyChanged();
-				await this.render();
-			}).open();
-		});
-
-		const duplicateBtn = actionsRow.createEl("button", { text: "Duplicate" });
-		duplicateBtn.addEventListener("click", async () => {
-			await this.storage.customLists.duplicate(this.list.id);
-			this.notifyChanged();
-			new Notice(`MediaVault: duplicated "${this.list.title}".`);
-			this.close();
-		});
-
-		const deleteBtn = actionsRow.createEl("button", { text: "Delete list", cls: "mod-warning" });
-		deleteBtn.addEventListener("click", async () => {
-			const confirmed = confirm(
-				`Delete "${this.list.title}"?\n\nThis will permanently delete this list.\nMedia, watch history, and favorites are not affected.\n\nThis action cannot be undone.`
-			);
-			if (!confirmed) return;
-			await this.storage.customLists.delete(this.list.id);
-			new Notice(`MediaVault: "${this.list.title}" deleted.`);
-			this.notifyChanged();
-			this.close();
-		});
-
 		// --- Contents grid ---
 		const orderedMedia = sortListMedia(this.list, allMedia);
 
-		const gridSection = contentEl.createDiv({ cls: "mediavault-list-detail-grid-section" });
-		const grid = gridSection.createDiv({ cls: "mediavault-list-detail-grid" });
 		if (orderedMedia.length === 0) {
-			grid.createEl("p", { cls: "mediavault-empty-state", text: "This list is empty — add something above." });
+			const empty = contentEl.createDiv({ cls: "mediavault-list-detail-empty" });
+			empty.createDiv({ cls: "mediavault-list-detail-empty-icon", text: "🎬" });
+			empty.createDiv({ cls: "mediavault-list-detail-empty-title", text: "This list is empty" });
+			empty.createDiv({
+				cls: "mediavault-empty-state",
+				text: "Use the ⋮ menu above to add media.",
+			});
+			return;
 		}
+
+		const grid = contentEl.createDiv({ cls: "mediavault-list-detail-grid" });
 
 		const isManual = this.list.sortMode === "manual";
 
@@ -172,7 +190,7 @@ export class ListDetailModal extends Modal {
 
 			loadMoreBtn?.remove();
 			if (renderedCount < orderedMedia.length) {
-				loadMoreBtn = gridSection.createEl("button", {
+				loadMoreBtn = contentEl.createEl("button", {
 					cls: "mediavault-list-load-more",
 					text: `Load more (${orderedMedia.length - renderedCount} remaining)`,
 				});
@@ -181,6 +199,81 @@ export class ListDetailModal extends Modal {
 		};
 		let loadMoreBtn: HTMLButtonElement | undefined;
 		renderBatch();
+	}
+
+	// --- Actions (invoked from hamburger menu) ---
+
+	private enterEditMode(titleEl: HTMLElement, descEl: HTMLElement): void {
+		// Replace title text with input
+		const titleInput = document.createElement("input");
+		titleInput.type = "text";
+		titleInput.value = this.list.title;
+		titleInput.className = "mediavault-list-title-input";
+		titleEl.replaceWith(titleInput);
+		titleInput.focus();
+		titleInput.select();
+
+		const saveTitle = async () => {
+			const title = titleInput.value.trim();
+			if (title && title !== this.list.title) {
+				const updated = await this.storage.customLists.update(this.list.id, { title });
+				if (updated) this.list = updated;
+				this.notifyChanged();
+			}
+			await this.render();
+		};
+		titleInput.addEventListener("blur", saveTitle);
+		titleInput.addEventListener("keydown", (e) => { if (e.key === "Enter") titleInput.blur(); });
+
+		// Replace description text with textarea
+		const descInput = document.createElement("textarea");
+		descInput.className = "mediavault-list-description-input";
+		descInput.value = this.list.description ?? "";
+		descInput.placeholder = "Add a description...";
+		descEl.replaceWith(descInput);
+
+		const saveDesc = async () => {
+			const desc = descInput.value || null;
+			if (desc !== (this.list.description ?? null)) {
+				const updated = await this.storage.customLists.update(this.list.id, { description: desc });
+				if (updated) this.list = updated;
+				this.notifyChanged();
+			}
+		};
+		descInput.addEventListener("blur", saveDesc);
+	}
+
+	private async addMedia(): Promise<void> {
+		const all = await this.storage.media.getAll();
+		const candidates = all.filter((m) => !this.list.mediaIds.includes(m.id));
+		if (candidates.length === 0) {
+			new Notice("MediaVault: every item in your library is already in this list.");
+			return;
+		}
+		new SelectMediaModal(this.app, candidates, async (media) => {
+			const updated = await this.storage.customLists.addMedia(this.list.id, media.id);
+			if (updated) this.list = updated;
+			this.notifyChanged();
+			await this.render();
+		}).open();
+	}
+
+	private async duplicateList(): Promise<void> {
+		await this.storage.customLists.duplicate(this.list.id);
+		this.notifyChanged();
+		new Notice(`MediaVault: duplicated "${this.list.title}".`);
+		this.close();
+	}
+
+	private async deleteList(): Promise<void> {
+		const confirmed = confirm(
+			`Delete "${this.list.title}"?\n\nThis will permanently delete this list.\nMedia, watch history, and favorites are not affected.\n\nThis action cannot be undone.`
+		);
+		if (!confirmed) return;
+		await this.storage.customLists.delete(this.list.id);
+		new Notice(`MediaVault: "${this.list.title}" deleted.`);
+		this.notifyChanged();
+		this.close();
 	}
 
 	private renderListItemCard(grid: HTMLElement, media: MediaItem, orderedMedia: MediaItem[], isManual: boolean): void {
@@ -212,9 +305,14 @@ export class ListDetailModal extends Modal {
 
 		const poster = card.createDiv({ cls: "mediavault-list-detail-poster" });
 		renderPoster(poster, media, "w200");
-		card.createDiv({ cls: "mediavault-list-detail-title", text: media.title });
+		void getMediaPercentWatched(this.storage, media).then((percent) => {
+			if (percent === null) return;
+			renderProgressOverlay(poster, percent, media.status);
+		});
+		card.createDiv({ cls: "mediavault-list-detail-card-title", text: media.title });
 
-		const removeBtn = card.createEl("button", { cls: "mediavault-list-detail-remove", text: "Remove" });
+		const removeBtn = card.createEl("button", { cls: "mediavault-list-detail-remove", text: "✕" });
+		removeBtn.setAttr("aria-label", "Remove from list");
 		removeBtn.addEventListener("click", async (evt) => {
 			evt.stopPropagation();
 			const updated = await this.storage.customLists.removeMedia(this.list.id, media.id);

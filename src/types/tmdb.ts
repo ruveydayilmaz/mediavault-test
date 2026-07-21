@@ -22,6 +22,9 @@ export interface TMDBRawSearchResultItem {
 	overview: string;
 	genre_ids?: number[];
 	media_type?: string;
+	/** TV search results only — TMDB does not return this for movie search results. */
+	origin_country?: string[];
+	original_language?: string;
 }
 
 export interface TMDBRawSearchResponse {
@@ -78,6 +81,7 @@ export interface TMDBRawMovieDetails {
 	original_language: string | null;
 	origin_country?: string[];
 	credits?: TMDBRawCredits;
+	vote_average?: number | null;
 }
 
 export interface TMDBRawTVDetails {
@@ -99,6 +103,7 @@ export interface TMDBRawTVDetails {
 	status?: string;
 	credits?: TMDBRawCredits;
 	seasons?: TMDBRawSeasonSummary[];
+	vote_average?: number | null;
 }
 
 export interface TMDBRawSeasonSummary {
@@ -136,6 +141,10 @@ export interface TMDBSearchResult {
 	posterPath: string | null;
 	backdropPath: string | null;
 	overview: string;
+	/** Origin country (TV only — TMDB's search endpoint doesn't return this for movies), used as a matching hint. */
+	country: string | null;
+	/** Original language code, used as a secondary matching hint alongside country. */
+	language: string | null;
 }
 
 export interface TMDBNormalizedDetails {
@@ -182,6 +191,8 @@ export interface TMDBNormalizedDetails {
 	}[];
 	/** TV-only: TMDB's raw show status (e.g. "Returning Series", "Ended"), used to distinguish "Finished" from "Waiting for New Season". */
 	tvStatus?: string;
+	/** TMDB's public vote average (0-10), shown in Filmography Preview mode where there's no local averageRating yet. */
+	tmdbRating: number | null;
 }
 
 export interface TMDBNormalizedEpisode {
@@ -223,4 +234,50 @@ export interface TMDBImageOption {
 export interface TMDBImageOptions {
 	posters: TMDBImageOption[];
 	backdrops: TMDBImageOption[];
+}
+
+// ---- Person / Cast & Filmography (Milestone 4: Cast & Filmography System) ----
+
+export interface TMDBRawCombinedCreditItem {
+	id: number;
+	media_type: "movie" | "tv" | string;
+	title?: string;
+	name?: string;
+	poster_path?: string | null;
+	release_date?: string;
+	first_air_date?: string;
+	character?: string;
+	popularity?: number;
+	genre_ids?: number[];
+}
+
+export interface TMDBRawPersonDetails {
+	id: number;
+	name: string;
+	profile_path?: string | null;
+	birthday?: string | null;
+	place_of_birth?: string | null;
+	combined_credits?: {
+		cast?: TMDBRawCombinedCreditItem[];
+	};
+}
+
+export interface TMDBFilmographyItem {
+	tmdbId: number;
+	mediaKind: "movie" | "tv";
+	category: "movie" | "tv_series" | "tv_program";
+	title: string;
+	posterPath: string | null;
+	year: string | null;
+	character: string | null;
+	popularity: number;
+}
+
+export interface TMDBPersonDetails {
+	tmdbPersonId: number;
+	name: string;
+	profilePath: string | null;
+	birthday: string | null;
+	placeOfBirth: string | null;
+	filmography: TMDBFilmographyItem[];
 }

@@ -61,6 +61,7 @@ export async function updateWatchSession(
 	if (!updated) return null;
 
 	await syncMediaAggregates(storage, updated.mediaId);
+	await recalculateAndPersistStatus(storage, updated.mediaId);
 	return updated;
 }
 

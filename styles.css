@@ -71,11 +71,63 @@
 	display: flex;
 	gap: 2px;
 	margin-left: auto;
+	padding: 2px;
+	border-radius: 8px;
+	background: var(--background-secondary);
 }
 
-.mediavault-library-view-toggle button.is-active {
+.mediavault-view-toggle-btn {
+	padding: 6px 8px;
+	border-radius: 6px;
+	color: var(--text-muted);
+	transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.mediavault-view-toggle-btn:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.mediavault-view-toggle-btn.is-active {
 	background: var(--interactive-accent);
 	color: var(--text-on-accent);
+}
+
+.mediavault-view-toggle-btn.is-active:hover {
+	background: var(--interactive-accent-hover);
+	color: var(--text-on-accent);
+}
+
+.mediavault-pagination {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 16px;
+	padding: 16px 0 4px 0;
+}
+
+.mediavault-pagination-btn {
+	padding: 6px;
+	border-radius: 6px;
+	color: var(--text-muted);
+	transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.mediavault-pagination-btn:hover:not(:disabled) {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.mediavault-pagination-btn:disabled {
+	opacity: 0.35;
+	cursor: default;
+}
+
+.mediavault-pagination-info {
+	color: var(--text-muted);
+	font-size: 0.9em;
+	min-width: 160px;
+	text-align: center;
 }
 
 .mediavault-library-content {
@@ -134,6 +186,14 @@
 	background: var(--interactive-accent);
 }
 
+.mediavault-table-progress {
+	width: 80px;
+	height: 6px;
+	border-radius: 3px;
+	overflow: hidden;
+	background: var(--background-modifier-border);
+}
+
 /* List view */
 .mediavault-list-row {
 	display: flex;
@@ -144,6 +204,7 @@
 }
 
 .mediavault-list-poster {
+	position: relative;
 	flex: 0 0 auto;
 	width: 42px;
 	height: 63px;
@@ -153,6 +214,15 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
+}
+
+.mediavault-list-poster-progress {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	height: 3px;
+	background: rgba(0, 0, 0, .35);
 }
 
 .mediavault-list-poster img {
@@ -383,6 +453,45 @@
 	margin-top: 10px;
 }
 
+.mediavault-episode-watch-card-header {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-bottom: 6px;
+}
+
+.mediavault-episode-watch-card-header .mediavault-detail-meta {
+	flex: 1;
+}
+
+.mediavault-delete-watch-btn {
+	color: var(--text-muted);
+}
+
+.mediavault-delete-watch-btn:hover {
+	color: var(--text-error);
+}
+
+.mediavault-add-watch-btn {
+	margin: 10px 0 4px 0;
+	width: 100%;
+	padding: 8px;
+	border-radius: 8px;
+	border: 1px dashed var(--background-modifier-border);
+	background: transparent;
+	color: var(--text-muted);
+	cursor: pointer;
+}
+
+.mediavault-add-watch-btn:hover {
+	color: var(--text-normal);
+	border-color: var(--interactive-accent);
+}
+
+.mediavault-episode-rating-evolution {
+	margin-bottom: 12px;
+}
+
 
 .mediavault-detail-log-btn {
 	width: 44px;
@@ -397,6 +506,20 @@
 .mediavault-detail-log-btn svg {
 	width: 20px;
 	height: 20px;
+}
+
+.mediavault-add-to-library-btn {
+	flex-shrink: 0;
+	padding: 8px 16px;
+	border-radius: 20px;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.mediavault-in-library-btn {
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	cursor: default;
 }
 
 .mediavault-detail-body {
@@ -528,23 +651,54 @@
 	width: 100%;
 }
 
-/* Comments (Milestone 4: Comments Integration) */
+/* Comments (Milestone 4: Comments Integration; redesigned in roadmap
+   Milestone 1, Part 3 — avatar column + header/body/footer structure
+   instead of a single flat block). */
 .mediavault-comments-list {
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
+	gap: 14px;
 	margin-top: 8px;
 }
 
 .mediavault-comment-item {
-	padding: 10px 12px;
+	display: flex;
+	gap: 12px;
+	padding: 12px 14px;
 	border: 1px solid var(--background-modifier-border);
-	border-radius: 6px;
+	border-radius: 8px;
+}
+
+.mediavault-comment-avatar {
+	flex-shrink: 0;
+	width: 36px;
+	height: 36px;
+	border-radius: 50%;
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-weight: 600;
+	font-size: 0.9em;
+	overflow: hidden;
+}
+
+.mediavault-comment-avatar img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.mediavault-comment-main {
+	flex: 1;
+	min-width: 0;
 }
 
 .mediavault-comment-header {
 	display: flex;
 	align-items: center;
+	flex-wrap: wrap;
 	gap: 8px;
 	font-size: 0.85em;
 	color: var(--text-muted);
@@ -553,6 +707,17 @@
 .mediavault-comment-author {
 	font-weight: 600;
 	color: var(--text-normal);
+}
+
+.mediavault-comment-rating {
+	color: var(--color-yellow, #e0ac00);
+	font-weight: 600;
+	font-size: 0.92em;
+}
+
+.mediavault-comment-date {
+	margin-left: auto;
+	white-space: nowrap;
 }
 
 .mediavault-comment-spoiler-tag {
@@ -566,6 +731,7 @@
 .mediavault-comment-body {
 	margin: 6px 0 0 0;
 	font-size: 0.9em;
+	line-height: 1.5;
 }
 
 .mediavault-comment-body.is-spoiler-hidden {
@@ -574,7 +740,134 @@
 	user-select: none;
 }
 
+.mediavault-comment-item.is-newly-posted {
+	border-color: var(--interactive-accent);
+	background: var(--background-modifier-hover);
+	transition: background-color 1.5s ease, border-color 1.5s ease;
+}
+
+.mediavault-comment-footer {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin-top: 8px;
+}
+
+.mediavault-comment-likes {
+	font-size: 0.8em;
+	color: var(--text-muted);
+}
+
+.mediavault-comment-actions {
+	display: flex;
+	gap: 8px;
+	margin-left: auto;
+}
+
+.mediavault-comment-actions button {
+	font-size: 0.8em;
+	padding: 2px 8px;
+}
+
+.mediavault-comment-edit-input {
+	width: 100%;
+	min-height: 70px;
+	margin-top: 6px;
+	resize: vertical;
+	font: inherit;
+	padding: 6px 8px;
+	border-radius: 6px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+
+.mediavault-comment-composer {
+	margin-bottom: 14px;
+	padding-bottom: 14px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.mediavault-comment-composer h4 {
+	margin: 0 0 6px 0;
+}
+
+.mediavault-comment-compose-input {
+	width: 100%;
+	min-height: 80px;
+	resize: vertical;
+	font: inherit;
+	padding: 8px;
+	border-radius: 6px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+
+.mediavault-comment-char-counter {
+	font-size: 0.8em;
+	color: var(--text-muted);
+	text-align: right;
+	margin: 4px 0 8px 0;
+}
+
+.mediavault-comment-char-counter.is-over-limit {
+	color: var(--text-error);
+}
+
+.mediavault-comment-refresh-warning {
+	margin-top: 8px;
+}
+
+.mediavault-comment-refresh-warning-text {
+	color: var(--text-warning, var(--text-error));
+}
+
+.mediavault-comment-refresh-warning button {
+	margin-top: 4px;
+}
+
 /* Episode Details view (Milestone 4) */
+.mediavault-episode-nav-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 8px;
+	margin: 10px 0;
+}
+
+.mediavault-episode-nav-btn {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 10px;
+	border-radius: 6px;
+	color: var(--text-normal);
+	font-size: 0.9em;
+	max-width: 48%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mediavault-episode-nav-btn:hover:not(:disabled) {
+	background: var(--background-modifier-hover);
+}
+
+.mediavault-episode-nav-btn:disabled {
+	opacity: 0.35;
+	cursor: default;
+}
+
+.mediavault-episode-nav-prev {
+	flex-direction: row;
+}
+
+.mediavault-episode-nav-next {
+	flex-direction: row-reverse;
+	margin-left: auto;
+}
+
 .mediavault-back-btn {
 	background: none;
 	border: none;
@@ -724,6 +1017,50 @@
 .mediavault-progress-fill {
 	height: 100%;
 	background: var(--interactive-accent);
+}
+
+/* Dropped TV Series (Milestone 3) / Dropped Movies (roadmap Milestone 2):
+   red progress bar instead of the standard accent color, everywhere a
+   progress bar can appear. */
+.mediavault-progress-fill.is-dropped,
+.mediavault-favorite-progress-fill.is-dropped,
+.mediavault-card-progress-fill.is-dropped {
+	background: var(--text-error, #e5484d);
+}
+
+.mediavault-dropped-banner {
+	border-left: 3px solid var(--text-error, #e5484d);
+	padding-left: 12px;
+}
+
+.mediavault-dropped-reason {
+	font-style: italic;
+	color: var(--text-muted);
+}
+
+/* Partial-watch resume UI (Milestone 3: Partially Watched Movies) */
+.mediavault-movie-progress-wrap {
+	width: 100%;
+	padding-top: 6px;
+}
+
+.mediavault-movie-progress-label {
+	color: #fff;
+	text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+	margin-top: 4px;
+}
+
+.mediavault-movie-progress-actions {
+	display: flex;
+	gap: 8px;
+	margin-top: 8px;
+}
+
+.mediavault-movie-progress-modal .mediavault-modal-buttons {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 12px;
 }
 
 .mediavault-seasons {
@@ -1387,6 +1724,25 @@
 	font-size: 0.85em;
 }
 
+.mediavault-import-zip-files {
+	max-height: 220px;
+	overflow-y: auto;
+	margin: 8px 0;
+	font-size: 0.82em;
+	font-family: var(--font-monospace);
+}
+
+.mediavault-import-zip-file {
+	padding: 2px 0;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.mediavault-import-zip-file.is-unsupported {
+	color: var(--text-muted);
+}
+
 .mediavault-import-empty {
 	color: var(--text-muted);
 	padding: 10px 0;
@@ -1413,6 +1769,43 @@
 	overflow-y: auto;
 	font-size: 0.85em;
 	color: var(--text-error, #e05252);
+}
+
+.mediavault-import-unmatched {
+	margin-top: 12px;
+	max-height: 260px;
+	overflow-y: auto;
+	padding: 10px;
+	background: var(--background-secondary);
+	border-radius: 6px;
+	font-size: 0.85em;
+}
+
+.mediavault-import-unmatched-group-label {
+	font-weight: 700;
+	margin-top: 8px;
+}
+
+.mediavault-import-unmatched-group-label:first-child {
+	margin-top: 0;
+}
+
+.mediavault-import-unmatched-item {
+	color: var(--text-muted);
+	padding: 2px 0 2px 8px;
+}
+
+.mediavault-import-diagnostics {
+	margin-top: 12px;
+	padding: 10px;
+	background: var(--background-secondary);
+	border-radius: 6px;
+	font-size: 0.85em;
+}
+
+.mediavault-import-diagnostics .mediavault-import-report-row {
+	border-bottom: none;
+	padding: 2px 0;
 }
 
 /* --- Media detail: favorite toggle --- */
@@ -1491,7 +1884,16 @@
 	display: grid;
 	grid-template-columns: 1fr 1fr;
 	gap: 8px;
-	align-items: start;
+	align-items: stretch;
+	max-width: 1100px;
+	margin: 0 auto;
+}
+
+/* Stack favorites on top, lists below when the pane is narrow */
+@media (max-width: 700px) {
+	.mediavault-parent-container {
+		grid-template-columns: 1fr;
+	}
 }
 
 /* --- Shared carousel primitive (Milestone 5: Favorites & Lists Carousel Redesign) --- */
@@ -1558,11 +1960,14 @@
 }
 
 /* --- Favorites carousel (roadmap Milestone 2; redesigned Milestone 5) --- */
-.mediavault-favorites-container {
+.mediavault-favorites-container,
+.mediavault-custom-lists-container {
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
 	margin-bottom: 12px;
+	min-height: 200px;
+	min-width: 0;
 }
 
 .mediavault-favorites-header {
@@ -1638,7 +2043,9 @@
 	transition: color .15s;
 }
 
-/* --- Lists carousel (redesigned Milestone 5 — poster-row tiles instead of a single card + dots) --- */
+/* --- Lists carousel (Milestone 4: Carousel Layout Improvements — reverted
+   to one fixed-width card at a time, navigated via Prev/Next/swipe, after
+   the Milestone 5 poster-row-of-tiles redesign proved too cramped) --- */
 
 .mediavault-lists-carousel-header {
 	padding: 8px 0;
@@ -1651,15 +2058,20 @@
 	margin: 0 24px;
 }
 
+.mediavault-lists-track {
+	scroll-snap-type: x mandatory;
+}
+
 .mediavault-list-tile {
-	width: 220px;
+	width: 100%;
+	flex: 0 0 100%;
 	position: relative;
 	cursor: pointer;
 	border-radius: 8px;
 	overflow: hidden;
 	border: 1px solid var(--background-modifier-border);
 	background: var(--background-secondary);
-	transition: transform 0.1s ease;
+	transition: transform 0.15s ease, opacity 0.15s ease;
 }
 
 .mediavault-list-tile:hover {
@@ -1755,12 +2167,25 @@
 	max-width: 100%;
 	box-sizing: border-box;
 	padding-top: max(16px, env(safe-area-inset-top));
-	padding-bottom: max(16px, env(safe-area-inset-bottom));
+	/* Bottom safe area is intentionally NOT added here — this region
+	   scrolls, so a fixed inset here would either be scrolled past
+	   uselessly or, combined with the sticky action bar's own inset
+	   below, double-reserve the same safe area and produce the
+	   "unexpected extra bottom padding" bug seen on iPhone (where
+	   safe-area-inset-bottom is non-zero) but not Android (where it's
+	   usually 0, masking the doubling). The sticky bars below are the
+	   only elements that actually touch the true bottom edge, so they're
+	   the only place that inset belongs. */
+	padding-bottom: 16px;
 	padding-left: max(16px, env(safe-area-inset-left));
 	padding-right: max(16px, env(safe-area-inset-right));
 }
 
 /* Sticky header — MediaDetailModal's hero banner stays pinned while the body scrolls beneath it. */
+.is-phone .mediavault-parent-container {
+	grid-template-columns: 1fr;
+}
+
 .is-phone .mediavault-detail-hero {
 	position: sticky;
 	top: 0;
@@ -1768,16 +2193,56 @@
 	margin-top: calc(-1 * max(16px, env(safe-area-inset-top)));
 }
 
-/* Sticky action bars — the two reusable "row of buttons" patterns used across modals. */
+/* Sticky action bars — the two reusable "row of buttons" patterns used
+   across modals. These sit at the true bottom edge, so they're the only
+   place the bottom safe area is reserved — once. */
 .is-phone .mediavault-modal-buttons,
 .is-phone .mediavault-detail-actions {
 	position: sticky;
-	bottom: calc(-1 * max(16px, env(safe-area-inset-bottom)));
-	margin: 12px calc(-1 * max(16px, env(safe-area-inset-left))) calc(-1 * max(16px, env(safe-area-inset-bottom)));
-	padding: 12px max(16px, env(safe-area-inset-left)) calc(12px + max(16px, env(safe-area-inset-bottom)));
+	bottom: 0;
+	margin: 12px calc(-1 * max(16px, env(safe-area-inset-left))) -16px;
+	padding: 12px max(16px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-bottom));
 	background: var(--background-primary);
 	border-top: 1px solid var(--background-modifier-border);
 	z-index: 3;
+}
+
+/* --- Full-screen view clearance (Milestone 4: Mobile Responsiveness &
+   Safe Area Support) --- Obsidian's floating mobile toolbar and the
+   iPhone home indicator / Android gesture bar sit below every MediaVault
+   view (Library, Watch Next, Lists, Explore, Analytics) the same way they
+   sit below modals — but views aren't modals, so they never picked up the
+   safe-area handling above. Bottom clearance is added to every view root
+   so the last row of content/buttons is never hidden behind system UI. */
+.is-phone .mediavault-library-root,
+.is-phone .mediavault-watch-next-root,
+.is-phone .mediavault-lists-root,
+.is-phone .mediavault-explore-root,
+.is-phone .mediavault-analytics-view {
+	padding-bottom: max(24px, env(safe-area-inset-bottom));
+	box-sizing: border-box;
+}
+
+/* Overflow: poster/tile grids and toolbars must wrap, never force horizontal scroll. */
+.is-phone .mediavault-library-root,
+.is-phone .mediavault-watch-next-root,
+.is-phone .mediavault-lists-root,
+.is-phone .mediavault-explore-root {
+	max-width: 100vw;
+	overflow-x: hidden;
+}
+
+.is-phone .mediavault-library-toolbar {
+	flex-wrap: wrap;
+}
+
+.is-phone .mediavault-library-view-toggle {
+	margin-left: 0;
+}
+
+.is-phone .mediavault-cast-grid,
+.is-phone .mediavault-actor-filmography-grid {
+	grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
 }
 
 /* --- Progress Tabs (roadmap Milestone 3) --- */
@@ -1848,6 +2313,16 @@
 	background: var(--interactive-accent);
 	color: var(--text-on-accent);
 	font-weight: 600;
+}
+
+.mediavault-detail-tab:disabled {
+	opacity: 0.35;
+	cursor: default;
+}
+
+.mediavault-detail-tab:disabled:hover {
+	background: transparent;
+	color: var(--text-muted);
 }
 
 /* --- Universal Filtering panel (roadmap Milestone 4) --- */
@@ -2032,82 +2507,189 @@
 /* List detail modal */
 
 .mediavault-list-detail-modal {
-	width: min(760px, 90vw);
+	width: min(800px, 92vw);
 	max-width: 100%;
+	padding: 20px 24px 24px;
+}
+
+/* --- Header --- */
+.mediavault-list-detail-header {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin-bottom: 16px;
+	padding-bottom: 16px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.mediavault-list-detail-title-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+
+.mediavault-list-detail-title-text {
+	flex: 1;
+	min-width: 0;
+	font-size: 1.4em;
+	font-weight: 700;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mediavault-list-detail-menu-btn {
+	flex-shrink: 0;
+	width: 32px;
+	height: 32px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 6px;
+	border: none;
+	background: none;
+	color: var(--text-muted);
+	cursor: pointer;
+	transition: background 0.15s, color 0.15s;
+}
+
+.mediavault-list-detail-menu-btn:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+/* Edit mode: inline title input (activated from hamburger menu) */
+.mediavault-list-title-input {
+	flex: 1;
+	min-width: 160px;
+	font-size: 1.4em;
+	font-weight: 700;
+	border: 1px solid var(--interactive-accent);
+	background: var(--background-primary);
+	padding: 4px 8px;
+	border-radius: 6px;
+	outline: none;
 }
 
 .mediavault-list-detail-meta {
 	display: flex;
-	gap: 10px;
-	font-size: 0.8em;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.mediavault-list-detail-meta-pill {
+	font-size: 0.78em;
 	color: var(--text-muted);
-	margin-bottom: 4px;
+	background: var(--background-modifier-border);
+	border-radius: 999px;
+	padding: 3px 10px;
 }
 
-.mediavault-list-detail-header {
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-	margin-bottom: 10px;
+/* Read-only description */
+.mediavault-list-detail-description {
+	font-size: 0.92em;
+	line-height: 1.5;
+	color: var(--text-normal);
+	white-space: pre-wrap;
+	word-break: break-word;
 }
 
-.mediavault-list-title-input {
-	font-size: 1.2em;
-	font-weight: 700;
-	border: none;
-	background: transparent;
-	padding: 2px 0;
+.mediavault-list-detail-description.is-placeholder {
+	color: var(--text-faint);
+	font-style: italic;
 }
 
+/* Edit mode: textarea (activated from hamburger menu) */
 .mediavault-list-description-input {
+	width: 100%;
 	resize: vertical;
-	min-height: 40px;
-	font-size: 0.9em;
+	min-height: 44px;
+	font-size: 0.92em;
+	line-height: 1.4;
+	padding: 8px 10px;
+	border-radius: 6px;
+	border: 1px solid var(--interactive-accent);
 }
 
 .mediavault-list-imported-badge {
 	display: inline-block;
 	width: fit-content;
-	padding: 2px 8px;
-	border-radius: 4px;
+	padding: 3px 10px;
+	border-radius: 999px;
 	font-size: 0.75em;
-	background: var(--background-modifier-border);
-	color: var(--text-muted);
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	white-space: nowrap;
+	flex-shrink: 0;
 }
 
-.mediavault-list-actions-row {
+/* --- Sort row --- */
+.mediavault-list-sort-row {
 	display: flex;
-	gap: 8px;
 	align-items: center;
-	margin-bottom: 12px;
-	flex-wrap: wrap;
+	gap: 8px;
+	margin-bottom: 16px;
 }
 
-.mediavault-list-detail-grid-section {
-	display: flex;
-	flex-direction: column;
-	gap: 12px;
-	max-height: 55vh;
-	overflow-y: auto;
-	overflow-x: hidden;
+.mediavault-list-sort-label {
+	font-size: 0.85em;
+	color: var(--text-muted);
+	white-space: nowrap;
 }
 
+.mediavault-list-sort-select {
+	font-size: 0.85em;
+}
+
+/* --- Grid (single scroll — no nested scroll container) --- */
 .mediavault-list-detail-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-	gap: 12px;
-	max-width: 100%;
+	gap: 16px;
+}
+
+.mediavault-list-detail-empty {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 48px 16px;
+	text-align: center;
+}
+
+.mediavault-list-detail-empty-icon {
+	font-size: 2em;
+	opacity: 0.6;
+	margin-bottom: 4px;
+}
+
+.mediavault-list-detail-empty-title {
+	font-weight: 600;
+	font-size: 1.05em;
+}
+
+.mediavault-list-detail-gone {
+	padding: 32px 4px;
+	text-align: center;
 }
 
 .mediavault-list-load-more {
-	align-self: center;
-	margin: 4px 0 12px;
+	display: block;
+	margin: 12px auto;
 }
 
+/* --- Cards --- */
 .mediavault-list-detail-card {
 	position: relative;
 	cursor: pointer;
 	min-width: 0;
+	transition: transform 0.12s ease;
+}
+
+.mediavault-list-detail-card:hover {
+	transform: translateY(-2px);
 }
 
 .mediavault-list-detail-card.is-draggable {
@@ -2119,6 +2701,7 @@
 }
 
 .mediavault-list-detail-poster {
+	position: relative;
 	width: 100%;
 	aspect-ratio: 2 / 3;
 	border-radius: 6px;
@@ -2132,9 +2715,10 @@
 	object-fit: cover;
 }
 
-.mediavault-list-detail-title {
-	font-size: 0.82em;
-	margin-top: 4px;
+.mediavault-list-detail-card-title {
+	font-size: 0.85em;
+	font-weight: 500;
+	margin-top: 6px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -2142,16 +2726,53 @@
 
 .mediavault-list-detail-remove {
 	position: absolute;
-	top: 4px;
-	right: 4px;
-	font-size: 0.7em;
-	padding: 1px 6px;
+	top: 6px;
+	right: 6px;
+	width: 22px;
+	height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 0.75em;
+	padding: 0;
+	border-radius: 50%;
+	border: none;
+	background: rgba(0, 0, 0, 0.6);
+	color: #fff;
 	opacity: 0;
-	transition: opacity 0.1s ease;
+	cursor: pointer;
+	transition: opacity 0.12s ease, background 0.12s ease;
+}
+
+.mediavault-list-detail-remove:hover {
+	background: var(--text-error);
 }
 
 .mediavault-list-detail-card:hover .mediavault-list-detail-remove {
 	opacity: 1;
+}
+
+/* --- Responsive --- */
+@media (max-width: 600px) {
+	.mediavault-list-detail-modal {
+		padding: 14px 16px 18px;
+	}
+
+	.mediavault-list-detail-title-text {
+		font-size: 1.15em;
+	}
+
+	.mediavault-list-detail-grid {
+		grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+		gap: 10px;
+	}
+}
+
+@media (max-width: 380px) {
+	.mediavault-list-detail-grid {
+		grid-template-columns: repeat(auto-fill, minmax(85px, 1fr));
+		gap: 8px;
+	}
 }
 
 /* Add-to-list / create-list modals */
@@ -2576,4 +3197,113 @@
 	font-size: 0.75em;
 	color: var(--text-muted);
 	margin-top: 2px;
+}
+/* Cast tab + Actor Details modal (Milestone 4: Cast & Filmography System) */
+.mediavault-cast-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+	gap: 12px;
+}
+
+.mediavault-cast-card {
+	cursor: pointer;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.mediavault-cast-card:hover .mediavault-cast-name {
+	color: var(--text-accent);
+}
+
+.mediavault-cast-photo {
+	width: 100%;
+	aspect-ratio: 2 / 3;
+	border-radius: 6px;
+	overflow: hidden;
+	object-fit: cover;
+	background: var(--background-modifier-border);
+}
+
+.mediavault-cast-photo-empty {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 2em;
+}
+
+.mediavault-cast-name {
+	font-weight: 600;
+	font-size: 0.9em;
+}
+
+.mediavault-actor-header {
+	display: flex;
+	gap: 16px;
+	padding: var(--p-spacing);
+	align-items: flex-start;
+}
+
+.mediavault-actor-photo {
+	width: 140px;
+	border-radius: 8px;
+	flex-shrink: 0;
+	object-fit: cover;
+}
+
+.mediavault-actor-info h2 {
+	margin: 0 0 6px 0;
+}
+
+.mediavault-actor-filmography-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+	gap: 14px;
+	padding: 0 var(--p-spacing) var(--p-spacing) var(--p-spacing);
+}
+
+.mediavault-actor-film-card {
+	cursor: pointer;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.mediavault-actor-film-card:hover .mediavault-actor-film-title {
+	color: var(--text-accent);
+}
+
+.mediavault-actor-film-poster {
+	width: 100%;
+	aspect-ratio: 2 / 3;
+	border-radius: 6px;
+	object-fit: cover;
+	background: var(--background-modifier-border);
+}
+
+.mediavault-actor-film-poster-empty {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 2em;
+}
+
+.mediavault-actor-film-title {
+	font-size: 0.85em;
+	font-weight: 600;
+}
+
+.mediavault-actor-load-more {
+	grid-column: 1 / -1;
+	padding: 8px;
+	border-radius: 8px;
+	border: 1px dashed var(--background-modifier-border);
+	background: transparent;
+	color: var(--text-muted);
+	cursor: pointer;
+}
+
+.mediavault-actor-load-more:hover {
+	color: var(--text-normal);
+	border-color: var(--interactive-accent);
 }

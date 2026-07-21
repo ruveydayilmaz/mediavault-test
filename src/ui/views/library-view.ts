@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf } from "obsidian";
+import { ItemView, WorkspaceLeaf, setIcon } from "obsidian";
 import type MediaVaultPlugin from "../../main";
 import { VIEW_TYPE_LIBRARY } from "../../constants";
 import { MediaItem } from "../../models/media";
@@ -11,7 +11,7 @@ import {
 	PROGRESS_TABS,
 	applyProgressTab,
 } from "../../services/library-query";
-import { renderPoster, statusLabel, formatRuntime, formatRating } from "../components/media-render";
+import { renderPoster, statusLabel, formatRuntime, formatRating, getMediaPercentWatched, renderProgressOverlay, progressFillClasses } from "../components/media-render";
 import { MediaDetailModal } from "../modals/media-detail-modal";
 import { renderVirtualList } from "../components/virtual-list";
 import { StatsBar } from "../components/stats-bar";
@@ -27,10 +27,19 @@ import {
 	collectFilterOptions,
 	hasActiveFilters,
 } from "../../services/filter-service";
-import { MediaType } from "types/enums";
-import { StorageService } from "services/storage";
 
 type ViewMode = "grid" | "list" | "table";
+type ScreenTier = "mobile" | "tablet" | "desktop";
+
+/** Container-width breakpoints — measured on this view's own pane, not the device, so a narrow desktop sidebar behaves like mobile and a wide phone split-view doesn't. */
+const MOBILE_BREAKPOINT_PX = 520;
+const TABLET_BREAKPOINT_PX = 900;
+
+function screenTierForWidth(width: number): ScreenTier {
+	if (width < MOBILE_BREAKPOINT_PX) return "mobile";
+	if (width < TABLET_BREAKPOINT_PX) return "tablet";
+	return "desktop";
+}
 
 const FILTER_OPTIONS: { value: LibraryFilter; label: string }[] = [
 	{ value: "all", label: "All" },
@@ -67,7 +76,13 @@ export class LibraryView extends ItemView {
 	private searchDebounce: ReturnType<typeof setTimeout> | null = null;
 
 	private favoritesTab: "movies" | "shows" = "movies";
+	/** Guards refreshCustomLists() against overlapping calls (same race class fixed in ListsView.refresh() — see notifyChanged() in list-detail-modal.ts). */
+	private customListsRefreshToken = 0;
 	private customListsEl!: HTMLElement;
+
+	private screenTier: ScreenTier = "desktop";
+	private resizeObserver?: ResizeObserver;
+	private viewToggleEl!: HTMLElement;
 
 	constructor(leaf: WorkspaceLeaf, plugin: MediaVaultPlugin) {
 		super(leaf);
@@ -105,11 +120,37 @@ export class LibraryView extends ItemView {
 		this.filtersEl = root.createDiv({ cls: "mediavault-filters-container" });
 		this.contentEl2 = root.createDiv({ cls: "mediavault-library-content" });
 
+		// Responsive view modes (Milestone 2): breakpoints are measured on
+		// this view's own pane width via ResizeObserver, not device
+		// detection — so a narrow desktop sidebar or a split-screen tablet
+		// behaves correctly regardless of what device it's running on.
+		this.screenTier = screenTierForWidth(root.clientWidth);
+		this.viewMode = this.defaultViewModeForTier(this.screenTier);
+		this.renderViewToggle();
+
+		this.resizeObserver = new ResizeObserver((entries) => {
+			const width = entries[0]?.contentRect.width ?? root.clientWidth;
+			const nextTier = screenTierForWidth(width);
+			if (nextTier === this.screenTier) return;
+
+			this.screenTier = nextTier;
+			this.viewMode = this.defaultViewModeForTier(nextTier);
+			this.renderViewToggle();
+			void this.refresh();
+		});
+		this.resizeObserver.observe(root);
+
 		await this.refresh();
 	}
 
 	async onClose(): Promise<void> {
-		// Nothing to tear down yet — repositories are owned by the plugin, not the view.
+		this.resizeObserver?.disconnect();
+	}
+
+	/** Mobile always remembers/uses Grid only; tablet and desktop share one remembered preference. */
+	private defaultViewModeForTier(tier: ScreenTier): ViewMode {
+		if (tier === "mobile") return "grid";
+		return this.plugin.storage.settings.get().defaultView;
 	}
 
 	/** Call after any mutation (add/remove media, log a watch, import, Trakt sync, etc.) elsewhere in the plugin to keep this view in sync. */
@@ -149,29 +190,41 @@ export class LibraryView extends ItemView {
 				this.refreshFavorites(all);
 			},
 			() => {
-				// TODO
-				// Open your library filtered to favorites.
+				// "View All" (Milestone 5: Favorites "View All" Navigation)
+				// reuses the existing Library layout/pipeline rather than a
+				// separate page: constrain to this favorites tab's media
+				// type (query.filter, already-solved primitive) plus
+				// favoritesOnly (already-solved primitive from the
+				// universal filter engine) — sorting, page size, and view
+				// mode are left untouched, so they carry over exactly as
+				// the user left them.
+				this.query.filter = this.favoritesTab === "movies" ? "movies" : "shows";
+				this.filterCriteria.favoritesOnly = true;
+				this.query.page = 1;
+				void (async () => {
+					await this.refresh();
+					this.contentEl2.scrollIntoView({ behavior: "smooth", block: "start" });
+				})();
 			},
 			(item) => this.openDetail(item)
 		);
 	}
 
 	private async refreshCustomLists(all: MediaItem[]): Promise<void> {
-		this.customListsEl.empty();
+		const token = ++this.customListsRefreshToken;
 
 		const lists = await this.plugin.storage.customLists.getAll();
+
+		if (token !== this.customListsRefreshToken) return;
+
+		this.customListsEl.empty();
 
 		await renderCustomListsCarousel(
 			this.customListsEl,
 			all,
 			lists,
 			(list) => {
-				new ListDetailModal(
-					this.app,
-					this.plugin,
-					list,
-					() => void this.refresh()
-				).open();
+				new ListDetailModal(this.app, this.plugin, list).open();
 			}
 		);
 	}
@@ -491,17 +544,32 @@ export class LibraryView extends ItemView {
 			void this.refresh();
 		});
 
-		// View mode toggle
-		const viewToggle = toolbar.createDiv({ cls: "mediavault-library-view-toggle" });
-		(["grid", "list", "table"] as ViewMode[]).forEach((mode) => {
-			const btn = viewToggle.createEl("button", {
-				text: mode[0].toUpperCase() + mode.slice(1),
-				cls: mode === this.viewMode ? "is-active" : "",
+		// View mode toggle (Milestone 3: Library UI Polish; Milestone 2 of
+		// this roadmap gates which modes are offered by screen tier).
+		this.viewToggleEl = toolbar.createDiv({ cls: "mediavault-library-view-toggle" });
+		this.renderViewToggle();
+	}
+
+	private renderViewToggle(): void {
+		this.viewToggleEl.empty();
+		const viewModeIcons: Record<ViewMode, string> = { grid: "layout-grid", list: "rows-3", table: "table" };
+		const availableModes: ViewMode[] = this.screenTier === "mobile" ? ["grid"] : ["grid", "list", "table"];
+
+		availableModes.forEach((mode) => {
+			const btn = this.viewToggleEl.createEl("button", {
+				cls: "clickable-icon mediavault-view-toggle-btn" + (mode === this.viewMode ? " is-active" : ""),
 			});
+			setIcon(btn, viewModeIcons[mode]);
+			btn.setAttr("aria-label", mode[0].toUpperCase() + mode.slice(1));
 			btn.addEventListener("click", () => {
 				this.viewMode = mode;
-				viewToggle.querySelectorAll("button").forEach((b) => b.removeClass("is-active"));
+				this.viewToggleEl.querySelectorAll("button").forEach((b) => b.removeClass("is-active"));
 				btn.addClass("is-active");
+				// Mobile only ever has one option, so there's nothing meaningful
+				// to remember there — only tablet/desktop persist a preference.
+				if (this.screenTier !== "mobile") {
+					void this.plugin.storage.settings.update({ defaultView: mode });
+				}
 				void this.refresh();
 			});
 		});
@@ -533,46 +601,17 @@ export class LibraryView extends ItemView {
 
 	private renderGrid(items: MediaItem[]): void {
 		const grid = this.contentEl2.createDiv({ cls: "mediavault-grid" });
-		items.forEach(async (item) => {
+		items.forEach((item) => {
 			const card = grid.createDiv({ cls: "mediavault-card" });
 			card.addEventListener("click", () => this.openDetail(item));
 			const poster = card.createDiv({ cls: "mediavault-card-poster" });
 			renderPoster(poster, item, "w200");
 
-			const percentWatched =
-				item.type === MediaType.TVShow
-					? await this.getShowPercentWatched(this.plugin.storage, item.id)
-					: null;
-
-			if (percentWatched !== null) {
-				const progress = poster.createDiv({
-					cls: "mediavault-card-progress",
-				});
-
-				progress.createDiv({
-					cls: "mediavault-favorite-progress-fill",
-					attr: {
-						style: `width:${Math.round(percentWatched)}%`,
-					},
-				});
-			}
+			void getMediaPercentWatched(this.plugin.storage, item).then((percent) => {
+				if (percent === null) return;
+				renderProgressOverlay(poster, percent, item.status);
+			});
 		});
-	}
-
-	private async getShowPercentWatched(
-		storage: StorageService,
-		mediaId: MediaItem["id"]
-	): Promise<number | null> {
-		const episodes = await storage.episodes.findByMediaId(mediaId);
-
-		if (!episodes.length) return null;
-
-		const progress = await storage.episodeProgress.getShowProgress(
-			mediaId,
-			episodes
-		);
-
-		return progress.percentWatched;
 	}
 
 	private listCleanup: (() => void) | null = null;
@@ -598,6 +637,11 @@ export class LibraryView extends ItemView {
 		const poster = row.createDiv({ cls: "mediavault-list-poster" });
 		renderPoster(poster, item, "w200");
 
+		void getMediaPercentWatched(this.plugin.storage, item).then((percent) => {
+			if (percent === null) return;
+			renderProgressOverlay(poster, percent, item.status, "mediavault-list-poster-progress");
+		});
+
 		const info = row.createDiv({ cls: "mediavault-list-info" });
 		info.createDiv({ cls: "mediavault-list-title", text: item.title });
 		info.createDiv({
@@ -618,7 +662,7 @@ export class LibraryView extends ItemView {
 		const table = this.contentEl2.createEl("table", { cls: "mediavault-table" });
 		const thead = table.createEl("thead");
 		const headRow = thead.createEl("tr");
-		["Title", "Year", "Type", "Status", "Rating", "Watch Count", "Runtime"].forEach((h) => {
+		["Title", "Year", "Type", "Status", "Progress", "Rating", "Watch Count", "Runtime"].forEach((h) => {
 			headRow.createEl("th", { text: h });
 		});
 
@@ -630,6 +674,20 @@ export class LibraryView extends ItemView {
 			row.createEl("td", { text: item.year ? String(item.year) : "—" });
 			row.createEl("td", { text: item.type });
 			row.createEl("td", { text: statusLabel(item.status) });
+
+			const progressCell = row.createEl("td");
+			void getMediaPercentWatched(this.plugin.storage, item).then((percent) => {
+				if (percent === null) {
+					progressCell.setText("—");
+					return;
+				}
+				const track = progressCell.createDiv({ cls: "mediavault-table-progress" });
+				track.createDiv({
+					cls: progressFillClasses("mediavault-card-progress-fill", item.status),
+					attr: { style: `width:${Math.round(percent)}%` },
+				});
+			});
+
 			row.createEl("td", { text: formatRating(item.averageRating) });
 			row.createEl("td", { text: String(item.watchCount) });
 			row.createEl("td", { text: formatRuntime(item.runtime) });
@@ -666,16 +724,20 @@ export class LibraryView extends ItemView {
 
 		const pagination = this.contentEl2.createDiv({ cls: "mediavault-pagination" });
 
-		const prevBtn = pagination.createEl("button", { text: "← Prev" });
+		const prevBtn = pagination.createEl("button", { cls: "clickable-icon mediavault-pagination-btn" });
+		setIcon(prevBtn, "chevron-left");
+		prevBtn.setAttr("aria-label", "Previous page");
 		prevBtn.disabled = page <= 1;
 		prevBtn.addEventListener("click", () => {
 			this.query.page = page - 1;
 			void this.refresh();
 		});
 
-		pagination.createSpan({ text: ` Page ${page} of ${totalPages} (${total} items) ` });
+		pagination.createSpan({ cls: "mediavault-pagination-info", text: `Page ${page} of ${totalPages} (${total} items)` });
 
-		const nextBtn = pagination.createEl("button", { text: "Next →" });
+		const nextBtn = pagination.createEl("button", { cls: "clickable-icon mediavault-pagination-btn" });
+		setIcon(nextBtn, "chevron-right");
+		nextBtn.setAttr("aria-label", "Next page");
 		nextBtn.disabled = page >= totalPages;
 		nextBtn.addEventListener("click", () => {
 			this.query.page = page + 1;

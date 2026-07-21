@@ -52,11 +52,33 @@ export async function markEpisodeWatched(
 	storage: StorageService,
 	episode: Episode,
 	watched: boolean,
-	watchedDate?: string
+	watchedDate?: string,
+	options?: { skipWatchRecord?: boolean }
 ): Promise<EpisodeProgress> {
 	const wasSeriesComplete = await isSeriesFullyWatched(storage, episode.mediaId);
+	const wasWatched = (await storage.episodeProgress.findByEpisodeId(episode.id))?.watched ?? false;
 
 	const progress = await storage.episodeProgress.markWatched(episode, watched, watchedDate);
+
+	// Milestone 1 (Episode Watch Review Card Synchronization): every path
+	// that marks an episode watched funnels through here, so creating the
+	// review card here — once, only on the actual unwatched→watched
+	// transition — guarantees it happens everywhere (Episode List, Watch
+	// Next, imports/sync) without every call site having to remember to.
+	// `skipWatchRecord` exists only for callers (like `addEpisodeWatch`)
+	// that already created their own — richer — record for this exact
+	// transition, so we never end up with two.
+	if (watched && !wasWatched && !options?.skipWatchRecord) {
+		await storage.episodeWatches.create({
+			mediaId: episode.mediaId,
+			episodeId: episode.id,
+			watchedAt: watchedDate ?? today(),
+			rating: null,
+			emotion: null,
+			review: null,
+			notes: null,
+		});
+	}
 
 	if (watched) {
 		const isSeriesCompleteNow = await isSeriesFullyWatched(storage, episode.mediaId);
@@ -66,10 +88,27 @@ export async function markEpisodeWatched(
 				watchDate: watchedDate ?? today(),
 			});
 		}
+	} else if (wasWatched) {
+		// Milestone 1 (Episode Watch History Consistency): unmarking
+		// undoes the watch it corresponds to — the most recent
+		// EpisodeWatch for this episode — rating/emotion/review and all,
+		// whether or not the user had filled any of that in yet. This is
+		// the toggle path (checkbox on/off); an intentional rewatch via
+		// "Add another episode watch" is a separate, explicit action that
+		// still always adds a new record.
+		await deleteLatestEpisodeWatch(storage, episode.id);
 	}
 
 	await recalculateAndPersistStatus(storage, episode.mediaId);
 	return progress;
+}
+
+/** Deletes the most-recently-created EpisodeWatch for an episode, if any. */
+async function deleteLatestEpisodeWatch(storage: StorageService, episodeId: MediaVaultId): Promise<void> {
+	const watches = await storage.episodeWatches.findByEpisodeId(episodeId);
+	if (watches.length === 0) return;
+	const latest = [...watches].sort((a, b) => (a.watchedAt === b.watchedAt ? a.createdAt.localeCompare(b.createdAt) : a.watchedAt.localeCompare(b.watchedAt)))[watches.length - 1];
+	await storage.episodeWatches.delete(latest.id);
 }
 
 /**
@@ -92,7 +131,33 @@ export async function markSeasonWatched(
 	const mediaId = episodes.length > 0 ? episodes[0].mediaId : "";
 	const wasSeriesComplete = episodes.length > 0 ? await isSeriesFullyWatched(storage, mediaId) : false;
 
+	const priorProgress = await storage.episodeProgress.findByMediaId(mediaId);
+	const wasWatchedByEpisodeId = new Set(priorProgress.filter((p) => p.watched).map((p) => p.episodeId));
+
 	const results = await storage.episodeProgress.markSeasonWatched(episodes, watched);
+
+	if (watched) {
+		const today_ = today();
+		for (const episode of episodes) {
+			if (!wasWatchedByEpisodeId.has(episode.id)) {
+				await storage.episodeWatches.create({
+					mediaId: episode.mediaId,
+					episodeId: episode.id,
+					watchedAt: today_,
+					rating: null,
+					emotion: null,
+					review: null,
+					notes: null,
+				});
+			}
+		}
+	} else {
+		for (const episode of episodes) {
+			if (wasWatchedByEpisodeId.has(episode.id)) {
+				await deleteLatestEpisodeWatch(storage, episode.id);
+			}
+		}
+	}
 
 	if (watched && episodes.length > 0) {
 		const isSeriesCompleteNow = await isSeriesFullyWatched(storage, mediaId);

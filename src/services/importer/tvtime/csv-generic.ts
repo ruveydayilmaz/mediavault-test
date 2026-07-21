@@ -10,9 +10,10 @@ import {
 } from "./types";
 import { RawImportRow } from "../parse";
 import { parseFlexibleDate } from "../normalize";
+import { parseSeasonEpisodeFromTitle } from "../season-episode-parse";
 
-const TITLE_ALIASES = ["title", "show", "show_name", "tv_show_name", "movie", "movie_name", "series"];
-const SEASON_ALIASES = ["season_number", "season"];
+const TITLE_ALIASES = ["title", "show", "show_name", "tv_show_name", "movie", "movie_name", "series", "series_name"];
+const SEASON_ALIASES = ["season_number", "season", "episode_season_number"];
 const EPISODE_ALIASES = ["episode_number", "episode"];
 const EPISODE_TITLE_ALIASES = ["episode_name", "episode_title"];
 const COMMENT_ALIASES = ["comment", "comment_text", "text", "review", "review_text"];
@@ -22,7 +23,7 @@ const LIKED_ALIASES = ["liked_at", "like_date"];
 const RATING_ALIASES = ["rating", "score", "my_rating"];
 const RATED_ALIASES = ["rated_at", "rating_date"];
 const WATCHED_DATE_ALIASES = ["watched_at", "watch_date", "watched_date", "date"];
-const REWATCH_ALIASES = ["rewatch_count"];
+const REWATCH_ALIASES = ["rewatch_count", "cpt"];
 
 function findField(row: RawImportRow, aliases: string[]): string | null {
 	const lower: Record<string, string> = {};
@@ -41,17 +42,33 @@ function hasAnyColumn(rows: RawImportRow[], aliases: string[]): boolean {
 }
 
 function kindFor(row: RawImportRow): ImportMediaKind {
-	return findField(row, SEASON_ALIASES) !== null || findField(row, EPISODE_ALIASES) !== null ? "series" : "movie";
+	if (findField(row, SEASON_ALIASES) !== null || findField(row, EPISODE_ALIASES) !== null) return "series";
+
+	// Dedicated columns don't say — some exports fold season/episode straight
+	// into the title string instead ("Breaking Bad S01E05").
+	const title = findField(row, TITLE_ALIASES);
+	if (title && parseSeasonEpisodeFromTitle(title) !== null) return "series";
+
+	return "movie";
 }
 
 function baseFields(row: RawImportRow) {
-	const title = findField(row, TITLE_ALIASES);
+	const rawTitle = findField(row, TITLE_ALIASES);
 	const seasonRaw = findField(row, SEASON_ALIASES);
 	const episodeRaw = findField(row, EPISODE_ALIASES);
+
+	// Dedicated season/episode columns take priority; only fall back to
+	// parsing them out of the title string itself when those columns are
+	// absent (roadmap: Robust GDPR ZIP Import & Intelligent Media Matching
+	// — episode-based matching). Either way the title handed to the matcher
+	// is the clean base title, never "Show S01E05" verbatim.
+	const embedded = rawTitle ? parseSeasonEpisodeFromTitle(rawTitle) : null;
+	const usingEmbedded = embedded !== null && seasonRaw === null && episodeRaw === null;
+
 	return {
-		title,
-		seasonNumber: seasonRaw !== null ? parseInt(seasonRaw, 10) : undefined,
-		episodeNumber: episodeRaw !== null ? parseInt(episodeRaw, 10) : undefined,
+		title: usingEmbedded ? embedded!.baseTitle : rawTitle,
+		seasonNumber: seasonRaw !== null ? parseInt(seasonRaw, 10) : usingEmbedded ? embedded!.season ?? undefined : undefined,
+		episodeNumber: episodeRaw !== null ? parseInt(episodeRaw, 10) : usingEmbedded ? embedded!.episode ?? undefined : undefined,
 		episodeTitle: findField(row, EPISODE_TITLE_ALIASES) ?? undefined,
 	};
 }

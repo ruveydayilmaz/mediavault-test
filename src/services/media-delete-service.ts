@@ -10,6 +10,7 @@ export interface MediaDeletionSummary {
 	watchSessions: number;
 	episodes: number;
 	episodeProgress: number;
+	episodeWatches: number;
 	comfortProfileRemoved: boolean;
 	listsAffected: number;
 	noteDeleted: boolean;
@@ -41,15 +42,20 @@ export async function deleteMedia(
 
 	let episodes = 0;
 	let episodeProgress = 0;
+	let episodeWatches = 0;
 	if (media.type === MediaType.TVShow) {
 		episodes = await storage.episodes.deleteByMediaId(mediaId);
 		episodeProgress = await storage.episodeProgress.deleteByMediaId(mediaId);
+		episodeWatches = await storage.episodeWatches.deleteByMediaId(mediaId);
 	}
 
 	const comfortProfileRemoved = await storage.comfortProfiles.deleteByMediaId(mediaId);
 	const notifications = await storage.notifications.deleteByMediaId(mediaId);
 	const listsAffected = await storage.customLists.removeMediaEverywhere(mediaId);
 	const noteDeleted = await deleteMediaNote(app, media);
+	if (media.type === MediaType.Movie) {
+		await storage.movieProgress.deleteByMediaId(mediaId);
+	}
 
 	// The media record itself, last — everything above still needed its id to find related records.
 	await storage.media.delete(mediaId);
@@ -59,6 +65,7 @@ export async function deleteMedia(
 		watchSessions,
 		episodes,
 		episodeProgress,
+		episodeWatches,
 		comfortProfileRemoved,
 		listsAffected,
 		noteDeleted,
@@ -85,6 +92,10 @@ export function describeDeletionScope(media: MediaItem): string[] {
 	const lines = ["Watch history", "Reviews", "Ratings"];
 	if (media.type === MediaType.TVShow) {
 		lines.push("Episode progress");
+		lines.push("Episode watch history");
+	}
+	if (media.type === MediaType.Movie) {
+		lines.push("Partial watch progress");
 	}
 	lines.push("Favorites status");
 	if (media.notePath) lines.push("Generated note");

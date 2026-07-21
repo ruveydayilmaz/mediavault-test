@@ -27,6 +27,8 @@ function makeMockStorage() {
 	const watchSessions = makeCollection<any>();
 	const episodes = makeCollection<any>();
 	const episodeProgress = makeCollection<any>();
+	const episodeWatches = makeCollection<any>();
+	const movieProgress = makeCollection<any>();
 	const comfortProfiles = makeCollection<any>();
 	const notifications = makeCollection<any>();
 	const customLists = makeCollection<any>();
@@ -59,6 +61,25 @@ function makeMockStorage() {
 				return matches.length;
 			},
 		},
+		episodeWatches: {
+			...episodeWatches,
+			findByMediaId: async (mediaId: string) => episodeWatches.items.filter((w) => w.mediaId === mediaId),
+			deleteByMediaId: async (mediaId: string) => {
+				const matches = episodeWatches.items.filter((w) => w.mediaId === mediaId);
+				for (const w of matches) await episodeWatches.delete(w.id);
+				return matches.length;
+			},
+		},
+		movieProgress: {
+			...movieProgress,
+			findByMediaId: async (mediaId: string) => movieProgress.items.find((p) => p.mediaId === mediaId) ?? null,
+			deleteByMediaId: async (mediaId: string) => {
+				const existing = movieProgress.items.find((p) => p.mediaId === mediaId);
+				if (!existing) return 0;
+				await movieProgress.delete(existing.id);
+				return 1;
+			},
+		},
 		comfortProfiles: {
 			...comfortProfiles,
 			findByMediaId: async (mediaId: string) => comfortProfiles.items.find((c) => c.mediaId === mediaId) ?? null,
@@ -89,7 +110,7 @@ function makeMockStorage() {
 		},
 	};
 
-	return { storage, media, watchSessions, episodes, episodeProgress, comfortProfiles, notifications, customLists };
+	return { storage, media, watchSessions, episodes, episodeProgress, episodeWatches, movieProgress, comfortProfiles, notifications, customLists };
 }
 
 function makeMockApp(files: Record<string, boolean> = {}) {

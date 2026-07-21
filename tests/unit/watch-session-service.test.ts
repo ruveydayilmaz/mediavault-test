@@ -43,6 +43,9 @@ function makeMockStorage() {
 		episodeProgress: {
 			findByMediaId: async () => [],
 		},
+		movieProgress: {
+			findByMediaId: async () => null,
+		},
 	};
 
 	return { storage, mediaStore, sessionStore };

@@ -56,7 +56,8 @@ export function calculateMediaStatus(
 	}
 
 	if (media.type === MediaType.Movie) {
-		return ctx.sessions.length === 0 ? MediaStatus.PlanToWatch : MediaStatus.Completed;
+		if (ctx.sessions.length > 0) return MediaStatus.Completed;
+		return MediaStatus.PlanToWatch;
 	}
 
 	// --- TV Show ---

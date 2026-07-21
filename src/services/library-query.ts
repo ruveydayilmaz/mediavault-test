@@ -79,7 +79,18 @@ export const DEFAULT_LIBRARY_QUERY: LibraryQuery = {
  * convention for anything status/ordering related.
  */
 export function recentSortKey(item: MediaItem): string {
-	return item.lastWatchedDate ?? item.createdAt;
+	const raw = item.lastWatchedDate ?? item.createdAt;
+
+	// `lastWatchedDate` is a bare "YYYY-MM-DD" (from the watch-date date
+	// picker), while `createdAt` is a full ISO datetime. Comparing those
+	// two shapes as raw strings was the Recent-sort bug: a date-only string
+	// is a strict prefix of any same-day full-datetime string, and prefixes
+	// sort *before* the strings they prefix — so logging or editing a watch
+	// for "today" could make an item's key compare as earlier than another
+	// item merely added earlier today, silently dropping it out of the top
+	// spot instead of moving it there. Normalize the date-only case to the
+	// end of that day so a watch always outranks a same-day add.
+	return raw.length <= 10 ? `${raw}T23:59:59.999Z` : raw;
 }
 
 export function applyLibraryFilter(items: MediaItem[], filter: LibraryFilter): MediaItem[] {

@@ -311,7 +311,10 @@ export default class MediaVaultPlugin extends Plugin {
 		new WatchSessionModal(this.app, this.storage, {
 			mediaId: media.id,
 			mediaTitle: media.title,
-			onSaved: () => this.refreshLibraryViews(),
+			onSaved: () => {
+				this.refreshLibraryViews();
+				this.refreshListViews();
+			},
 		}).open();
 	}
 

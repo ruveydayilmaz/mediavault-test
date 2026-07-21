@@ -18,7 +18,7 @@ export class TraktAuthError extends TraktApiError {
 }
 
 interface RequestOptions {
-	method?: "GET" | "POST";
+	method?: "GET" | "POST" | "PUT" | "DELETE";
 	body?: unknown;
 	/** Whether this request requires a user access token (most do; device-code endpoints don't). */
 	authenticated?: boolean;

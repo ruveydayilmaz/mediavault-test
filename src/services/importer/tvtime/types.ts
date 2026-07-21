@@ -9,6 +9,20 @@ export interface ExternalIds {
 	tvdbId?: number | null;
 	imdbId?: string | null;
 	tvTimeUuid?: string | null;
+	/** TV Time's numeric internal id. It is not a TVDB id; it only joins GDPR files and memoizes matching. */
+	tvTimeId?: string | null;
+	/** TV Time's episode id, retained for diagnostics and cross-file de-duplication. */
+	tvTimeEpisodeId?: string | null;
+}
+
+/** Optional source metadata used to disambiguate otherwise identical titles. */
+export interface MatchMetadata {
+	originalTitle?: string | null;
+	releaseDate?: string | null;
+	runtimeSeconds?: number | null;
+	country?: string | null;
+	/** ISO 639-1 language code hint, extracted from a parenthesized language name in the source title (e.g. "(Korean)") — used to break ties between otherwise-similar TMDB candidates. */
+	language?: string | null;
 }
 
 export type ImportMediaKind = "movie" | "series";
@@ -19,6 +33,7 @@ export interface WatchImport {
 	ids: ExternalIds;
 	title: string;
 	year: number | null;
+	match?: MatchMetadata;
 	/** Episode-only. */
 	seasonNumber?: number;
 	episodeNumber?: number;
@@ -33,6 +48,7 @@ export interface ReviewImport {
 	ids: ExternalIds;
 	title: string;
 	year: number | null;
+	match?: MatchMetadata;
 	seasonNumber?: number;
 	episodeNumber?: number;
 	commentText: string;
@@ -46,6 +62,7 @@ export interface LikeImport {
 	ids: ExternalIds;
 	title: string;
 	year: number | null;
+	match?: MatchMetadata;
 	seasonNumber?: number;
 	episodeNumber?: number;
 	likedAt: string | null;
@@ -57,9 +74,12 @@ export interface RatingImport {
 	ids: ExternalIds;
 	title: string;
 	year: number | null;
+	match?: MatchMetadata;
 	seasonNumber?: number;
 	episodeNumber?: number;
 	rating: number;
+	/** TV Time reaction code mapped to emoji — when present, should be applied as `emotion` on EpisodeProgress/EpisodeWatch instead of as a numeric `rating`. */
+	emotion?: string | null;
 	ratedAt: string | null;
 }
 
@@ -69,6 +89,7 @@ export interface FavoriteImport {
 	ids: ExternalIds;
 	title: string;
 	year: number | null;
+	match?: MatchMetadata;
 }
 
 /** One item referenced by a custom list — same identity fields as everything else, so it resolves through the same MediaResolver. */
@@ -77,6 +98,7 @@ export interface ListImportItem {
 	ids: ExternalIds;
 	title: string;
 	year: number | null;
+	match?: MatchMetadata;
 }
 
 /** A user-created TV Time custom list ("Costume C-Drama", etc.), detected and now actually imported (roadmap Milestone 5). */

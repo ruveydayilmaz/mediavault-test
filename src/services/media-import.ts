@@ -37,6 +37,7 @@ export function buildMediaItemFromTMDB(
 		country: details.country,
 		synopsis: details.overview || null,
 		status: MediaStatus.PlanToWatch,
+		droppedReason: null,
 		tvStatus: details.tvStatus ?? null,
 		isFavorite: false,
 		liked: false,

@@ -1,7 +1,7 @@
 import { MediaItem } from "../../models/media";
 import { MediaType } from "../../types/enums";
 import { StorageService } from "../../services/storage";
-import { renderPoster } from "./media-render";
+import { renderPoster, progressFillClasses, getMediaPercentWatched } from "./media-render";
 import { createCarousel } from "./carousel";
 
 export async function renderFavoritesSection(
@@ -65,19 +65,9 @@ export async function renderFavoritesSection(
 	const items = activeTab === "movies" ? movies : shows;
 
 	for (const item of items) {
-		const progress = item.type === MediaType.TVShow ? await getShowPercentWatched(storage, item.id) : null;
+		const progress = await getMediaPercentWatched(storage, item);
 		track.appendChild(buildFavoriteCard(item, progress, onOpen));
 	}
-}
-
-async function getShowPercentWatched(storage: StorageService, mediaId: MediaItem["id"]): Promise<number | null> {
-	const episodes = await storage.episodes.findByMediaId(mediaId);
-
-	if (!episodes.length) return null;
-
-	const progress = await storage.episodeProgress.getShowProgress(mediaId, episodes);
-
-	return progress.percentWatched;
 }
 
 function buildFavoriteCard(item: MediaItem, percentWatched: number | null, onOpen: (item: MediaItem) => void): HTMLElement {
@@ -98,7 +88,7 @@ function buildFavoriteCard(item: MediaItem, percentWatched: number | null, onOpe
 		});
 
 		progress.createDiv({
-			cls: "mediavault-favorite-progress-fill",
+			cls: progressFillClasses("mediavault-favorite-progress-fill", item.status),
 			attr: {
 				style: `width:${Math.round(percentWatched)}%`,
 			},

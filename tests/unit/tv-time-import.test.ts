@@ -3,6 +3,7 @@ import { runImport } from "../../src/services/importer/tvtime/manager";
 import { previewBundle } from "../../src/services/importer/tvtime/preview";
 import { commitBundle } from "../../src/services/importer/tvtime/commit";
 import { MediaType } from "../../src/types/enums";
+import { parseGdprArchive } from "../../src/services/importer/tvtime/gdpr";
 
 // --- Real sample shapes from the user's TV Time export ---
 
@@ -159,6 +160,35 @@ describe("TV Time importer: parsing real sample shapes", () => {
 	});
 });
 
+describe("TV Time GDPR archive parser", () => {
+	it("uses both tracking generations, preserves movie metadata, and avoids duplicate latest-state rows", () => {
+		const trackingHeader = "user_id,type,uuid,type-uuid-n,series_name,watch_count,created_at,updated_at,series_id,watches,release_date_range_key,follow_date_range_key,entity_type,alpha_range_key,release_date,runtime,movie_name,rewatch_count,episode_id,series_uuid,episode_number,season_number,watch_date,watched_episode_range_key,total_series_runtime,total_movies_runtime,watch_date_range_key,country,unitarian,bulk_type";
+		const trackingRow = (values: Record<string, string>) => trackingHeader.split(",").map((column) => values[column] ?? "").join(",");
+		const parsed = parseGdprArchive(new Map([
+			["tracking-prod-records-v2.csv", [
+				"user_id,runtime,ep_id,season_number,created_at,s_no,s_id,episode_id,episode_number,bulk_type,ep_no,series_name,gsi,key,total_series_runtime,total_movies_runtime,movie_watch_count,ep_watch_count,series_follow_count,updated_at,is_followed,is_for_later,is_archived,uuid,most_recent_ep_watched,followed_at,rewatch_count,is_unitary,is_special",
+				"1,1440,10,1,2024-01-02 03:04:05,1,123,10,2,season,2,Castle (2009),,,,,,,,,,,,series-uuid,,,,,",
+			].join("\n")],
+			["tracking-prod-records.csv", [
+				trackingHeader,
+				trackingRow({ type: "watch", uuid: "event", series_name: "Castle", created_at: "2024-01-03", series_id: "123", entity_type: "episode", episode_id: "11", series_uuid: "series-uuid", episode_number: "3", season_number: "1", watch_date: "1704240000", country: "us" }),
+				trackingRow({ type: "watch", uuid: "event2", created_at: "2024-01-04", release_date: "2023-05-06", runtime: "7200", movie_name: "Halloween", watch_date: "1704326400", country: "us" }),
+			].join("\n")],
+			["show_seen_episode_latest.csv", "created_at,updated_at,tv_show_name,user_id,tv_show_id,episode_id\n2024-01-04,2024-01-04,Castle (2009),1,123,10"],
+			["rewatched_episode.csv", "tv_show_name,episode_season_number,episode_number,user_id,episode_id,cpt,created_at,updated_at\nCastle (2009),1,2,1,10,1,2024-01-05,2024-01-05"],
+		]));
+
+		const v2 = parsed.get("tracking-prod-records-v2.csv")!;
+		expect(v2.watches[0]).toMatchObject({ title: "Castle", year: 2009, seasonNumber: 1, episodeNumber: 2, watchedAt: "2024-01-02" });
+		expect(parsed.get("tracking-prod-records.csv")!.watches).toEqual(expect.arrayContaining([
+			expect.objectContaining({ kind: "series", title: "Castle", episodeNumber: 3, watchedAt: "2024-01-03" }),
+			expect.objectContaining({ kind: "movie", title: "Halloween", year: 2023, watchedAt: "2024-01-04", match: expect.objectContaining({ runtimeSeconds: 7200, country: "us" }) }),
+		]));
+		expect(parsed.get("show_seen_episode_latest.csv")).toBeUndefined();
+		expect(parsed.get("rewatched_episode.csv")?.watches).toHaveLength(1);
+	});
+});
+
 // --- Full commit pipeline against a mocked storage/tmdb ---
 
 function makeMockStorage() {
@@ -239,6 +269,12 @@ function makeMockStorage() {
 				progressStore.push(rec);
 				return rec;
 			},
+		},
+		movieProgress: {
+			findByMediaId: async () => null,
+		},
+		episodeWatches: {
+			create: async (input: any) => ({ id: "ew" + Math.random(), createdAt: "", updatedAt: "", ...input }),
 		},
 	};
 

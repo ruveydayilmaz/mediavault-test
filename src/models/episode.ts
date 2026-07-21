@@ -82,3 +82,29 @@ export interface ShowProgress {
 	percentWatched: number;
 	totalRuntimeWatched: number;
 }
+
+/**
+ * A single watch of a single episode (Milestone 2: Episode Rewatch System).
+ * Deliberately separate from `WatchSession` — episode watches are never
+ * part of the global Watch History, Rating Evolution, Statistics, or
+ * Recent-activity feed. They exist only to power the Episode Details page,
+ * where a user can rewatch an individual episode as many times as they
+ * like, each with its own rating/emotion/review. Season completion still
+ * produces exactly one `WatchSession` via the existing logic — these
+ * per-episode records don't replace that, they sit alongside it.
+ */
+export interface EpisodeWatch {
+	id: MediaVaultId;
+	mediaId: MediaVaultId;
+	episodeId: MediaVaultId;
+
+	watchedAt: ISODateString;
+
+	rating: number | null;
+	emotion: string | null;
+	review: string | null;
+	notes: string | null;
+
+	createdAt: ISODateString;
+	updatedAt: ISODateString;
+}

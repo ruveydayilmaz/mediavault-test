@@ -1,6 +1,6 @@
 {
 	"name": "mediavault",
-	"version": "3.1.0",
+	"version": "4.7.0",
 	"description": "Track movies, TV shows, reviews, rewatches, and mood-based comfort media inside Obsidian.",
 	"main": "main.js",
 	"scripts": {
@@ -18,7 +18,8 @@
 	"author": "",
 	"license": "MIT",
 	"dependencies": {
-		"chart.js": "^4.4.1"
+		"chart.js": "^4.4.1",
+		"jszip": "^3.10.1"
 	},
 	"devDependencies": {
 		"@types/node": "^20.11.0",

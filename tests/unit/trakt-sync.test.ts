@@ -74,6 +74,12 @@ function makeMockStorage() {
 				return rec;
 			},
 		},
+		movieProgress: {
+			findByMediaId: async () => null,
+		},
+		episodeWatches: {
+			create: async (input: any) => ({ id: "ew" + Math.random(), createdAt: "", updatedAt: "", ...input }),
+		},
 	};
 
 	return { storage, mediaStore, sessionStore, episodeStore, progressStore };

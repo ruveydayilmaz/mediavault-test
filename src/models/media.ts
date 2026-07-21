@@ -68,6 +68,15 @@ export interface MediaItem {
 	status: MediaStatus;
 
 	/**
+	 * Optional note on why the user dropped this show (Milestone 3:
+	 * Dropped TV Series). Set only when dropping via the "Why did you stop
+	 * watching?" prompt — stays populated across a later "Resume Watching"
+	 * until the user explicitly removes or edits it, since resuming only
+	 * changes `status`, not this field.
+	 */
+	droppedReason: string | null;
+
+	/**
 	 * A lightweight "favorited" tag, distinct from `status`. Kept separate
 	 * from MediaStatus.Favorite (which is a manual-override status value)
 	 * because favoriting shouldn't freeze a movie/show out of the automatic

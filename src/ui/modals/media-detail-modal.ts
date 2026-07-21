@@ -1,27 +1,42 @@
 import { App, Modal, Notice, Menu, setIcon } from "obsidian";
 import type { StorageService } from "../../services/storage";
 import type { TMDBService } from "../../api/tmdb";
-import type { TraktService, TraktComment } from "../../api/trakt";
+import type { TraktService, TraktComment, TraktCommentTarget } from "../../api/trakt";
+import { describeTraktError } from "../../api/trakt";
+import { ensureValidTraktToken } from "../../services/trakt-token";
 import type MediaVaultPlugin from "../../main";
 import { MediaItem } from "../../models/media";
-import { MediaType } from "../../types/enums";
+import { MediaType, MediaStatus } from "../../types/enums";
 import { RatingEvolutionPoint, WatchSession } from "../../models/review";
-import { Episode, EpisodeProgress } from "../../models/episode";
+import { Episode, EpisodeProgress, EpisodeWatch } from "../../models/episode";
 import { sortSessionsChronological, getRatingEvolution } from "../../services/review-logic";
 import { deleteWatchSession } from "../../services/watch-session-service";
 import { deleteMedia, describeDeletionScope } from "../../services/media-delete-service";
 import { markEpisodeWatched, markSeasonWatched, findUnwatchedPrecedingEpisodes } from "../../services/episode-status-sync";
+import {
+	addEpisodeWatch,
+	updateEpisodeWatch,
+	deleteEpisodeWatch,
+	sortEpisodeWatchesChronological,
+} from "../../services/episode-watch-service";
+import { filterAndSortCommentsByLanguage } from "../../services/comment-localization";
 import { importEpisodesForShow, needsEpisodeSync } from "../../services/episode-import";
 import { renderRatingEvolutionChart } from "../components/rating-chart";
-import { statusLabel, formatRating } from "../components/media-render";
+import { statusLabel, formatRating, progressFillClasses } from "../components/media-render";
 import { tmdbImageUrl } from "../../api/tmdb-normalize";
 import { WatchSessionModal } from "./watch-session-modal";
 import { generateMediaNote } from "../../services/note-generator/media-note-generator";
 import { ComfortProfileModal } from "./comfort-profile-modal";
 import { AddToListModal } from "./add-to-list-modal";
 import { ImagePickerModal } from "./image-picker-modal";
+import { MoviePartialWatchModal } from "./movie-progress-modal";
+import { completeMovieFromProgress, resumeMovie } from "../../services/movie-progress-service";
+import { ActorDetailsModal } from "./actor-details-modal";
+import { addMediaFromTMDB } from "../../services/media-import";
+import { resumeSeries } from "../../services/drop-series-service";
+import { DropSeriesModal } from "./drop-series-modal";
 
-type DetailTab = "history" | "episodes" | "comments" | "episode-detail";
+type DetailTab = "history" | "episodes" | "comments" | "cast" | "episode-detail";
 
 function formatEpisodeRuntime(minutes: number | null): string {
 	if (!minutes) return "—";
@@ -55,6 +70,24 @@ export class MediaDetailModal extends Modal {
 	 */
 	private plugin?: MediaVaultPlugin;
 
+	/**
+	 * Preview mode (Milestone 2: Filmography Preview Instead of
+	 * Auto-Import) — `this.media` is a synthetic, unpersisted `MediaItem`
+	 * built straight from TMDB data, so the modal can be opened for browsing
+	 * (overview, cast, comments) without ever writing anything to storage.
+	 * Favoriting, logging watches, episode import, and the delete menu are
+	 * all gated off in this mode; the header instead shows an "Add to
+	 * Library" action. Pressing it swaps `this.media` for the real,
+	 * persisted item and flips `isPreview` off in place — the same modal
+	 * instance just starts behaving normally, per spec ("Import should
+	 * preserve the current Details modal").
+	 */
+	private isPreview: boolean;
+	/** TMDB's own public rating, shown only in preview mode since there's no local averageRating yet. */
+	private previewTmdbRating: number | null = null;
+	/** Set right before a re-render triggered by posting a comment, so the new comment gets a brief highlight once rendered (Milestone 1: Trakt Public Comments). */
+	private pendingHighlightCommentId: number | null = null;
+
 	private activeTab: DetailTab = "episodes"; // default for TV shows; movies have no Episodes tab so this is never used
 	/** Which season numbers are expanded in the Episodes tab's accordion — kept across re-renders within the same modal session. */
 	private expandedSeasons = new Set<number>();
@@ -74,7 +107,9 @@ export class MediaDetailModal extends Modal {
 		plugin?: MediaVaultPlugin,
 		initialTab: DetailTab = "episodes",
 		trakt?: TraktService,
-		initialEpisode?: Episode
+		initialEpisode?: Episode,
+		isPreview = false,
+		previewTmdbRating: number | null = null
 	) {
 		super(app);
 		this.storage = storage;
@@ -83,13 +118,16 @@ export class MediaDetailModal extends Modal {
 		this.media = media;
 		this.onChanged = onChanged;
 		this.plugin = plugin;
+		this.isPreview = isPreview;
+		this.previewTmdbRating = previewTmdbRating;
 		if (media.type === MediaType.TVShow && initialEpisode) {
 			this.selectedEpisode = initialEpisode;
 			this.activeTab = "episode-detail";
 		} else if (media.type === MediaType.TVShow) {
-			this.activeTab = initialTab;
+			this.activeTab = isPreview ? "cast" : initialTab;
 		} else {
-			this.activeTab = initialTab === "episodes" || initialTab === "episode-detail" ? "history" : initialTab;
+			this.activeTab =
+				initialTab === "episodes" || initialTab === "episode-detail" ? (isPreview ? "cast" : "history") : initialTab;
 		}
 	}
 
@@ -99,7 +137,7 @@ export class MediaDetailModal extends Modal {
 	}
 
 	private async initialize(): Promise<void> {
-		if (this.media.type === MediaType.TVShow) {
+		if (this.media.type === MediaType.TVShow && !this.isPreview) {
 			await this.maybeAutoSyncEpisodes();
 		}
 		await this.render();
@@ -153,6 +191,8 @@ export class MediaDetailModal extends Modal {
 			await this.renderEpisodesTab(contentEl);
 		} else if (this.activeTab === "comments") {
 			await this.renderCommentsTab(contentEl);
+		} else if (this.activeTab === "cast") {
+			await this.renderCastTab(contentEl);
 		} else {
 			await this.renderWatchHistoryTab(contentEl);
 		}
@@ -165,7 +205,14 @@ export class MediaDetailModal extends Modal {
 
 		const detail = body.createDiv({ cls: "mediavault-detail-status", text: statusLabel(this.media.status) });
 
-		if (this.media.averageRating !== null) {
+		if (this.isPreview) {
+			if (this.previewTmdbRating !== null) {
+				detail.createDiv({
+					cls: "mediavault-detail-rating",
+					text: `★ ${formatRating(this.previewTmdbRating)} on TMDB`,
+				});
+			}
+		} else if (this.media.averageRating !== null) {
 			detail.createDiv({
 				cls: "mediavault-detail-rating",
 				text: `★ ${formatRating(this.media.averageRating)} average across ${this.media.watchCount} watch${this.media.watchCount === 1 ? "" : "es"}`,
@@ -194,31 +241,44 @@ export class MediaDetailModal extends Modal {
 		const menuBtn = hero.createEl("button", { cls: "clickable-icon mediavault-detail-menu-btn" });
 		setIcon(menuBtn, "more-vertical");
 		menuBtn.setAttr("aria-label", "More options");
-		menuBtn.addEventListener("click", (evt) => this.openHeroMenu(evt));
+		if (this.isPreview) {
+			menuBtn.style.display = "none";
+		} else {
+			menuBtn.addEventListener("click", (evt) => this.openHeroMenu(evt));
+		}
 
 		const heroContent = hero.createDiv({ cls: "mediavault-detail-hero-content" });
 		const left = heroContent.createDiv({ cls: "mediavault-detail-hero-main" });
 		const titleRow = left.createDiv({ cls: "mediavault-detail-title-row" });
 
 		titleRow.createEl("h2", { text: this.media.title });
-		const favBtn = titleRow.createEl("button", {
-			cls: `clickable-icon mediavault-fav-btn ${this.media.isFavorite ? "is-favorite" : ""}`,
-			text: this.media.isFavorite ? "★" : "☆",
-		});
-		favBtn.setAttr("aria-label", "Toggle favorite");
-		favBtn.addEventListener("click", async (evt) => {
-			evt.stopPropagation();
-			const updated = await this.storage.media.update(this.media.id, { isFavorite: !this.media.isFavorite });
-			if (updated) this.media = updated;
-			this.onChanged?.();
-			await this.render();
-		});
+		if (!this.isPreview) {
+			const favBtn = titleRow.createEl("button", {
+				cls: `clickable-icon mediavault-fav-btn ${this.media.isFavorite ? "is-favorite" : ""}`,
+				text: this.media.isFavorite ? "★" : "☆",
+			});
+			favBtn.setAttr("aria-label", "Toggle favorite");
+			favBtn.addEventListener("click", async (evt) => {
+				evt.stopPropagation();
+				const updated = await this.storage.media.update(this.media.id, { isFavorite: !this.media.isFavorite });
+				if (updated) this.media = updated;
+				this.onChanged?.();
+				await this.render();
+			});
+		}
 		left.createDiv({
 			cls: "mediavault-detail-meta",
 			text: [this.media.year, this.media.genres.join(", ")].filter(Boolean).join(" · "),
 		});
 
-		if (MediaType.Movie === this.media.type) {
+		if (this.isPreview) {
+			// Filmography Preview (Milestone 2): browsing never writes to
+			// storage — this is the only action in the whole modal that does,
+			// and it's explicit. Swaps this.media/isPreview in place rather
+			// than closing, per spec ("Import should preserve the current
+			// Details modal").
+			await this.renderAddToLibraryAction(heroContent);
+		} else if (MediaType.Movie === this.media.type) {
 			const logBtn = heroContent.createEl("button", {
 				cls: "mediavault-detail-log-btn mod-cta",
 				attr: {
@@ -236,10 +296,98 @@ export class MediaDetailModal extends Modal {
 			});
 		}
 
-		const episodes = await this.storage.episodes.findByMediaId(this.media.id); // only fetch once per render, not per episode row (currently fetched two times)
-		const progress = await this.storage.episodeProgress.getShowProgress(this.media.id, episodes);
+		if (this.isPreview) return;
 
-		this.renderProgressBar(hero, progress.percentWatched, true);
+		if (this.media.type === MediaType.TVShow) {
+			const episodes = await this.storage.episodes.findByMediaId(this.media.id); // only fetch once per render, not per episode row (currently fetched two times)
+			const progress = await this.storage.episodeProgress.getShowProgress(this.media.id, episodes);
+			this.renderProgressBar(hero, progress.percentWatched, true);
+		} else {
+			await this.renderMoviePartialProgress(hero);
+		}
+	}
+
+	/** Floating "Add to Library" / "✓ In Library" action for a preview modal (Milestone 2: Filmography Preview Instead of Auto-Import). */
+	private async renderAddToLibraryAction(heroContent: HTMLElement): Promise<void> {
+		const mediaType = this.media.type;
+		const existing = await this.storage.media.findByTmdbId(this.media.tmdbId, mediaType);
+
+		if (existing) {
+			const inLibraryBtn = heroContent.createEl("button", {
+				cls: "mediavault-add-to-library-btn mediavault-in-library-btn",
+				text: "✓ In Library",
+			});
+			inLibraryBtn.disabled = true;
+			return;
+		}
+
+		const addBtn = heroContent.createEl("button", { cls: "mediavault-add-to-library-btn mod-cta", text: "＋ Add to Library" });
+		addBtn.addEventListener("click", async (evt) => {
+			evt.stopPropagation();
+			addBtn.disabled = true;
+			addBtn.setText("Adding...");
+			try {
+				const mediaKind = this.media.type === MediaType.Movie ? "movie" : "tv";
+				const result = await addMediaFromTMDB(this.storage, this.tmdb, this.media.tmdbId, mediaKind);
+				new Notice(
+					result.alreadyExisted
+						? `MediaVault: "${result.mediaItem.title}" is already in your library.`
+						: `MediaVault: added "${result.mediaItem.title}" to your library.`
+				);
+				this.media = result.mediaItem;
+				this.isPreview = false;
+				this.onChanged?.();
+				await this.render();
+			} catch (err) {
+				new Notice(`MediaVault: couldn't add "${this.media.title}" — ${(err as Error).message}`);
+				addBtn.disabled = false;
+				addBtn.setText("＋ Add to Library");
+			}
+		});
+	}
+
+	/**
+	 * Resume UI for a partially-watched movie (Milestone 3: Partially
+	 * Watched Movies) — progress bar, "Resume from X min", and actions to
+	 * update progress or mark it finished. Renders nothing if the movie
+	 * has no partial-progress record (e.g. never started, or already
+	 * completed — completing a movie deletes the record).
+	 */
+	private async renderMoviePartialProgress(hero: HTMLElement): Promise<void> {
+		const progress = await this.storage.movieProgress.findByMediaId(this.media.id);
+		if (!progress) return;
+
+		const wrap = hero.createDiv({ cls: "mediavault-movie-progress-wrap" });
+		const percent = progress.totalRuntime > 0 ? (progress.currentMinute / progress.totalRuntime) * 100 : 0;
+		this.renderProgressBar(wrap, percent, true);
+
+		const label =
+			progress.totalRuntime > 0
+				? `Resume from ${progress.currentMinute} min (${progress.currentMinute} / ${progress.totalRuntime} min · ${Math.round(percent)}%)`
+				: `Resume from ${progress.currentMinute} min`;
+		wrap.createDiv({ cls: "mediavault-detail-meta mediavault-movie-progress-label", text: label });
+
+		const actions = wrap.createDiv({ cls: "mediavault-movie-progress-actions" });
+
+		const updateBtn = actions.createEl("button", { text: "Update progress" });
+		updateBtn.addEventListener("click", () => void this.openMoviePartialWatchModal());
+
+		const finishBtn = actions.createEl("button", { cls: "mod-cta", text: "Mark as finished" });
+		finishBtn.addEventListener("click", async () => {
+			await completeMovieFromProgress(this.storage, this.media.id);
+			new Notice(`MediaVault: marked "${this.media.title}" as finished.`);
+			this.onChanged?.();
+			await this.refreshAndNotify();
+		});
+	}
+
+	private async openMoviePartialWatchModal(): Promise<void> {
+		const existing = await this.storage.movieProgress.findByMediaId(this.media.id);
+		new MoviePartialWatchModal(this.app, this.storage, {
+			media: this.media,
+			existingMinute: existing?.currentMinute ?? null,
+			onSaved: () => void this.refreshAndNotify(),
+		}).open();
 	}
 
 	private openHeroMenu(evt: MouseEvent): void {
@@ -314,6 +462,30 @@ export class MediaDetailModal extends Modal {
 			);
 		}
 
+		if (this.media.type === MediaType.Movie) {
+			menu.addSeparator();
+
+			menu.addItem((item) =>
+				item
+					.setTitle("Mark as partially watched")
+					.setIcon("timer")
+					.onClick(() => void this.openMoviePartialWatchModal())
+			);
+
+			if (this.media.status === MediaStatus.Dropped) {
+				menu.addItem((item) =>
+					item
+						.setTitle("Resume Watching")
+						.setIcon("play")
+						.onClick(async () => {
+							await resumeMovie(this.storage, this.media.id);
+							this.onChanged?.();
+							await this.refreshAndNotify();
+						})
+				);
+			}
+		}
+
 		if (this.media.type === MediaType.TVShow) {
 			menu.addSeparator();
 
@@ -323,6 +495,35 @@ export class MediaDetailModal extends Modal {
 					.setIcon("refresh-cw")
 					.onClick(() => void this.runEpisodeImport())
 			);
+
+			if (this.media.status === MediaStatus.Dropped) {
+				menu.addItem((item) =>
+					item
+						.setTitle("Resume Watching")
+						.setIcon("play")
+						.onClick(async () => {
+							await resumeSeries(this.storage, this.media.id);
+							this.onChanged?.();
+							await this.refreshAndNotify();
+						})
+				);
+			} else {
+				menu.addItem((item) =>
+					item
+						.setTitle("Mark as Dropped")
+						.setIcon("x-circle")
+						.onClick(() => {
+							new DropSeriesModal(this.app, this.storage, {
+								mediaId: this.media.id,
+								mediaTitle: this.media.title,
+								onDropped: () => {
+									this.onChanged?.();
+									void this.refreshAndNotify();
+								},
+							}).open();
+						})
+				);
+			}
 		}
 
 		menu.showAtMouseEvent(evt);
@@ -391,11 +592,14 @@ export class MediaDetailModal extends Modal {
 		const tabs: { id: DetailTab; label: string }[] =
 			this.media.type === MediaType.TVShow
 				? [
-					{ id: "history", label: "Watch History" },
+					...(this.isPreview ? [] : [{ id: "history" as DetailTab, label: "Watch History" }]),
 					{ id: "episodes", label: "Episodes" },
+					{ id: "cast", label: "Cast" },
+					{ id: "comments", label: "Comments" },
 				]
 				: [
-					{ id: "history", label: "Watch History" },
+					...(this.isPreview ? [] : [{ id: "history" as DetailTab, label: "Watch History" }]),
+					{ id: "cast", label: "Cast" },
 					{ id: "comments", label: "Comments" },
 				];
 
@@ -415,6 +619,13 @@ export class MediaDetailModal extends Modal {
 	// ---- Watch History tab ----
 
 	private async renderWatchHistoryTab(contentEl: HTMLElement): Promise<void> {
+		if (this.media.status === MediaStatus.Dropped && this.media.droppedReason) {
+			const droppedSection = contentEl.createDiv({ cls: "mediavault-detail-section mediavault-dropped-banner" });
+			droppedSection.createEl("h3", { text: "Dropped" });
+			droppedSection.createDiv({ cls: "mediavault-detail-meta", text: "Reason:" });
+			droppedSection.createEl("p", { cls: "mediavault-dropped-reason", text: `"${this.media.droppedReason}"` });
+		}
+
 		const sessions = await this.storage.watchSessions.findWhere((s) => s.mediaId === this.media.id);
 
 		const evolution = getRatingEvolution(sessions);
@@ -528,48 +739,327 @@ export class MediaDetailModal extends Modal {
 			return;
 		}
 
-		const loading = section.createDiv({ cls: "mediavault-modal-hint", text: "Loading comments from Trakt..." });
+		const target: TraktCommentTarget =
+			this.media.type === MediaType.Movie ? { kind: "movie", tmdbId: this.media.tmdbId } : { kind: "show", tmdbId: this.media.tmdbId };
+
+		const listWrap = section.createDiv();
+		const fetchComments = () =>
+			this.media.type === MediaType.Movie
+				? this.trakt!.getMovieComments(this.media.tmdbId)
+				: this.trakt!.getShowComments(this.media.tmdbId);
+
+		await this.renderCommentComposer(section, target, () => this.refreshCommentList(listWrap, target, fetchComments));
+		await this.refreshCommentList(listWrap, target, fetchComments);
+	}
+
+	/**
+	 * Fetches comments for `target` and replaces `listWrap`'s contents in
+	 * place (Part 1: Refresh Comments After Posting) — this is the single
+	 * function both the initial tab render and "just posted a comment"
+	 * both call, so there's exactly one refresh code path rather than the
+	 * composer relying on a full modal re-render to see its own new
+	 * comment. Clears `listWrap` before repopulating, so a re-run never
+	 * appends a duplicate copy of the list underneath the old one.
+	 */
+	private async refreshCommentList(
+		listWrap: HTMLElement,
+		target: TraktCommentTarget,
+		fetchComments: () => Promise<TraktComment[]>
+	): Promise<void> {
+		listWrap.empty();
+		const loading = listWrap.createDiv({ cls: "mediavault-modal-hint", text: "Loading comments from Trakt..." });
 
 		let comments: TraktComment[];
 		try {
-			comments = await this.trakt.getMovieComments(this.media.tmdbId);
+			comments = await fetchComments();
 		} catch (err) {
-			loading.setText(`Couldn't load comments from Trakt — ${(err as Error).message}`);
+			loading.setText(`Couldn't load comments from Trakt — ${describeTraktError(err)}`);
 			return;
 		}
 
 		loading.remove();
-		this.renderCommentList(section, comments);
+		const highlightId = this.pendingHighlightCommentId;
+		this.pendingHighlightCommentId = null;
+		await this.renderCommentList(listWrap, comments, target, highlightId);
 	}
 
-	/** Shared by the movie Comments tab and the Episode Details view. */
-	private renderCommentList(container: HTMLElement, comments: TraktComment[]): void {
-		if (comments.length === 0) {
-			container.createDiv({ cls: "mediavault-modal-hint", text: "No comments yet on Trakt." });
+	/**
+	 * Cast tab (Milestone 4: Cast & Filmography System) — principal cast
+	 * for this movie/show, shared by Movie and TV Series Details. Reuses
+	 * the existing `getCredits` call (already cached alongside
+	 * getMovie/getTV's own append_to_response) rather than a new fetch.
+	 */
+	private async renderCastTab(contentEl: HTMLElement): Promise<void> {
+		const section = contentEl.createDiv({ cls: "mediavault-detail-section" });
+		section.createEl("h3", { text: "Cast" });
+
+		const mediaKind = this.media.type === MediaType.Movie ? "movie" : "tv";
+		const loading = section.createDiv({ cls: "mediavault-modal-hint", text: "Loading cast..." });
+		let cast;
+		try {
+			cast = await this.tmdb.getCredits(this.media.tmdbId, mediaKind);
+		} catch (err) {
+			loading.setText(`Couldn't load cast — ${(err as Error).message}`);
 			return;
 		}
+		loading.remove();
+
+		if (cast.length === 0) {
+			section.createDiv({ cls: "mediavault-modal-hint", text: "No cast information available." });
+			return;
+		}
+
+		const grid = section.createDiv({ cls: "mediavault-cast-grid" });
+		[...cast]
+			.sort((a, b) => a.order - b.order)
+			.forEach((member) => {
+				const card = grid.createDiv({ cls: "mediavault-cast-card" });
+				const photoUrl = tmdbImageUrl(member.profilePath, "w200");
+				if (photoUrl) {
+					card.createEl("img", { cls: "mediavault-cast-photo", attr: { src: photoUrl, alt: member.name, loading: "lazy" } });
+				} else {
+					card.createDiv({ cls: "mediavault-cast-photo mediavault-cast-photo-empty", text: "🎭" });
+				}
+				const info = card.createDiv({ cls: "mediavault-cast-info" });
+				info.createDiv({ cls: "mediavault-cast-name", text: member.name });
+				info.createDiv({ cls: "mediavault-detail-meta", text: member.character });
+
+				card.addEventListener("click", () => {
+					new ActorDetailsModal(this.app, this.storage, this.tmdb, member.tmdbPersonId).open();
+				});
+			});
+	}
+
+	/** Shared by the movie/show Comments tab and Episode Details. Applies the configured language filter/order (Milestone 2: Localized Trakt Comments). */
+	private async renderCommentList(
+		container: HTMLElement,
+		rawComments: TraktComment[],
+		target: TraktCommentTarget,
+		highlightId: number | null = null
+	): Promise<void> {
+		const settings = this.storage.settings.get();
+		const comments = filterAndSortCommentsByLanguage(
+			rawComments,
+			settings.commentsPrimaryLanguage,
+			settings.commentsAdditionalLanguages
+		);
+
+		if (comments.length === 0) {
+			container.createDiv({
+				cls: "mediavault-modal-hint",
+				text:
+					rawComments.length > 0
+						? "No comments in your configured languages yet — see Settings to add more."
+						: "No comments yet on Trakt.",
+			});
+			return;
+		}
+
+		const currentUser = this.trakt ? await this.trakt.getCurrentUser().catch(() => null) : null;
 
 		const list = container.createDiv({ cls: "mediavault-comments-list" });
 		comments.forEach((comment) => {
 			const item = list.createDiv({ cls: "mediavault-comment-item" });
-			const header = item.createDiv({ cls: "mediavault-comment-header" });
+			if (comment.id === highlightId) {
+				item.addClass("is-newly-posted");
+				setTimeout(() => item.removeClass("is-newly-posted"), 2500);
+			}
+
+			const avatarEl = item.createDiv({ cls: "mediavault-comment-avatar" });
+			if (comment.avatarUrl) {
+				avatarEl.createEl("img", { attr: { src: comment.avatarUrl, alt: comment.userName } });
+			} else {
+				avatarEl.setText(comment.userName.slice(0, 1).toUpperCase());
+			}
+
+			const main = item.createDiv({ cls: "mediavault-comment-main" });
+
+			const header = main.createDiv({ cls: "mediavault-comment-header" });
 			header.createSpan({ cls: "mediavault-comment-author", text: comment.userName });
-			header.createSpan({ cls: "mediavault-comment-date", text: comment.createdAt.slice(0, 10) });
+			if (comment.userRating !== null) {
+				header.createSpan({ cls: "mediavault-comment-rating", text: `★ ${comment.userRating}/10` });
+			}
 			if (comment.spoiler) {
 				header.createSpan({ cls: "mediavault-comment-spoiler-tag", text: "Spoiler" });
 			}
-			const body = item.createEl("p", { cls: "mediavault-comment-body", text: comment.comment });
+			header.createSpan({ cls: "mediavault-comment-date", text: comment.createdAt.slice(0, 10) });
+
+			const body = main.createEl("p", { cls: "mediavault-comment-body", text: comment.comment });
 			if (comment.spoiler) {
 				body.addClass("is-spoiler-hidden");
 				body.addEventListener("click", () => body.removeClass("is-spoiler-hidden"), { once: true });
 			}
+
+			const footer = main.createDiv({ cls: "mediavault-comment-footer" });
+			footer.createSpan({
+				cls: "mediavault-comment-likes",
+				text: `👍 ${comment.likes} like${comment.likes === 1 ? "" : "s"}`,
+			});
+
+			// Edit/Delete (Milestone 1: Trakt Public Comments) — only ever shown on the connected account's own comments.
+			if (currentUser && currentUser.username === comment.userName && this.trakt) {
+				const actions = footer.createDiv({ cls: "mediavault-comment-actions" });
+
+				const editBtn = actions.createEl("button", { cls: "clickable-icon", text: "Edit" });
+				editBtn.addEventListener("click", () => {
+					this.renderCommentEditForm(main, body, comment, target);
+				});
+
+				const deleteBtn = actions.createEl("button", { cls: "clickable-icon", text: "Delete" });
+				deleteBtn.addEventListener("click", async () => {
+					if (!confirm("Delete this comment from Trakt? This can't be undone.")) return;
+					try {
+						await this.trakt!.deleteComment(comment.id);
+						this.trakt!.invalidateCommentsCache(target);
+						new Notice("MediaVault: comment deleted.");
+						item.remove();
+					} catch (err) {
+						new Notice(`MediaVault: couldn't delete comment — ${describeTraktError(err)}`);
+					}
+				});
+			}
 		});
+	}
+
+	/** Swaps a comment's body for an inline edit textarea, in place. */
+	private renderCommentEditForm(item: HTMLElement, body: HTMLElement, comment: TraktComment, target: TraktCommentTarget): void {
+		const existingActions = item.querySelector(".mediavault-comment-actions");
+		existingActions?.remove();
+
+		const textarea = item.createEl("textarea", { cls: "mediavault-comment-edit-input" });
+		textarea.value = comment.comment;
+		body.replaceWith(textarea);
+
+		const editActions = item.createDiv({ cls: "mediavault-comment-actions" });
+		const saveBtn = editActions.createEl("button", { cls: "mod-cta", text: "Save" });
+		const cancelBtn = editActions.createEl("button", { text: "Cancel" });
+
+		cancelBtn.addEventListener("click", () => void this.render());
+		saveBtn.addEventListener("click", async () => {
+			const value = textarea.value.trim();
+			if (value === "") {
+				new Notice("MediaVault: comment can't be empty.");
+				return;
+			}
+			try {
+				await this.trakt!.updateComment(comment.id, value, comment.spoiler);
+				this.trakt!.invalidateCommentsCache(target);
+				new Notice("MediaVault: comment updated.");
+				await this.render();
+			} catch (err) {
+				new Notice(`MediaVault: couldn't update comment — ${describeTraktError(err)}`);
+			}
+		});
+	}
+
+	/**
+	 * "Write a Public Comment" composer (Milestone 1: Trakt Public
+	 * Comments) — shared by the movie/show Comments tab and Episode
+	 * Details. Shows a connect-Trakt prompt instead if there's no valid
+	 * token, since posting requires authentication (unlike reading, which
+	 * is public).
+	 */
+	private async renderCommentComposer(
+		container: HTMLElement,
+		target: TraktCommentTarget,
+		onPosted: () => Promise<void>
+	): Promise<void> {
+		const composer = container.createDiv({ cls: "mediavault-comment-composer" });
+		const token = await ensureValidTraktToken(this.storage);
+
+		if (!token) {
+			composer.createDiv({
+				cls: "mediavault-modal-hint",
+				text: "Connect your Trakt account to post comments.",
+			});
+			return;
+		}
+
+		const TRAKT_COMMENT_LIMIT = 2000;
+		composer.createEl("h4", { text: "Write a Public Comment" });
+		const textarea = composer.createEl("textarea", {
+			cls: "mediavault-comment-compose-input",
+			attr: { placeholder: "Share your thoughts..." },
+		});
+		const counter = composer.createDiv({ cls: "mediavault-comment-char-counter", text: `0 / ${TRAKT_COMMENT_LIMIT}` });
+		textarea.addEventListener("input", () => {
+			counter.setText(`${textarea.value.length} / ${TRAKT_COMMENT_LIMIT}`);
+			counter.toggleClass("is-over-limit", textarea.value.length > TRAKT_COMMENT_LIMIT);
+		});
+
+		const warningEl = composer.createDiv({ cls: "mediavault-comment-refresh-warning" });
+
+		const postBtn = composer.createEl("button", { cls: "mod-cta", text: "Post Comment" });
+		postBtn.addEventListener("click", async () => {
+			const text = textarea.value.trim();
+			if (text === "") {
+				new Notice("MediaVault: write something before posting.");
+				return;
+			}
+			if (text.length > TRAKT_COMMENT_LIMIT) {
+				new Notice(`MediaVault: comment is too long (Trakt's limit is ${TRAKT_COMMENT_LIMIT} characters).`);
+				return;
+			}
+
+			warningEl.empty();
+			postBtn.disabled = true;
+			postBtn.setText("Posting...");
+
+			let posted;
+			try {
+				posted = await this.trakt!.postComment(target, text);
+			} catch (err) {
+				new Notice(`MediaVault: couldn't post comment — ${describeTraktError(err)}`);
+				postBtn.disabled = false;
+				postBtn.setText("Post Comment");
+				return;
+			}
+
+			// Posting itself succeeded — the toast for that is permanent
+			// regardless of what happens next. Refreshing the list is a
+			// separate step (Part 1: Refresh Comments After Posting) with
+			// its own loading state and its own failure handling, so a
+			// refresh problem never looks like the post itself failed.
+			new Notice("MediaVault: comment posted.");
+			textarea.value = "";
+			counter.setText(`0 / ${TRAKT_COMMENT_LIMIT}`);
+			this.pendingHighlightCommentId = posted.id;
+			postBtn.setText("Refreshing...");
+
+			await this.refreshCommentsAfterPost(warningEl, postBtn, onPosted);
+		});
+	}
+
+	/** Runs the post-submit list refresh, re-enabling the button either way and offering a Retry on failure. */
+	private async refreshCommentsAfterPost(warningEl: HTMLElement, postBtn: HTMLButtonElement, onPosted: () => Promise<void>): Promise<void> {
+		try {
+			await onPosted();
+			warningEl.empty();
+		} catch (err) {
+			warningEl.empty();
+			warningEl.createDiv({
+				cls: "mediavault-modal-hint mediavault-comment-refresh-warning-text",
+				text: "Your comment was published successfully, but the comments list could not be refreshed.",
+			});
+			const retryBtn = warningEl.createEl("button", { text: "Retry" });
+			retryBtn.addEventListener("click", () => void this.refreshCommentsAfterPost(warningEl, postBtn, onPosted));
+		} finally {
+			postBtn.disabled = false;
+			postBtn.setText("Post Comment");
+		}
 	}
 
 	private async renderEpisodesTab(contentEl: HTMLElement): Promise<void> {
 		const episodes = await this.storage.episodes.findByMediaId(this.media.id);
 
 		if (episodes.length === 0) {
+			if (this.isPreview) {
+				contentEl.createDiv({
+					cls: "mediavault-episode-empty",
+					text: "Add this show to your library to browse and track its episodes.",
+				});
+				return;
+			}
 			contentEl.createDiv({
 				cls: "mediavault-episode-empty",
 				text: "No episode data yet. Import episode metadata from TMDB to start tracking.",
@@ -608,7 +1098,7 @@ export class MediaDetailModal extends Modal {
 	private renderProgressBar(container: HTMLElement, percent: number, isFullProgress: boolean = false): void {
 		const style = isFullProgress ? "mediavault-progress-bar-full" : "mediavault-progress-bar";
 		const bar = container.createDiv({ cls: style });
-		const fill = bar.createDiv({ cls: "mediavault-progress-fill" });
+		const fill = bar.createDiv({ cls: progressFillClasses("mediavault-progress-fill", this.media.status) });
 		fill.style.width = `${Math.min(100, Math.max(0, percent))}%`;
 	}
 
@@ -811,6 +1301,7 @@ export class MediaDetailModal extends Modal {
 	 */
 	private async renderEpisodeDetailTab(contentEl: HTMLElement, episode: Episode): Promise<void> {
 		this.renderEpisodeHero(contentEl, episode);
+		await this.renderEpisodeNavRow(contentEl, episode);
 
 		const backBtn = contentEl.createEl("button", { cls: "clickable-icon mediavault-back-btn", text: "← Back to Episodes" });
 		backBtn.addEventListener("click", () => {
@@ -819,13 +1310,68 @@ export class MediaDetailModal extends Modal {
 			void this.render();
 		});
 
+		// Milestone 1 (Synchronize Episode Watch State): `EpisodeProgress.watched`
+		// is the single source of truth for "is this episode watched" —
+		// it's the same flag the Episode List checkbox, Watch Next, and every
+		// progress bar already read. Episode Details used to decide this
+		// from whether any `EpisodeWatch` record existed instead, which
+		// could disagree with it (e.g. marking watched from the Episode
+		// List never created a rewatch record), leaving Episode Details
+		// showing "unwatched" for an episode the list already showed
+		// checked. The rewatch timeline below is still driven by whatever
+		// `EpisodeWatch` records actually exist — that's unrelated to which
+		// body renders.
 		const progress = await this.storage.episodeProgress.findByEpisodeId(episode.id);
-		const isWatched = progress?.watched ?? false;
+		const watches = sortEpisodeWatchesChronological(await this.storage.episodeWatches.findByEpisodeId(episode.id));
 
-		if (!isWatched) {
+		if (!progress?.watched) {
 			await this.renderUnwatchedEpisodeBody(contentEl, episode);
 		} else {
-			await this.renderWatchedEpisodeBody(contentEl, episode, progress);
+			await this.renderWatchedEpisodeBody(contentEl, episode, watches);
+		}
+	}
+
+	/**
+	 * Previous/Next Episode navigation (Milestone 2: Episode Navigation) —
+	 * crosses season boundaries (last episode of a season → first of the
+	 * next), disables at the very first/last episode of the series, and
+	 * swaps `this.selectedEpisode` + re-renders in place rather than
+	 * closing and reopening the modal.
+	 */
+	private async renderEpisodeNavRow(contentEl: HTMLElement, episode: Episode): Promise<void> {
+		const allEpisodes = [...(await this.storage.episodes.findByMediaId(this.media.id))].sort((a, b) =>
+			a.seasonNumber !== b.seasonNumber ? a.seasonNumber - b.seasonNumber : a.episodeNumber - b.episodeNumber
+		);
+		const index = allEpisodes.findIndex((e) => e.id === episode.id);
+		const prevEpisode = index > 0 ? allEpisodes[index - 1] : null;
+		const nextEpisode = index >= 0 && index < allEpisodes.length - 1 ? allEpisodes[index + 1] : null;
+
+		const nav = contentEl.createDiv({ cls: "mediavault-episode-nav-row" });
+
+		const prevBtn = nav.createEl("button", { cls: "clickable-icon mediavault-episode-nav-btn mediavault-episode-nav-prev" });
+		setIcon(prevBtn, "chevron-left");
+		prevBtn.createSpan({ text: prevEpisode ? `S${prevEpisode.seasonNumber}E${prevEpisode.episodeNumber} — Previous` : "Previous" });
+		prevBtn.disabled = !prevEpisode;
+		prevBtn.setAttr("aria-label", "Previous episode");
+		if (prevEpisode) {
+			const target = prevEpisode;
+			prevBtn.addEventListener("click", () => {
+				this.selectedEpisode = target;
+				void this.render();
+			});
+		}
+
+		const nextBtn = nav.createEl("button", { cls: "clickable-icon mediavault-episode-nav-btn mediavault-episode-nav-next" });
+		nextBtn.createSpan({ text: nextEpisode ? `S${nextEpisode.seasonNumber}E${nextEpisode.episodeNumber} — Next` : "Next" });
+		setIcon(nextBtn, "chevron-right");
+		nextBtn.disabled = !nextEpisode;
+		nextBtn.setAttr("aria-label", "Next episode");
+		if (nextEpisode) {
+			const target = nextEpisode;
+			nextBtn.addEventListener("click", () => {
+				this.selectedEpisode = target;
+				void this.render();
+			});
 		}
 	}
 
@@ -863,7 +1409,7 @@ export class MediaDetailModal extends Modal {
 
 		const markBtn = infoSection.createEl("button", { cls: "mod-cta mediavault-mark-watched-btn", text: "Mark as Watched" });
 		markBtn.addEventListener("click", async () => {
-			await markEpisodeWatched(this.storage, episode, true);
+			await addEpisodeWatch(this.storage, episode);
 			new Notice(`MediaVault: marked "${episode.title}" as watched.`);
 			this.plugin?.refreshLibraryViews();
 			this.plugin?.refreshListViews();
@@ -873,34 +1419,40 @@ export class MediaDetailModal extends Modal {
 		await this.renderEpisodeCastCrew(contentEl, episode);
 	}
 
-	/** Watched: review card, interactive star rating, emotion picker, then Trakt comments. */
-	private async renderWatchedEpisodeBody(
-		contentEl: HTMLElement,
-		episode: Episode,
-		progress: EpisodeProgress | null
-	): Promise<void> {
+	/**
+	 * Watched: an unlimited rewatch timeline (Milestone 2: Episode Rewatch
+	 * System) — one card per `EpisodeWatch`, each with its own editable
+	 * star rating / emotion / notes and a delete action — a rating-evolution
+	 * chart once there's more than one rated watch, an "Add another episode
+	 * watch" action, then Trakt comments.
+	 */
+	private async renderWatchedEpisodeBody(contentEl: HTMLElement, episode: Episode, watches: EpisodeWatch[]): Promise<void> {
 		const reviewSection = contentEl.createDiv({ cls: "mediavault-detail-section" });
-		reviewSection.createEl("h3", { text: "Your review" });
+		reviewSection.createEl("h3", { text: "Episode watch history" });
 
-		const reviewCard = reviewSection.createDiv({ cls: "mediavault-episode-review-card" });
-		if (progress?.watchedDate) {
-			reviewCard.createDiv({ cls: "mediavault-detail-meta", text: `Watched ${progress.watchedDate}` });
+		if (watches.length > 1) {
+			const chartWrap = reviewSection.createDiv({ cls: "mediavault-episode-rating-evolution" });
+			chartWrap.createDiv({ cls: "mediavault-detail-meta", text: "Rating evolution" });
+			renderRatingEvolutionChart(
+				chartWrap.createDiv(),
+				watches.map((w, i) => ({
+					watchSessionId: w.id,
+					rewatchNumber: i,
+					watchDate: w.watchedAt,
+					rating: w.rating,
+				}))
+			);
 		}
-		const notesInput = reviewCard.createEl("textarea", {
-			cls: "mediavault-episode-notes-input",
-			attr: { placeholder: "Add notes or a review for this watch..." },
-		});
-		notesInput.value = progress?.review ?? "";
-		notesInput.addEventListener("blur", async () => {
-			const existing = await this.storage.episodeProgress.findByEpisodeId(episode.id);
-			if (!existing) return;
-			const value = notesInput.value.trim();
-			if (value === (existing.review ?? "")) return;
-			await this.storage.episodeProgress.update(existing.id, { review: value === "" ? null : value });
-		});
 
-		this.renderEpisodeStarRating(reviewSection, episode, progress);
-		this.renderEpisodeEmotionPicker(reviewSection, episode, progress);
+		watches.forEach((watch, i) => this.renderEpisodeWatchCard(reviewSection, episode, watch, i + 1));
+
+		const addBtn = reviewSection.createEl("button", { cls: "mediavault-add-watch-btn", text: "+ Add another episode watch" });
+		addBtn.addEventListener("click", async () => {
+			await addEpisodeWatch(this.storage, episode);
+			this.plugin?.refreshLibraryViews();
+			this.plugin?.refreshListViews();
+			await this.render();
+		});
 
 		// Trakt comments — only ever shown once the episode has been watched.
 		const commentsSection = contentEl.createDiv({ cls: "mediavault-detail-section" });
@@ -909,20 +1461,70 @@ export class MediaDetailModal extends Modal {
 			commentsSection.createDiv({ cls: "mediavault-modal-hint", text: "Trakt isn't available for this item." });
 			return;
 		}
-		const loading = commentsSection.createDiv({ cls: "mediavault-modal-hint", text: "Loading comments from Trakt..." });
-		try {
-			const comments = await this.trakt.getEpisodeComments(this.media.tmdbId, episode.seasonNumber, episode.episodeNumber);
-			loading.remove();
-			this.renderCommentList(commentsSection, comments);
-		} catch (err) {
-			loading.setText(`Couldn't load comments from Trakt — ${(err as Error).message}`);
+
+		if (episode.tmdbEpisodeId !== null) {
+			const target: TraktCommentTarget = {
+				kind: "episode",
+				showTmdbId: this.media.tmdbId,
+				season: episode.seasonNumber,
+				episode: episode.episodeNumber,
+				episodeTmdbId: episode.tmdbEpisodeId,
+			};
+			const listWrap = commentsSection.createDiv();
+			const fetchComments = () => this.trakt!.getEpisodeComments(this.media.tmdbId, episode.seasonNumber, episode.episodeNumber);
+			await this.renderCommentComposer(commentsSection, target, () => this.refreshCommentList(listWrap, target, fetchComments));
+			await this.refreshCommentList(listWrap, target, fetchComments);
+		} else {
+			// No per-episode TMDB id on record (older import) — can still read/edit/delete via the season+episode number cache key, just can't post against this exact episode (no id to send Trakt).
+			const fallbackTarget: TraktCommentTarget = {
+				kind: "episode",
+				showTmdbId: this.media.tmdbId,
+				season: episode.seasonNumber,
+				episode: episode.episodeNumber,
+				episodeTmdbId: 0,
+			};
+			const listWrap = commentsSection.createDiv();
+			await this.refreshCommentList(listWrap, fallbackTarget, () =>
+				this.trakt!.getEpisodeComments(this.media.tmdbId, episode.seasonNumber, episode.episodeNumber)
+			);
 		}
 	}
 
-	/** Five interactive stars — add or edit a rating (1-5), updating the episode's watch session. */
-	private renderEpisodeStarRating(container: HTMLElement, episode: Episode, progress: EpisodeProgress | null): void {
+	/** One rewatch card — watch date, editable stars, editable emotion, editable notes, delete. */
+	private renderEpisodeWatchCard(container: HTMLElement, episode: Episode, watch: EpisodeWatch, watchNumber: number): void {
+		const card = container.createDiv({ cls: "mediavault-episode-review-card" });
+
+		const headerRow = card.createDiv({ cls: "mediavault-episode-watch-card-header" });
+		headerRow.createEl("strong", { text: `Watch #${watchNumber}` });
+		headerRow.createSpan({ cls: "mediavault-detail-meta", text: watch.watchedAt });
+
+		const deleteBtn = headerRow.createEl("button", { cls: "clickable-icon mediavault-delete-watch-btn" });
+		setIcon(deleteBtn, "trash-2");
+		deleteBtn.setAttr("aria-label", "Delete this watch");
+		deleteBtn.addEventListener("click", async () => {
+			await deleteEpisodeWatch(this.storage, watch.id);
+			await this.render();
+		});
+
+		this.renderEpisodeStarRating(card, watch);
+		this.renderEpisodeEmotionPicker(card, watch);
+
+		const notesInput = card.createEl("textarea", {
+			cls: "mediavault-episode-notes-input",
+			attr: { placeholder: "Add notes or a review for this watch..." },
+		});
+		notesInput.value = watch.review ?? "";
+		notesInput.addEventListener("blur", async () => {
+			const value = notesInput.value.trim();
+			if (value === (watch.review ?? "")) return;
+			await updateEpisodeWatch(this.storage, watch.id, { review: value === "" ? null : value });
+		});
+	}
+
+	/** Five interactive stars — add or edit this specific watch's rating (1-5). */
+	private renderEpisodeStarRating(container: HTMLElement, watch: EpisodeWatch): void {
 		const wrap = container.createDiv({ cls: "mediavault-episode-star-rating" });
-		const current = progress?.rating ?? 0;
+		const current = watch.rating ?? 0;
 
 		for (let i = 1; i <= 5; i++) {
 			const star = wrap.createEl("button", { cls: "clickable-icon mediavault-star-btn" });
@@ -930,9 +1532,7 @@ export class MediaDetailModal extends Modal {
 			star.toggleClass("is-filled", i <= current);
 			star.setAttr("aria-label", `Rate ${i} star${i === 1 ? "" : "s"}`);
 			star.addEventListener("click", async () => {
-				await markEpisodeWatched(this.storage, episode, true);
-				const existing = await this.storage.episodeProgress.findByEpisodeId(episode.id);
-				if (existing) await this.storage.episodeProgress.update(existing.id, { rating: i });
+				await updateEpisodeWatch(this.storage, watch.id, { rating: i });
 				await this.render();
 			});
 		}
@@ -940,31 +1540,29 @@ export class MediaDetailModal extends Modal {
 
 	private static readonly EMOTIONS = ["😀", "😄", "😐", "😢", "😭", "😱", "❤️", "🤯"];
 
-	/** One selectable emoji reaction per watch, editable, with the selected state shown. */
-	private renderEpisodeEmotionPicker(container: HTMLElement, episode: Episode, progress: EpisodeProgress | null): void {
+	/** One selectable emoji reaction for this watch, editable, with the selected state shown. */
+	private renderEpisodeEmotionPicker(container: HTMLElement, watch: EpisodeWatch): void {
 		const wrap = container.createDiv({ cls: "mediavault-episode-emotion-picker" });
 		wrap.createDiv({ cls: "mediavault-detail-meta", text: "How was it?" });
 		const row = wrap.createDiv({ cls: "mediavault-emotion-row" });
 
 		MediaDetailModal.EMOTIONS.forEach((emoji) => {
 			const btn = row.createEl("button", { cls: "mediavault-emotion-btn", text: emoji });
-			btn.toggleClass("is-selected", progress?.emotion === emoji);
+			btn.toggleClass("is-selected", watch.emotion === emoji);
 			btn.addEventListener("click", async () => {
-				const existing = await this.storage.episodeProgress.findByEpisodeId(episode.id);
-				if (!existing) return;
-				const next = existing.emotion === emoji ? null : emoji; // click again to clear
-				await this.storage.episodeProgress.update(existing.id, { emotion: next });
+				const next = watch.emotion === emoji ? null : emoji; // click again to clear
+				await updateEpisodeWatch(this.storage, watch.id, { emotion: next });
 				await this.render();
 			});
 		});
 	}
 
-	/** Guest cast + crew (director/writer), fetched live from TMDB — only shown while unwatched, per spec. */
+	/** Crew (director/writer) only — Guest Cast moved to the Cast tab (Milestone 4: Cast & Filmography System), so Episode Details stays focused on the episode itself. */
 	private async renderEpisodeCastCrew(contentEl: HTMLElement, episode: Episode): Promise<void> {
 		const section = contentEl.createDiv({ cls: "mediavault-detail-section" });
-		const loading = section.createDiv({ cls: "mediavault-modal-hint", text: "Loading cast & crew..." });
+		const loading = section.createDiv({ cls: "mediavault-modal-hint", text: "Loading crew..." });
 		try {
-			const { guestCast, crew } = await this.tmdb.getEpisodeCredits(
+			const { crew } = await this.tmdb.getEpisodeCredits(
 				this.media.tmdbId,
 				episode.seasonNumber,
 				episode.episodeNumber
@@ -977,17 +1575,7 @@ export class MediaDetailModal extends Modal {
 				crew.forEach((c) => {
 					crewList.createDiv({ cls: "mediavault-detail-meta", text: `${c.name} — ${c.job}` });
 				});
-			}
-
-			if (guestCast.length > 0) {
-				section.createEl("h3", { text: "Guest cast" });
-				const castList = section.createDiv({ cls: "mediavault-episode-crew-list" });
-				guestCast.forEach((c) => {
-					castList.createDiv({ cls: "mediavault-detail-meta", text: `${c.name} as ${c.character}` });
-				});
-			}
-
-			if (crew.length === 0 && guestCast.length === 0) {
+			} else {
 				section.remove();
 			}
 		} catch {

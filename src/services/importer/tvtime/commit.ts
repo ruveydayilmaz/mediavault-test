@@ -1,26 +1,71 @@
 import type { StorageService } from "../../storage";
 import type { TMDBService } from "../../../api/tmdb";
 import { MediaItem } from "../../../models/media";
+import { Episode } from "../../../models/episode";
 import { MediaType } from "../../../types/enums";
 import { buildMediaItemFromTMDB } from "../../media-import";
 import { addWatchSession } from "../../watch-session-service";
-import { markEpisodeWatched } from "../../episode-status-sync";
 import { importEpisodesForShow } from "../../episode-import";
-import { findTMDBCandidates, classifyMatch } from "../tmdb-match";
-import { NormalizedImportBundle, WatchImport, ReviewImport, LikeImport, RatingImport, ListImport, ExternalIds, ImportMediaKind } from "./types";
+import { findBestMatch, MatchTier } from "../tmdb-match";
+import { NormalizedImportBundle, WatchImport, ReviewImport, LikeImport, RatingImport, ListImport, ExternalIds, ImportMediaKind, MatchMetadata } from "./types";
+import { recalculateAndPersistStatus } from "../../status-service";
+
+export interface UnmatchedItem {
+	kind: ImportMediaKind;
+	title: string;
+	year: number | null;
+	reason: string;
+}
+
+export interface MatchLogEntry {
+	title: string;
+	kind: ImportMediaKind;
+	tier: MatchTier;
+	score: number;
+	queriesTried: string[];
+	selected: string | null;
+	rejectedCount: number;
+}
 
 export interface ImportReport {
 	moviesImported: number;
 	showsImported: number;
 	episodesUpdated: number;
+	/** Individual EpisodeWatch records created (may be greater than episodesUpdated due to rewatches). */
+	episodeWatchesImported: number;
 	commentsImported: number;
 	likesImported: number;
 	favoritesImported: number;
 	ratingsImported: number;
+	/** TV Time reaction codes applied as emoji emotions on EpisodeProgress. */
+	emotionsImported: number;
 	listsImported: number;
 	duplicatesMerged: number;
 	skipped: number;
 	errors: { reason: string }[];
+	/** Every title that never resolved to a MediaItem, grouped for the post-import report (roadmap: Robust GDPR ZIP Import & Intelligent Media Matching). */
+	unmatched: UnmatchedItem[];
+	/** Per-title match tier/queries/candidates — for debugging future matching issues, not surfaced verbatim in the main UI. */
+	matchLog: MatchLogEntry[];
+
+	// ── Diagnostics (Milestone: Investigate Missing Watch Time & Import
+	// Completeness) — surfaces exactly where records were gained or lost
+	// across the whole pipeline, rather than leaving "why is my total lower
+	// than TV Time's?" as a black box.
+	/** Every watch/review/like/rating/favorite/list-item record the bundle contained, before resolution — the denominator for everything below. */
+	totalRecordsParsed: number;
+	/** Distinct titles that successfully resolved to a MediaItem (new or existing) at least once. */
+	matchedMediaCount: number;
+	/** Distinct titles that never resolved to a MediaItem — same count as `unmatched.length`, kept here too so it reads naturally alongside the other totals. */
+	unmatchedMediaCount: number;
+	/** Episode-level watch events that found a real TMDB episode to attach to. */
+	matchedEpisodes: number;
+	/** Episode-level watch events whose show matched but the specific season/episode didn't exist locally/on TMDB. */
+	unmatchedEpisodes: number;
+	/** Sum of runtime (seconds) actually applied — movie watch sessions plus matched episode watches — the number that should track toward TV Time's own reported total. */
+	totalImportedRuntimeSeconds: number;
+	/** Every row skipped anywhere in the pipeline (parse-time warnings + resolution/apply-time skips), tallied by human-readable reason so the report can show *where* records were lost instead of just a total count. */
+	skippedByReason: Record<string, number>;
 }
 
 export function emptyReport(): ImportReport {
@@ -28,19 +73,35 @@ export function emptyReport(): ImportReport {
 		moviesImported: 0,
 		showsImported: 0,
 		episodesUpdated: 0,
+		episodeWatchesImported: 0,
 		commentsImported: 0,
 		likesImported: 0,
 		favoritesImported: 0,
 		ratingsImported: 0,
+		emotionsImported: 0,
 		listsImported: 0,
 		duplicatesMerged: 0,
 		skipped: 0,
 		errors: [],
+		unmatched: [],
+		matchLog: [],
+		totalRecordsParsed: 0,
+		matchedMediaCount: 0,
+		unmatchedMediaCount: 0,
+		matchedEpisodes: 0,
+		unmatchedEpisodes: 0,
+		totalImportedRuntimeSeconds: 0,
+		skippedByReason: {},
 	};
 }
 
-function resolutionKey(ids: ExternalIds, title: string, year: number | null): string {
-	return JSON.stringify([ids.tvdbId ?? null, ids.imdbId ?? null, ids.tvTimeUuid ?? null, title.toLowerCase().trim(), year]);
+/** Tallies a skip under a human-readable bucket for the diagnostics report — call alongside (never instead of) `report.skipped++`. */
+function trackSkip(report: ImportReport, reason: string): void {
+	report.skippedByReason[reason] = (report.skippedByReason[reason] ?? 0) + 1;
+}
+
+function resolutionKey(ids: ExternalIds, title: string, year: number | null, kind: ImportMediaKind, match?: MatchMetadata): string {
+	return JSON.stringify([kind, ids.tvdbId ?? null, ids.imdbId ?? null, ids.tvTimeUuid ?? null, ids.tvTimeId ?? null, title.toLowerCase().trim(), year, match?.originalTitle ?? null, match?.releaseDate ?? null]);
 }
 
 /**
@@ -53,6 +114,8 @@ function resolutionKey(ids: ExternalIds, title: string, year: number | null): st
  */
 export class MediaResolver {
 	private cache = new Map<string, { media: MediaItem | null; isNew: boolean }>();
+	/** Resolution keys already tallied into matchedMediaCount/unmatchedMediaCount — resolve() is called once per bundle item, but the same title (e.g. a show referenced by hundreds of episode watches) should only count once. */
+	private countedKeys = new Set<string>();
 
 	constructor(
 		private storage: StorageService,
@@ -60,13 +123,18 @@ export class MediaResolver {
 		private report: ImportReport
 	) {}
 
-	async resolve(ids: ExternalIds, title: string, year: number | null, kind: ImportMediaKind): Promise<MediaItem | null> {
-		const key = resolutionKey(ids, title, year);
+	async resolve(ids: ExternalIds, title: string, year: number | null, kind: ImportMediaKind, match?: MatchMetadata): Promise<MediaItem | null> {
+		const key = resolutionKey(ids, title, year, kind, match);
 		const cached = this.cache.get(key);
-		if (cached) return cached.media;
+		const result = cached ?? (await this.doResolve(ids, title, year, kind, match));
+		if (!cached) this.cache.set(key, result);
 
-		const result = await this.doResolve(ids, title, year, kind);
-		this.cache.set(key, result);
+		if (!this.countedKeys.has(key)) {
+			this.countedKeys.add(key);
+			if (result.media) this.report.matchedMediaCount++;
+			else this.report.unmatchedMediaCount++;
+		}
+
 		return result.media;
 	}
 
@@ -75,6 +143,7 @@ export class MediaResolver {
 		title: string,
 		year: number | null,
 		kind: ImportMediaKind
+		, match?: MatchMetadata
 	): Promise<{ media: MediaItem | null; isNew: boolean }> {
 		// 1. TVDB id
 		if (ids.tvdbId != null) {
@@ -116,20 +185,32 @@ export class MediaResolver {
 		}
 
 		// Nothing local — resolve a brand-new MediaItem via TMDB. Requires an API key/network; if that fails
-		// or the match is ambiguous, this title is skipped rather than guessed at.
+		// or every matching strategy comes up empty, this title is skipped rather than guessed at.
 		try {
 			const tmdbKind = kind === "movie" ? "movie" : "tv";
-			const candidates = await findTMDBCandidates(this.tmdb, { kind: tmdbKind, title, year });
-			const status = classifyMatch({ kind: tmdbKind, title, year }, candidates);
+			const tmdbMatch = await findBestMatch(this.tmdb, { kind: tmdbKind, title, year, ...match });
 
-			if (status !== "matched") {
-				this.report.errors.push({
-					reason: `"${title}": ${status === "ambiguous" ? "multiple possible TMDB matches" : "no TMDB match found"} — skipped.`,
+			this.report.matchLog.push({
+				title,
+				kind,
+				tier: tmdbMatch.tier,
+				score: tmdbMatch.score,
+				queriesTried: tmdbMatch.queriesTried,
+				selected: tmdbMatch.candidate ? `${tmdbMatch.candidate.title}${tmdbMatch.candidate.year ? ` (${tmdbMatch.candidate.year})` : ""}` : null,
+				rejectedCount: tmdbMatch.rejected.length,
+			});
+
+			if (tmdbMatch.candidate === null) {
+				this.report.unmatched.push({
+					kind,
+					title,
+					year,
+					reason: tmdbMatch.rejected.length > 0 ? "Multiple possible matches, none confident enough" : "No TMDB match found",
 				});
 				return { media: null, isNew: false };
 			}
 
-			const top = candidates[0];
+			const top = tmdbMatch.candidate;
 			const details = tmdbKind === "movie" ? await this.tmdb.getMovie(top.tmdbId) : await this.tmdb.getTV(top.tmdbId);
 
 			// Someone else in this same import run may have already created this exact tmdbId — check before saving again.
@@ -156,7 +237,15 @@ export class MediaResolver {
 	}
 }
 
-async function applyWatch(storage: StorageService, tmdb: TMDBService, watch: WatchImport, media: MediaItem, report: ImportReport): Promise<void> {
+async function applyWatch(
+	storage: StorageService,
+	tmdb: TMDBService,
+	watch: WatchImport,
+	media: MediaItem,
+	report: ImportReport,
+	episodeIndexes: Map<string, Map<string, Episode>>,
+	affectedSeries: Set<string>
+): Promise<void> {
 	if (watch.kind === "movie") {
 		await addWatchSession(storage, {
 			mediaId: media.id,
@@ -164,29 +253,57 @@ async function applyWatch(storage: StorageService, tmdb: TMDBService, watch: Wat
 			rating: null,
 			review: "",
 		});
+		if (watch.match?.runtimeSeconds) report.totalImportedRuntimeSeconds += watch.match.runtimeSeconds;
 		return;
 	}
 
 	if (watch.seasonNumber === undefined || watch.episodeNumber === undefined) {
 		report.skipped++;
+		trackSkip(report, "Watch event missing season/episode number");
 		return;
 	}
 
-	// Ensure real episode metadata exists before marking progress (idempotent — only adds genuinely new episodes).
-	await importEpisodesForShow(storage, tmdb, media);
-	const episodes = await storage.episodes.findByMediaId(media.id);
-	const episode = episodes.find((e) => e.seasonNumber === watch.seasonNumber && e.episodeNumber === watch.episodeNumber);
+	// A GDPR archive commonly has tens of thousands of events. Fetch/import a
+	// show's episode catalogue once, not once per watched episode.
+	let episodes = episodeIndexes.get(media.id);
+	if (!episodes) {
+		await importEpisodesForShow(storage, tmdb, media);
+		episodes = new Map((await storage.episodes.findByMediaId(media.id)).map((e) => [`${e.seasonNumber}:${e.episodeNumber}`, e]));
+		episodeIndexes.set(media.id, episodes);
+	}
+	const episode = episodes.get(`${watch.seasonNumber}:${watch.episodeNumber}`);
 
 	if (!episode) {
 		report.skipped++;
+		report.unmatchedEpisodes++;
+		trackSkip(report, "Episode not found on TMDB for this show");
 		report.errors.push({
 			reason: `"${watch.title}" S${watch.seasonNumber}E${watch.episodeNumber}: no matching episode found on TMDB — skipped.`,
 		});
 		return;
 	}
 
-	await markEpisodeWatched(storage, episode, true, watch.watchedAt ?? undefined);
+	// Preserve individual GDPR watch events (including rewatches) instead of
+	// collapsing thousands of records into one checked episode. Deliberately
+	// avoid `addEpisodeWatch` here: it recalculates the entire show after each
+	// event, which makes a 10k+ archive needlessly quadratic. Progress and the
+	// event timeline are updated now; statuses are recalculated once per show
+	// after the batch below.
+	await storage.episodeWatches.create({
+		mediaId: episode.mediaId,
+		episodeId: episode.id,
+		watchedAt: watch.watchedAt ?? new Date().toISOString().slice(0, 10),
+		rating: null,
+		emotion: null,
+		review: null,
+		notes: null,
+	});
+	await storage.episodeProgress.markWatched(episode, true, watch.watchedAt ?? undefined);
+	affectedSeries.add(media.id);
 	report.episodesUpdated++;
+	report.episodeWatchesImported++;
+	report.matchedEpisodes++;
+	report.totalImportedRuntimeSeconds += watch.match?.runtimeSeconds ?? (episode.runtime ? episode.runtime * 60 : 0);
 }
 
 async function applyReview(storage: StorageService, review: ReviewImport, media: MediaItem, report: ImportReport): Promise<void> {
@@ -207,6 +324,7 @@ async function applyReview(storage: StorageService, review: ReviewImport, media:
 		} else {
 			// Every session already has its own review text — never overwrite any of them.
 			report.skipped++;
+			trackSkip(report, "Movie already has a reviewed watch session");
 			return;
 		}
 		report.commentsImported++;
@@ -216,17 +334,20 @@ async function applyReview(storage: StorageService, review: ReviewImport, media:
 	// Episode comment
 	if (review.seasonNumber === undefined || review.episodeNumber === undefined) {
 		report.skipped++;
+		trackSkip(report, "Comment missing season/episode number");
 		return;
 	}
 	const episodes = await storage.episodes.findByMediaId(media.id);
 	const episode = episodes.find((e) => e.seasonNumber === review.seasonNumber && e.episodeNumber === review.episodeNumber);
 	if (!episode) {
 		report.skipped++;
+		trackSkip(report, "Episode not found for comment");
 		return;
 	}
 	const progress = await storage.episodeProgress.findByEpisodeId(episode.id);
 	if (progress && progress.review) {
 		report.skipped++; // never overwrite an existing episode review
+		trackSkip(report, "Episode already has a review");
 		return;
 	}
 	if (progress) {
@@ -262,6 +383,7 @@ async function applyLike(storage: StorageService, like: LikeImport, media: Media
 	const episode = episodes.find((e) => e.seasonNumber === like.seasonNumber && e.episodeNumber === like.episodeNumber);
 	if (!episode) {
 		report.skipped++;
+		trackSkip(report, "Episode not found for like");
 		return;
 	}
 	const progress = await storage.episodeProgress.findByEpisodeId(episode.id);
@@ -288,7 +410,19 @@ async function applyLike(storage: StorageService, like: LikeImport, media: Media
 }
 
 async function applyRating(storage: StorageService, rating: RatingImport, media: MediaItem, report: ImportReport): Promise<void> {
+	// TV Time reactions have an `emotion` field — apply as emoji on the
+	// episode progress rather than as a numeric score.
+	const isEmotion = !!rating.emotion;
+
 	if (rating.seasonNumber === undefined || rating.episodeNumber === undefined) {
+		// Movie-level: store as rating on a watch session (emotions on movies
+		// aren't supported in MediaVault's current model, so we skip emotion-
+		// only movie reactions rather than mis-storing them as numeric ratings).
+		if (isEmotion) {
+			report.skipped++;
+			trackSkip(report, "Movie-level emoji reaction not supported");
+			return;
+		}
 		const sessions = await storage.watchSessions.findByMediaId(media.id);
 		const unratedSession = sessions.find((s) => s.rating === null);
 
@@ -303,6 +437,7 @@ async function applyRating(storage: StorageService, rating: RatingImport, media:
 			});
 		} else {
 			report.skipped++; // every session is already rated — never silently overwrite
+			trackSkip(report, "Movie already fully rated");
 			return;
 		}
 		report.ratingsImported++;
@@ -313,11 +448,45 @@ async function applyRating(storage: StorageService, rating: RatingImport, media:
 	const episode = episodes.find((e) => e.seasonNumber === rating.seasonNumber && e.episodeNumber === rating.episodeNumber);
 	if (!episode) {
 		report.skipped++;
+		trackSkip(report, "Episode not found for rating");
 		return;
 	}
 	const progress = await storage.episodeProgress.findByEpisodeId(episode.id);
+
+	if (isEmotion) {
+		// Apply emotion on existing progress; skip if one is already set.
+		if (progress && progress.emotion) {
+			report.skipped++;
+			trackSkip(report, "Episode already has a reaction");
+			return;
+		}
+		if (progress) {
+			await storage.episodeProgress.update(progress.id, { emotion: rating.emotion });
+		} else {
+			await storage.episodeProgress.create({
+				mediaId: media.id,
+				episodeId: episode.id,
+				seasonNumber: episode.seasonNumber,
+				episodeNumber: episode.episodeNumber,
+				watched: false,
+				watchedDate: null,
+				rating: null,
+				review: null,
+				emotion: rating.emotion!,
+				isFavorite: false,
+				liked: false,
+				likedAt: null,
+				comfortNote: null,
+			});
+		}
+		report.emotionsImported++;
+		return;
+	}
+
+	// Numeric rating path (non-TV-Time sources)
 	if (progress && progress.rating !== null) {
 		report.skipped++; // never silently overwrite an existing rating
+		trackSkip(report, "Episode already rated");
 		return;
 	}
 	if (progress) {
@@ -408,6 +577,8 @@ export async function commitBundle(
 ): Promise<ImportReport> {
 	const report = emptyReport();
 	const resolver = new MediaResolver(storage, tmdb, report);
+	const episodeIndexes = new Map<string, Map<string, Episode>>();
+	const affectedSeries = new Set<string>();
 
 	const total =
 		bundle.watches.length +
@@ -416,6 +587,7 @@ export async function commitBundle(
 		bundle.ratings.length +
 		bundle.favorites.length +
 		bundle.lists.length;
+	report.totalRecordsParsed = total + bundle.warnings.length;
 	let done = 0;
 	const tick = (stage: string) => {
 		done++;
@@ -423,19 +595,21 @@ export async function commitBundle(
 	};
 
 	for (const watch of bundle.watches) {
-		const media = await resolver.resolve(watch.ids, watch.title, watch.year, watch.kind);
+		const media = await resolver.resolve(watch.ids, watch.title, watch.year, watch.kind, watch.match);
 		if (!media) {
 			report.skipped++;
+			trackSkip(report, "No media match — watch not imported");
 		} else {
-			await applyWatch(storage, tmdb, watch, media, report);
+			await applyWatch(storage, tmdb, watch, media, report, episodeIndexes, affectedSeries);
 		}
 		tick("Watch history");
 	}
 
 	for (const review of bundle.reviews) {
-		const media = await resolver.resolve(review.ids, review.title, review.year, review.kind);
+		const media = await resolver.resolve(review.ids, review.title, review.year, review.kind, review.match);
 		if (!media) {
 			report.skipped++;
+			trackSkip(report, "No media match — comment not imported");
 		} else {
 			await applyReview(storage, review, media, report);
 		}
@@ -443,9 +617,10 @@ export async function commitBundle(
 	}
 
 	for (const like of bundle.likes) {
-		const media = await resolver.resolve(like.ids, like.title, like.year, like.kind);
+		const media = await resolver.resolve(like.ids, like.title, like.year, like.kind, like.match);
 		if (!media) {
 			report.skipped++;
+			trackSkip(report, "No media match — like not imported");
 		} else {
 			await applyLike(storage, like, media, report);
 		}
@@ -453,9 +628,10 @@ export async function commitBundle(
 	}
 
 	for (const rating of bundle.ratings) {
-		const media = await resolver.resolve(rating.ids, rating.title, rating.year, rating.kind);
+		const media = await resolver.resolve(rating.ids, rating.title, rating.year, rating.kind, rating.match);
 		if (!media) {
 			report.skipped++;
+			trackSkip(report, "No media match — rating not imported");
 		} else {
 			await applyRating(storage, rating, media, report);
 		}
@@ -463,9 +639,10 @@ export async function commitBundle(
 	}
 
 	for (const fav of bundle.favorites) {
-		const media = await resolver.resolve(fav.ids, fav.title, fav.year, fav.kind);
+		const media = await resolver.resolve(fav.ids, fav.title, fav.year, fav.kind, fav.match);
 		if (!media) {
 			report.skipped++;
+			trackSkip(report, "No media match — favorite not imported");
 		} else {
 			await applyFavorite(storage, media, report);
 		}
@@ -475,15 +652,25 @@ export async function commitBundle(
 	for (const list of bundle.lists) {
 		const mediaIds: string[] = [];
 		for (const item of list.items) {
-			const media = await resolver.resolve(item.ids, item.title, item.year, item.kind);
+			const media = await resolver.resolve(item.ids, item.title, item.year, item.kind, item.match);
 			if (media) mediaIds.push(media.id);
-			else report.skipped++;
+			else {
+				report.skipped++;
+				trackSkip(report, "No media match — list item not imported");
+			}
 		}
 		await applyList(storage, list, mediaIds, report);
 		tick("Custom lists");
 	}
 
-	report.skipped += bundle.warnings.length;
+	for (const mediaId of affectedSeries) {
+		await recalculateAndPersistStatus(storage, mediaId);
+	}
+
+	for (const warning of bundle.warnings) {
+		report.skipped++;
+		trackSkip(report, warning.reason);
+	}
 
 	return report;
 }

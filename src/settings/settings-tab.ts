@@ -157,6 +157,40 @@ export class MediaVaultSettingTab extends PluginSettingTab {
 				);
 		}
 
+		// --- Comments languages (Milestone 2: Localized Trakt Comments) ---
+		containerEl.createEl("h3", { text: "Comments Languages" });
+		containerEl.createEl("p", {
+			cls: "setting-item-description",
+			text: "Trakt comments are shown in these languages only, in priority order. Use ISO 639-1 codes (e.g. en, ja, de).",
+		});
+
+		new Setting(containerEl)
+			.setName("Primary language")
+			.addText((text) =>
+				text
+					.setPlaceholder("en")
+					.setValue(settings.get().commentsPrimaryLanguage)
+					.onChange(async (value) => {
+						await settings.update({ commentsPrimaryLanguage: value.trim().toLowerCase() || "en" });
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Additional languages")
+			.setDesc("Comma-separated, in priority order (e.g. ja, de).")
+			.addText((text) =>
+				text
+					.setPlaceholder("ja, de")
+					.setValue(settings.get().commentsAdditionalLanguages.join(", "))
+					.onChange(async (value) => {
+						const langs = value
+							.split(",")
+							.map((l) => l.trim().toLowerCase())
+							.filter((l) => l.length > 0);
+						await settings.update({ commentsAdditionalLanguages: langs });
+					})
+			);
+
 		// --- Vault integration ---
 		containerEl.createEl("h3", { text: "Vault Integration" });
 

@@ -193,6 +193,12 @@ function makeMockStorage(initialMedia: any) {
 		episodes: {
 			findByMediaId: async (mediaId: string) => episodeStore.filter((e) => e.mediaId === mediaId),
 		},
+		movieProgress: {
+			findByMediaId: async () => null,
+		},
+		episodeWatches: {
+			create: async (input: any) => ({ id: "ew" + Math.random(), createdAt: "", updatedAt: "", ...input }),
+		},
 		episodeProgress: {
 			findByMediaId: async (mediaId: string) => progressStore.filter((p) => p.mediaId === mediaId),
 			findByEpisodeId: async (episodeId: string) => progressStore.find((p) => p.episodeId === episodeId) ?? null,
