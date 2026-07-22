@@ -157,6 +157,17 @@
 	gap: 6px;
 }
 
+/* Narrower phones (and split-screen/small Android devices) can't comfortably
+   fit 4 posters at a readable size — drop to 3 per row. Uses a plain media
+   query (rather than container queries, unsupported in Obsidian's mobile
+   WebView) keyed to the viewport itself, which on Obsidian mobile always
+   matches the device width. */
+@media (max-width: 400px) {
+	.is-phone .mediavault-grid {
+		grid-template-columns: repeat(3, 1fr);
+	}
+}
+
 .mediavault-card {
 	display: flex;
 	flex-direction: column;
@@ -533,8 +544,14 @@
 }
 
 .mediavault-detail-body {
-	/* padding-top: 16px; */
 	padding: var(--p-spacing);
+	/* Banner / Content Overlap (Milestone 3): this padding-top was
+	   previously disabled, leaving the status/rating/description content
+	   flush against — and on some aspect ratios, visually underneath —
+	   the hero banner right above it. Restored (after the shorthand, so
+	   it isn't clobbered) so content always starts clearly below the
+	   banner. */
+	padding-top: 16px;
 }
 
 .mediavault-detail-title-row {
@@ -607,7 +624,7 @@
 }
 
 .mediavault-image-picker-grid.is-backdrop-grid {
-	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+	grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
 }
 
 .mediavault-image-picker-tile {
@@ -617,6 +634,18 @@
 	cursor: pointer;
 	border: 2px solid transparent;
 	background: var(--background-modifier-border);
+	/* Banner Picker (Milestone 2): the tile had no intrinsic height of its
+	   own — only the `<img>` inside was told `height: 100%`, a percentage
+	   that resolves to `auto` without a sized ancestor, so the tile (and
+	   therefore the banner) rendered at a sliver of its real height.
+	   Poster tiles happened to look reasonable anyway thanks to their
+	   narrower column width; wide 16:9 banners did not. Pinning the aspect
+	   ratio per grid variant makes both correctly sized and previewable. */
+	aspect-ratio: 2 / 3;
+}
+
+.mediavault-image-picker-grid.is-backdrop-grid .mediavault-image-picker-tile {
+	aspect-ratio: 16 / 9;
 }
 
 .mediavault-image-picker-tile:hover {
@@ -2135,6 +2164,14 @@
 	display: none;
 }
 
+/* Mobile Grid & Layout Improvements (Milestone 1): Favorites uses the same
+   `.mediavault-grid` container/breakpoints as the Library grid on phones,
+   so the fixed carousel-card width is dropped in favor of filling its
+   grid cell — poster aspect ratio (2/3) stays identical to Library. */
+.mediavault-favorites-grid.mediavault-grid .mediavault-favorite-card {
+	width: 100%;
+}
+
 /* --- Lists carousel (Milestone 4: Carousel Layout Improvements — reverted
    to one fixed-width card at a time, navigated via Prev/Next/swipe, after
    the Milestone 5 poster-row-of-tiles redesign proved too cramped) --- */
@@ -2272,16 +2309,21 @@
 	max-width: 100%;
 	box-sizing: border-box;
 	padding-top: max(16px, env(safe-area-inset-top));
-	/* Bottom safe area is intentionally NOT added here — this region
-	   scrolls, so a fixed inset here would either be scrolled past
-	   uselessly or, combined with the sticky action bar's own inset
-	   below, double-reserve the same safe area and produce the
-	   "unexpected extra bottom padding" bug seen on iPhone (where
-	   safe-area-inset-bottom is non-zero) but not Android (where it's
-	   usually 0, masking the doubling). The sticky bars below are the
-	   only elements that actually touch the true bottom edge, so they're
-	   the only place that inset belongs. */
-	padding-bottom: 16px;
+	/* Log Watch Banner (Milestone 3): bottom spacing used to be split
+	   across two places — a flat, non-safe-area-aware 16px padding-bottom
+	   here, meant to be exactly canceled out by a hardcoded -16px margin
+	   on the sticky action bar below so the bar's background reaches the
+	   true bottom edge. The two values only matched by coincidence; on a
+	   notched device the actual safe area is taller than 16px, so nothing
+	   here accounted for it and the bar's background stopped short of the
+	   true edge — a visible gap with scrolled content behind it, which is
+	   exactly "floats above the bottom" / "not one continuous surface".
+	   Keying both this padding and the bar's canceling margin off the same
+	   `max(16px, env(safe-area-inset-bottom))` expression (rather than two
+	   independent literals) means they can never drift out of sync again,
+	   on any device. Modals with no sticky action bar still get real
+	   bottom clearance from this padding, same as before. */
+	padding-bottom: max(16px, env(safe-area-inset-bottom));
 	/* Symmetric horizontal padding, each side keyed to its OWN safe-area
 	   inset (left uses inset-left, right uses inset-right) rather than one
 	   value reused for both — matters in landscape, where the notch sits
@@ -2349,7 +2391,12 @@
 .is-phone .mediavault-detail-actions {
 	position: sticky;
 	bottom: 0;
-	margin: 12px calc(-1 * max(16px, env(safe-area-inset-right))) -16px calc(-1 * max(16px, env(safe-area-inset-left)));
+	/* Bottom margin now mirrors modal-content's own padding-bottom
+	   expression exactly (see the comment there) instead of a hardcoded
+	   -16px, so the two can never drift apart again — the safe-area
+	   allowance is reserved exactly once, by this bar's own padding-bottom
+	   below, not duplicated. */
+	margin: 12px calc(-1 * max(16px, env(safe-area-inset-right))) calc(-1 * max(16px, env(safe-area-inset-bottom))) calc(-1 * max(16px, env(safe-area-inset-left)));
 	padding: 12px max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
 	background: var(--background-primary);
 	border-top: 1px solid var(--background-modifier-border);
@@ -2381,6 +2428,32 @@
 	overflow-x: hidden;
 }
 
+/* Bottom Safe Area audit (Milestone 2): several modals scroll a nested
+   region (max-height + overflow-y: auto) *inside* the outer modal-content
+   scroller rather than relying on it — Notifications (above) was one
+   instance of this pattern, but it recurs across the plugin. Any of these
+   inner scrollers is exactly where the last row can end up trapped under
+   Obsidian's floating mobile toolbar / the iOS home indicator, because the
+   outer modal's own bottom padding (see `.modal-content` rule above) never
+   gets scrolled into view — only this inner box does. Giving each of them
+   their own bottom safe-area padding directly ensures their last item is
+   always reachable, same fix applied to Notifications individually above. */
+.is-phone .mediavault-image-picker-grid,
+.is-phone .mediavault-add-to-list-options,
+.is-phone .mediavault-episode-modal,
+.is-phone .mediavault-import-modal,
+.is-phone .mediavault-import-groups,
+.is-phone .mediavault-analytics-modal,
+.is-phone .mediavault-comfort-modal,
+.is-phone .mediavault-comfort-finder,
+.is-phone .mediavault-recommendations-modal,
+.is-phone .mediavault-virtual-viewport,
+.is-phone .mediavault-import-zip-files,
+.is-phone .mediavault-import-errors,
+.is-phone .mediavault-import-unmatched {
+	padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
 .is-phone .mediavault-library-toolbar {
 	flex-wrap: wrap;
 }
@@ -2389,9 +2462,30 @@
 	margin-left: 0;
 }
 
-.is-phone .mediavault-cast-grid,
-.is-phone .mediavault-actor-filmography-grid {
+.is-phone .mediavault-cast-grid {
 	grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+}
+
+/* Mobile Grid & Layout Improvements (Milestone 1): Filmography drops the
+   auto-fill sizing in favor of the same fixed 4/3-column grid as Library —
+   posters become the primary visual element, titles removed (see
+   .mediavault-actor-film-title below), matching how Library reads on
+   phones. Cast (above) keeps its own auto-fill sizing; it isn't part of
+   this milestone. */
+.is-phone .mediavault-actor-filmography-grid {
+	grid-template-columns: repeat(4, 1fr);
+	gap: 6px;
+}
+
+@media (max-width: 400px) {
+	.is-phone .mediavault-actor-filmography-grid {
+		grid-template-columns: repeat(3, 1fr);
+	}
+}
+
+.is-phone .mediavault-actor-film-title,
+.is-phone .mediavault-actor-film-card .mediavault-detail-meta {
+	display: none;
 }
 
 /* --- Progress Tabs (roadmap Milestone 3) --- */
@@ -2700,6 +2794,19 @@
 	width: min(800px, 92vw);
 	max-width: 100%;
 	padding: 20px 24px 24px;
+}
+
+/* Mobile Grid & Layout Improvements (Milestone 1): the desktop `width: min(800px, 92vw)`
+   above leaves the content narrower than its flex-column parent (the
+   fixed-position `.modal` shell every MediaVault modal uses on phones —
+   see the shared `:has()` rules below), and a fixed-width flex child with
+   `align-items: stretch` doesn't get centered, it sits flush left. Every
+   other MediaVault modal avoids this because it never sets an explicit
+   `width` on `.modal-content`; List Detail is the only one that did, which
+   is the actual root cause of the left-alignment bug. Dropping to 100% on
+   phones makes it fill its container exactly like the rest. */
+.is-phone .mediavault-list-detail-modal {
+	width: 100%;
 }
 
 /* --- Header --- */
@@ -3268,6 +3375,18 @@
 	gap: 14px;
 }
 
+/* Mobile Grid & Layout Improvements (Milestone 1): Explore shows 3 posters
+   per row on phones (distinct from Library's 4, since Explore cards carry
+   an overlay Add button that needs a bit more breathing room). */
+.is-phone .mediavault-explore-grid {
+	grid-template-columns: repeat(3, 1fr);
+	gap: 8px;
+}
+
+.is-phone .mediavault-explore-card {
+	width: 100%;
+}
+
 .mediavault-explore-card {
 	position: relative;
 	flex: 0 0 auto;
@@ -3419,6 +3538,25 @@
 
 .mediavault-notification-history-modal {
 	width: min(480px, 90vw);
+}
+
+/* Mobile Modal Responsiveness (Milestone 2): same fixed-width-on-a-flex-
+   parent bug as List Detail — width goes full instead of a fixed px/vw
+   value so it doesn't sit left-aligned. The list's own `max-height: 60vh`
+   scroll region also fought the outer modal's scroll container (double
+   scrollbars, and the outer's bottom safe-area padding was never reached
+   because scrolling happened inside the nested box instead) — on phones
+   the list just flows in the outer scroll container, and picks up its own
+   bottom safe-area spacing directly since there's no sticky action bar
+   here to carry it. */
+.is-phone .mediavault-notification-history-modal {
+	width: 100%;
+}
+
+.is-phone .mediavault-notification-list {
+	max-height: none;
+	overflow-y: visible;
+	padding-bottom: max(16px, env(safe-area-inset-bottom));
 }
 
 .mediavault-notification-list {

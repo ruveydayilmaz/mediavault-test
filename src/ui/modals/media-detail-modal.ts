@@ -745,24 +745,27 @@ export class MediaDetailModal extends Modal {
 		const target: TraktCommentTarget =
 			this.media.type === MediaType.Movie ? { kind: "movie", tmdbId: this.media.tmdbId } : { kind: "show", tmdbId: this.media.tmdbId };
 
-		const listWrap = section.createDiv();
 		const fetchComments = () =>
 			this.media.type === MediaType.Movie
 				? this.trakt!.getMovieComments(this.media.tmdbId)
 				: this.trakt!.getShowComments(this.media.tmdbId);
 
-		// Mobile Milestone 2: the composer used to sit permanently expanded
-		// at the bottom, eating most of the screen before you ever saw a
-		// comment. It now starts collapsed (mobile only — desktop keeps the
-		// original always-visible composer) behind a compose icon next to
-		// the heading, matching a mobile "reply" affordance.
+		// Public Comment Composer (Milestone 2): the composer is created —
+		// and therefore appended into `section` — before `listWrap`, so it
+		// always sits immediately beneath the header and existing comments
+		// render below it, rather than the composer showing up at the
+		// bottom of the list.
 		const composeToggle = heading.createDiv({ cls: "mediavault-comment-compose-toggle" });
 		setIcon(composeToggle, "square-pen");
 		composeToggle.setAttribute("aria-label", "Write a comment");
 
+		const listWrap = section.createDiv();
+
 		const composer = await this.renderCommentComposer(section, target, () => this.refreshCommentList(listWrap, target, fetchComments));
 		composer?.addClass("is-collapsed");
 		composeToggle.addEventListener("click", () => composer?.toggleClass("is-collapsed", !composer.hasClass("is-collapsed")));
+
+		if (composer) section.insertBefore(composer, listWrap);
 
 		await this.refreshCommentList(listWrap, target, fetchComments);
 	}
@@ -1504,11 +1507,15 @@ export class MediaDetailModal extends Modal {
 				episode: episode.episodeNumber,
 				episodeTmdbId: episode.tmdbEpisodeId,
 			};
-			const listWrap = commentsSection.createDiv();
 			const fetchComments = () => this.trakt!.getEpisodeComments(this.media.tmdbId, episode.seasonNumber, episode.episodeNumber);
+			const listWrap = commentsSection.createDiv();
 			const composer = await this.renderCommentComposer(commentsSection, target, () => this.refreshCommentList(listWrap, target, fetchComments));
 			composer?.addClass("is-collapsed");
 			composeToggle.addEventListener("click", () => composer?.toggleClass("is-collapsed", !composer.hasClass("is-collapsed")));
+			// Public Comment Composer (Milestone 2): reorder so the composer
+			// sits immediately beneath the heading rather than at the bottom
+			// of the list (same fix as the movie/show Comments tab above).
+			if (composer) commentsSection.insertBefore(composer, listWrap);
 			await this.refreshCommentList(listWrap, target, fetchComments);
 		} else {
 			// No per-episode TMDB id on record (older import) — can still read/edit/delete via the season+episode number cache key, just can't post against this exact episode (no id to send Trakt).

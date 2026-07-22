@@ -1,3 +1,4 @@
+import { Platform } from "obsidian";
 import { MediaItem } from "../../models/media";
 import { MediaType } from "../../types/enums";
 import { StorageService } from "../../services/storage";
@@ -58,11 +59,26 @@ export async function renderFavoritesSection(
 
 	viewAll.onclick = onViewAll;
 
+	const items = activeTab === "movies" ? movies : shows;
+
+	// Mobile Grid & Layout Improvements (Milestone 1): on phones, Favorites
+	// renders as the same responsive grid as the Library view (shared
+	// `.mediavault-grid` class/breakpoints) instead of a horizontally
+	// scrolling carousel — desktop/tablet keep the carousel unchanged.
+	if (Platform.isPhone) {
+		const grid = container.createDiv({ cls: "mediavault-grid mediavault-favorites-grid" });
+
+		for (const item of items) {
+			const progress = await getMediaPercentWatched(storage, item);
+			grid.appendChild(buildFavoriteCard(item, progress, onOpen));
+		}
+
+		return;
+	}
+
 	const carouselContainer = container.createDiv({ cls: "mediavault-favorites-carousel-container" });
 	const { track } = createCarousel(carouselContainer);
 	track.addClass("mediavault-favorites-track");
-
-	const items = activeTab === "movies" ? movies : shows;
 
 	for (const item of items) {
 		const progress = await getMediaPercentWatched(storage, item);
