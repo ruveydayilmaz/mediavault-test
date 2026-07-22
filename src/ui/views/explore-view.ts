@@ -358,17 +358,8 @@ export class ExploreView extends ItemView {
 		if (posterUrl) poster.createEl("img", { attr: { src: posterUrl, alt: card.title, loading: "lazy" } });
 		else poster.setText("🎬");
 
-		el.createDiv({ cls: "mediavault-explore-title", text: card.year ? `${card.title} (${card.year})` : card.title });
-		if (card.reason) el.createDiv({ cls: "mediavault-explore-reason", text: card.reason });
-
 		const owned = this.ownedKeys.has(`${card.mediaKind}:${card.tmdbId}`);
 
-		// Mobile Milestone 3 (Explore Page Mobile Improvements): the Add
-		// button now floats on top of the poster (streaming-app convention)
-		// instead of sitting in normal flow below it — tapping it adds
-		// without opening details; tapping anywhere else on the poster
-		// opens Media Detail. Desktop keeps the same floating treatment
-		// (harmless, and consistent rather than mobile-only markup).
 		poster.addEventListener("click", async () => {
 			const type = card.mediaKind === "movie" ? MediaType.Movie : MediaType.TVShow;
 			const media = await this.plugin.storage.media.findByTmdbId(card.tmdbId, type);
@@ -376,9 +367,6 @@ export class ExploreView extends ItemView {
 				this.plugin.openMediaDetail(media);
 				return;
 			}
-			// Not in the library yet — read-only preview built straight from
-			// TMDB data (same pattern as the Cast filmography preview),
-			// rather than importing on a poster tap.
 			try {
 				const details =
 					card.mediaKind === "movie" ? await this.plugin.tmdb.getMovie(card.tmdbId) : await this.plugin.tmdb.getTV(card.tmdbId);

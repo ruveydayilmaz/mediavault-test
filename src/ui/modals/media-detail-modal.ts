@@ -225,12 +225,6 @@ export class MediaDetailModal extends Modal {
 		}
 	}
 
-	/**
-	 * Full-width hero banner (Milestone 3: Media Details Modal Redesign) —
-	 * replaces the old poster-on-the-left layout. Falls back to the poster
-	 * image (then a plain gradient) when there's no backdrop yet, so shows
-	 * added before `backdropPath` existed still render something.
-	 */
 	private async renderHero(contentEl: HTMLElement): Promise<void> {
 		const hero = contentEl.createDiv({ cls: "mediavault-detail-hero" });
 
@@ -274,11 +268,6 @@ export class MediaDetailModal extends Modal {
 		});
 
 		if (this.isPreview) {
-			// Filmography Preview (Milestone 2): browsing never writes to
-			// storage — this is the only action in the whole modal that does,
-			// and it's explicit. Swaps this.media/isPreview in place rather
-			// than closing, per spec ("Import should preserve the current
-			// Details modal").
 			await this.renderAddToLibraryAction(heroContent);
 		} else if (MediaType.Movie === this.media.type) {
 			const logBtn = heroContent.createEl("button", {
@@ -301,7 +290,7 @@ export class MediaDetailModal extends Modal {
 		if (this.isPreview) return;
 
 		if (this.media.type === MediaType.TVShow) {
-			const episodes = await this.storage.episodes.findByMediaId(this.media.id); // only fetch once per render, not per episode row (currently fetched two times)
+			const episodes = await this.storage.episodes.findByMediaId(this.media.id);
 			const progress = await this.storage.episodeProgress.getShowProgress(this.media.id, episodes);
 			this.renderProgressBar(hero, progress.percentWatched, true);
 		} else {
@@ -309,7 +298,6 @@ export class MediaDetailModal extends Modal {
 		}
 	}
 
-	/** Floating "Add to Library" / "✓ In Library" action for a preview modal (Milestone 2: Filmography Preview Instead of Auto-Import). */
 	private async renderAddToLibraryAction(heroContent: HTMLElement): Promise<void> {
 		const mediaType = this.media.type;
 		const existing = await this.storage.media.findByTmdbId(this.media.tmdbId, mediaType);
@@ -348,13 +336,6 @@ export class MediaDetailModal extends Modal {
 		});
 	}
 
-	/**
-	 * Resume UI for a partially-watched movie (Milestone 3: Partially
-	 * Watched Movies) — progress bar, "Resume from X min", and actions to
-	 * update progress or mark it finished. Renders nothing if the movie
-	 * has no partial-progress record (e.g. never started, or already
-	 * completed — completing a movie deletes the record).
-	 */
 	private async renderMoviePartialProgress(hero: HTMLElement): Promise<void> {
 		const progress = await this.storage.movieProgress.findByMediaId(this.media.id);
 		if (!progress) return;
@@ -750,11 +731,6 @@ export class MediaDetailModal extends Modal {
 				? this.trakt!.getMovieComments(this.media.tmdbId)
 				: this.trakt!.getShowComments(this.media.tmdbId);
 
-		// Public Comment Composer (Milestone 2): the composer is created —
-		// and therefore appended into `section` — before `listWrap`, so it
-		// always sits immediately beneath the header and existing comments
-		// render below it, rather than the composer showing up at the
-		// bottom of the list.
 		const composeToggle = heading.createDiv({ cls: "mediavault-comment-compose-toggle" });
 		setIcon(composeToggle, "square-pen");
 		composeToggle.setAttribute("aria-label", "Write a comment");
@@ -763,22 +739,12 @@ export class MediaDetailModal extends Modal {
 
 		const composer = await this.renderCommentComposer(section, target, () => this.refreshCommentList(listWrap, target, fetchComments));
 		composer?.addClass("is-collapsed");
-		composeToggle.addEventListener("click", () => composer?.toggleClass("is-collapsed", !composer.hasClass("is-collapsed")));
 
 		if (composer) section.insertBefore(composer, listWrap);
 
 		await this.refreshCommentList(listWrap, target, fetchComments);
 	}
 
-	/**
-	 * Fetches comments for `target` and replaces `listWrap`'s contents in
-	 * place (Part 1: Refresh Comments After Posting) — this is the single
-	 * function both the initial tab render and "just posted a comment"
-	 * both call, so there's exactly one refresh code path rather than the
-	 * composer relying on a full modal re-render to see its own new
-	 * comment. Clears `listWrap` before repopulating, so a re-run never
-	 * appends a duplicate copy of the list underneath the old one.
-	 */
 	private async refreshCommentList(
 		listWrap: HTMLElement,
 		target: TraktCommentTarget,
@@ -848,7 +814,6 @@ export class MediaDetailModal extends Modal {
 			});
 	}
 
-	/** Shared by the movie/show Comments tab and Episode Details. Applies the configured language filter/order (Milestone 2: Localized Trakt Comments). */
 	private async renderCommentList(
 		container: HTMLElement,
 		rawComments: TraktComment[],
@@ -914,7 +879,6 @@ export class MediaDetailModal extends Modal {
 				text: `👍 ${comment.likes} like${comment.likes === 1 ? "" : "s"}`,
 			});
 
-			// Edit/Delete (Milestone 1: Trakt Public Comments) — only ever shown on the connected account's own comments.
 			if (currentUser && currentUser.username === comment.userName && this.trakt) {
 				const actions = footer.createDiv({ cls: "mediavault-comment-actions" });
 
@@ -939,7 +903,6 @@ export class MediaDetailModal extends Modal {
 		});
 	}
 
-	/** Swaps a comment's body for an inline edit textarea, in place. */
 	private renderCommentEditForm(item: HTMLElement, body: HTMLElement, comment: TraktComment, target: TraktCommentTarget): void {
 		const existingActions = item.querySelector(".mediavault-comment-actions");
 		existingActions?.remove();
@@ -970,13 +933,6 @@ export class MediaDetailModal extends Modal {
 		});
 	}
 
-	/**
-	 * "Write a Public Comment" composer (Milestone 1: Trakt Public
-	 * Comments) — shared by the movie/show Comments tab and Episode
-	 * Details. Shows a connect-Trakt prompt instead if there's no valid
-	 * token, since posting requires authentication (unlike reading, which
-	 * is public).
-	 */
 	private async renderCommentComposer(
 		container: HTMLElement,
 		target: TraktCommentTarget,
@@ -1008,9 +964,7 @@ export class MediaDetailModal extends Modal {
 		const warningEl = composer.createDiv({ cls: "mediavault-comment-refresh-warning" });
 
 		const buttonRow = composer.createDiv({ cls: "mediavault-comment-compose-buttons" });
-		// Mobile-only affordance (Milestone 2) for collapsing the composer
-		// back behind the compose icon without posting anything; harmless
-		// no-op on desktop where the composer stays visible either way.
+
 		const cancelBtn = buttonRow.createEl("button", { cls: "mediavault-comment-compose-cancel", text: "Cancel" });
 		cancelBtn.addEventListener("click", () => {
 			textarea.value = "";
@@ -1044,11 +998,6 @@ export class MediaDetailModal extends Modal {
 				return;
 			}
 
-			// Posting itself succeeded — the toast for that is permanent
-			// regardless of what happens next. Refreshing the list is a
-			// separate step (Part 1: Refresh Comments After Posting) with
-			// its own loading state and its own failure handling, so a
-			// refresh problem never looks like the post itself failed.
 			new Notice("MediaVault: comment posted.");
 			textarea.value = "";
 			counter.setText(`0 / ${TRAKT_COMMENT_LIMIT}`);
@@ -1281,12 +1230,6 @@ export class MediaDetailModal extends Modal {
 		});
 	}
 
-	/**
-	 * Marks a single episode watched, but first checks for unwatched
-	 * earlier episodes/seasons (Milestone 3: Smart Episode Completion). If
-	 * any exist, prompts once before backfilling them alongside the target
-	 * episode — never asks when everything before it is already watched.
-	 */
 	private async markEpisodeWatchedWithSmartCompletion(episode: Episode): Promise<void> {
 		const [allEpisodes, progress] = await Promise.all([
 			this.storage.episodes.findByMediaId(this.media.id),
@@ -1310,12 +1253,6 @@ export class MediaDetailModal extends Modal {
 		}
 	}
 
-	/**
-	 * Switches the modal into "Episode Details" mode (Milestone 4). Reachable
-	 * from the Episodes tab (this method) as well as directly on open, when
-	 * Watch Next or the Upcoming list construct the modal with an
-	 * `initialEpisode` already set.
-	 */
 	private openEpisodeDetail(episode: Episode): void {
 		this.tabBeforeEpisodeDetail = this.activeTab === "episode-detail" ? this.tabBeforeEpisodeDetail : this.activeTab;
 		this.selectedEpisode = episode;
@@ -1323,36 +1260,10 @@ export class MediaDetailModal extends Modal {
 		void this.render();
 	}
 
-	/**
-	 * Episode Details (Milestone 1: Episode Details Experience) — a hero
-	 * banner header, then one of two bodies depending on watched state:
-	 * an information page (overview, cast/crew, "Mark as Watched") for
-	 * unwatched episodes, or a review page (review card, star rating,
-	 * emotion picker, Trakt comments) once it's been watched. Comments are
-	 * deliberately withheld until the episode is watched, to avoid spoilers.
-	 */
 	private async renderEpisodeDetailTab(contentEl: HTMLElement, episode: Episode): Promise<void> {
 		this.renderEpisodeHero(contentEl, episode);
 		await this.renderEpisodeNavRow(contentEl, episode);
 
-		const backBtn = contentEl.createEl("button", { cls: "clickable-icon mediavault-back-btn", text: "← Back to Episodes" });
-		backBtn.addEventListener("click", () => {
-			this.activeTab = this.tabBeforeEpisodeDetail === "episode-detail" ? "episodes" : this.tabBeforeEpisodeDetail;
-			this.selectedEpisode = null;
-			void this.render();
-		});
-
-		// Milestone 1 (Synchronize Episode Watch State): `EpisodeProgress.watched`
-		// is the single source of truth for "is this episode watched" —
-		// it's the same flag the Episode List checkbox, Watch Next, and every
-		// progress bar already read. Episode Details used to decide this
-		// from whether any `EpisodeWatch` record existed instead, which
-		// could disagree with it (e.g. marking watched from the Episode
-		// List never created a rewatch record), leaving Episode Details
-		// showing "unwatched" for an episode the list already showed
-		// checked. The rewatch timeline below is still driven by whatever
-		// `EpisodeWatch` records actually exist — that's unrelated to which
-		// body renders.
 		const progress = await this.storage.episodeProgress.findByEpisodeId(episode.id);
 		const watches = sortEpisodeWatchesChronological(await this.storage.episodeWatches.findByEpisodeId(episode.id));
 
@@ -1363,13 +1274,6 @@ export class MediaDetailModal extends Modal {
 		}
 	}
 
-	/**
-	 * Previous/Next Episode navigation (Milestone 2: Episode Navigation) —
-	 * crosses season boundaries (last episode of a season → first of the
-	 * next), disables at the very first/last episode of the series, and
-	 * swaps `this.selectedEpisode` + re-renders in place rather than
-	 * closing and reopening the modal.
-	 */
 	private async renderEpisodeNavRow(contentEl: HTMLElement, episode: Episode): Promise<void> {
 		const allEpisodes = [...(await this.storage.episodes.findByMediaId(this.media.id))].sort((a, b) =>
 			a.seasonNumber !== b.seasonNumber ? a.seasonNumber - b.seasonNumber : a.episodeNumber - b.episodeNumber

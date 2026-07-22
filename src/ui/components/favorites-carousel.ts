@@ -111,10 +111,5 @@ function buildFavoriteCard(item: MediaItem, percentWatched: number | null, onOpe
 		});
 	}
 
-	card.createDiv({
-		cls: "mediavault-favorite-title",
-		text: item.title,
-	});
-
 	return card;
 }
