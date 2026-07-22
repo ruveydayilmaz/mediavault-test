@@ -1,4 +1,5 @@
 import { App, Modal, Notice } from "obsidian";
+import { renderMobileBackButton } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import { dropSeries } from "../../services/drop-series-service";
 
@@ -22,6 +23,7 @@ export class DropSeriesModal extends Modal {
 	onOpen(): void {
 		const { contentEl } = this;
 		contentEl.addClass("mediavault-drop-series-modal");
+		renderMobileBackButton(this, contentEl);
 		contentEl.createEl("h3", { text: "Why did you stop watching?" });
 		contentEl.createDiv({
 			cls: "mediavault-modal-hint",

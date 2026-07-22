@@ -87,6 +87,17 @@ function scoreCandidate(lookup: TitleLookup, candidate: TMDBSearchResult, compar
  * a title that returns nothing (or the wrong thing) on TMDB's literal
  * tokenization often matches cleanly once punctuation is normalized, or
  * once a "Movie: Subtitle" title is tried as just "Movie".
+ *
+ * PERFORMANCE (GDPR Import Performance Audit): each stage below still runs
+ * only when the previous stage didn't already produce an unambiguous match
+ * (`alreadyConfident()`), so an easy exact hit still costs exactly one
+ * request as before. But titles that DON'T resolve early — which, on a
+ * fresh library, is most of them — used to run up to 8 sequential HTTP
+ * round trips one at a time. The scoped/unscoped pair within each stage has
+ * no dependency on each other, so they're now fired concurrently; only the
+ * confidence check between stages remains sequential. This roughly halves
+ * the request chain length for the expensive (non-early-exit) case without
+ * changing which queries are ever sent or how results are pooled/ranked.
  */
 async function gatherCandidates(
 	tmdb: TMDBService,
@@ -114,6 +125,14 @@ async function gatherCandidates(
 		}
 	}
 
+	/** Fires the scoped (year) and unscoped variants of one title concurrently — they're independent requests, so there's no reason to wait for one before starting the other. */
+	async function tryQueryPair(query: string): Promise<void> {
+		await Promise.all([
+			lookup.year !== null ? tryQuery(query, lookup.year) : Promise.resolve(),
+			tryQuery(query, null),
+		]);
+	}
+
 	const normalized = normalizeTitle(lookup.title);
 	const stripped = stripSubtitle(lookup.title);
 	const originalTitle = lookup.originalTitle?.trim() ?? "";
@@ -130,31 +149,24 @@ async function gatherCandidates(
 		return titleOk && yearOk;
 	}
 
-	// 1. Exact title, year-scoped (TMDB's own year filter is far more
-	//    precise than any client-side re-ranking).
-	if (lookup.year !== null) await tryQuery(lookup.title, lookup.year);
-	// 2. Exact title, unscoped — catches cases where the imported year is
-	//    itself wrong (a common TV Time export quirk) or TMDB's year field
-	//    disagrees (region cut, re-release, etc.). Skipped once stage 1
-	//    alone already produced an unambiguous exact hit.
-	if (!alreadyConfident()) await tryQuery(lookup.title, null);
+	// 1/2. Exact title, scoped + unscoped together — unscoped catches cases
+	//    where the imported year is itself wrong (a common TV Time export
+	//    quirk) or TMDB's year field disagrees (region cut, re-release, etc).
+	await tryQueryPair(lookup.title);
 	// 3. Normalized title (smart quotes / punctuation stripped), both scoped and unscoped.
 	if (!alreadyConfident() && normalized !== lookup.title.trim().toLowerCase()) {
-		if (lookup.year !== null) await tryQuery(normalized, lookup.year);
-		if (!alreadyConfident()) await tryQuery(normalized, null);
+		await tryQueryPair(normalized);
 	}
 	// 4. Subtitle stripped ("Movie: Subtitle" -> "Movie") — only really
 	//    fires once the exact and normalized queries above have failed to
 	//    find anything usable, but cheap to always include in the pool.
 	if (stripped && !alreadyConfident()) {
-		if (lookup.year !== null) await tryQuery(stripped, lookup.year);
-		if (!alreadyConfident()) await tryQuery(stripped, null);
+		await tryQueryPair(stripped);
 	}
 	// Original/localized title is often the only bridge for anime, translated
 	// titles, and regional movie releases in TV Time's GDPR export.
 	if (originalTitle && !alreadyConfident()) {
-		if (lookup.year !== null) await tryQuery(originalTitle, lookup.year);
-		if (!alreadyConfident()) await tryQuery(originalTitle, null);
+		await tryQueryPair(originalTitle);
 	}
 
 	return { candidates: [...pool.values()], queriesTried, comparisonTitles };

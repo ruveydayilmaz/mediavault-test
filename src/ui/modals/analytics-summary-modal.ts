@@ -1,4 +1,5 @@
 import { App, Modal } from "obsidian";
+import { renderMobileBackButton } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import { computeAnalyticsMemoized } from "../../services/analytics/memoized";
 import { CountItem } from "../../services/analytics/types";
@@ -27,6 +28,7 @@ export class AnalyticsSummaryModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.addClass("mediavault-analytics-modal");
+		renderMobileBackButton(this, contentEl);
 		contentEl.createEl("h2", { text: "Your MediaVault Stats" });
 
 		const [media, sessions, episodes, episodeProgress] = await Promise.all([

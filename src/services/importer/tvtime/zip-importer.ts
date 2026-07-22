@@ -2,6 +2,7 @@ import JSZip from "jszip";
 import { runImport } from "./manager";
 import { DetectionResult, ImportCategory, NormalizedImportBundle, emptyBundle, mergeBundles } from "./types";
 import { parseGdprArchive } from "./gdpr";
+import { ImportTimer } from "../import-timer";
 
 /**
  * Per-file column renames applied before handoff to the normal detection
@@ -50,6 +51,8 @@ export interface ZipImportResult {
 	files: ZipFileResult[];
 	supportedCount: number;
 	unsupportedCount: number;
+	/** ZIP-extraction + CSV-parsing timing (GDPR Import Performance Audit) — merged with commit-phase timing in the final report. */
+	timing: { stage: string; ms: number; calls: number }[];
 }
 
 /** Files TV Time's GDPR export includes that are never user-facing import data under any current category (translation metadata, internal usage telemetry, recommendation-engine state) — skipped up front rather than run through detection and reported as "unsupported", since that phrasing implies a gap MediaVault might one day close, and these never will be. */
@@ -115,9 +118,11 @@ export async function runZipImport(
 	zipData: ArrayBuffer,
 	onProgress?: (done: number, total: number) => void
 ): Promise<ZipImportResult> {
+	const timer = new ImportTimer();
+
 	let zip: JSZip;
 	try {
-		zip = await JSZip.loadAsync(zipData);
+		zip = await timer.time("ZIP extraction", () => JSZip.loadAsync(zipData));
 	} catch (err) {
 		throw new Error(`Couldn't open this ZIP file — it may be corrupted. (${(err as Error).message})`);
 	}
@@ -141,7 +146,7 @@ export async function runZipImport(
 		}
 
 		try {
-			let content = await entry.async("text");
+			let content = await timer.time("ZIP extraction", () => entry.async("text"));
 			contents.set(name.toLowerCase(), content);
 
 			if (GDPR_RELATIONAL_FILES.has(name.toLowerCase())) {
@@ -161,7 +166,7 @@ export async function runZipImport(
 				content = renameCsvHeaderColumns(content, renames);
 			}
 
-			const result = runImport(content);
+			const result = await timer.time("CSV/JSON parsing", async () => runImport(content));
 			bundles.push(result.bundle);
 			files.push({
 				filename: name,
@@ -191,8 +196,8 @@ export async function runZipImport(
 	// Replace generic per-file interpretation with the archive-aware parser
 	// for TV Time's relational tracking tables. Generic detection cannot infer
 	// that these are watch logs from one file in isolation.
-	const gdprBundles = parseGdprArchive(contents);
-	for (const [filename, bundle] of gdprBundles) {
+	const gdprBundles = timer.time("CSV/JSON parsing", async () => parseGdprArchive(contents));
+	for (const [filename, bundle] of await gdprBundles) {
 		const file = files.find((f) => f.filename.toLowerCase() === filename);
 		if (file) {
 			file.detection = { format: "csv", category: gdprCategory(filename), label: gdprLabel(filename) };
@@ -210,6 +215,7 @@ export async function runZipImport(
 		files,
 		supportedCount,
 		unsupportedCount: files.length - supportedCount,
+		timing: timer.breakdown(),
 	};
 }
 

@@ -1,4 +1,5 @@
 import { App, Modal, Setting, Notice } from "obsidian";
+import { renderMobileBackButton } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import { WatchSession } from "../../models/review";
 import { Mood, WatchSource } from "../../types/enums";
@@ -46,6 +47,7 @@ export class WatchSessionModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.addClass("mediavault-watch-session-modal");
+		renderMobileBackButton(this, contentEl);
 
 		const isEdit = !!this.options.existingSession;
 		contentEl.createEl("h2", {

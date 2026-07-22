@@ -1,4 +1,5 @@
 import { App, Modal, Notice } from "obsidian";
+import { renderMobileBackButton } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import type { TMDBService } from "../../api/tmdb";
 import { TMDBFilmographyItem, TMDBPersonDetails } from "../../types/tmdb";
@@ -48,6 +49,7 @@ export class ActorDetailsModal extends Modal {
 		contentEl.empty();
 		contentEl.addClass("mediavault-detail-modal");
 		contentEl.addClass("mediavault-actor-modal");
+		renderMobileBackButton(this, contentEl);
 
 		const loading = contentEl.createDiv({ cls: "mediavault-modal-hint", text: "Loading actor details..." });
 		try {

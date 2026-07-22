@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Notice } from "obsidian";
+import { ItemView, WorkspaceLeaf, Notice, setIcon } from "obsidian";
 import type MediaVaultPlugin from "../../main";
 import { VIEW_TYPE_EXPLORE } from "../../constants";
 import { TMDBSearchResult } from "../../types/tmdb";
@@ -8,6 +8,8 @@ import { buildRecommendations, RecommendationSet } from "../../services/recommen
 import { Recommendation } from "../../services/recommendation/types";
 import { DiscoverFilters } from "../../api/tmdb";
 import { MediaType } from "../../types/enums";
+import { MediaDetailModal } from "../modals/media-detail-modal";
+import { buildMediaItemFromTMDB } from "../../services/media-import";
 
 type ExploreTab = "discover" | "browse" | "search";
 
@@ -175,7 +177,13 @@ export class ExploreView extends ItemView {
 
 		const filterBar = body.createDiv({ cls: "mediavault-explore-filter-bar" });
 
-		const kindSelect = filterBar.createEl("select");
+		// Primary row — always visible. Kind + genre are the filters people
+		// reach for first; everything else lives behind "More filters"
+		// (Mobile Milestone 3: Browse Filters) so a phone screen isn't
+		// immediately filled with six stacked desktop-style form rows.
+		const primaryRow = filterBar.createDiv({ cls: "mediavault-explore-filter-primary" });
+
+		const kindSelect = primaryRow.createEl("select");
 		[
 			{ value: "movie", label: "Movies" },
 			{ value: "tv", label: "TV Shows" },
@@ -188,7 +196,7 @@ export class ExploreView extends ItemView {
 			await this.refresh();
 		});
 
-		const genreSelect = filterBar.createEl("select");
+		const genreSelect = primaryRow.createEl("select");
 		genreSelect.createEl("option", { value: "", text: "Any genre" });
 		this.browseGenres.forEach((g) => genreSelect.createEl("option", { value: String(g.id), text: g.name }));
 		genreSelect.value = this.browseFilters.genreId !== undefined ? String(this.browseFilters.genreId) : "";
@@ -197,35 +205,44 @@ export class ExploreView extends ItemView {
 			void this.refreshBrowseResults(body);
 		});
 
-		const yearMin = filterBar.createEl("input", { type: "number", attr: { placeholder: "Year from" } });
+		const moreToggle = primaryRow.createEl("button", { cls: "clickable-icon mediavault-explore-more-filters-toggle" });
+		setIcon(moreToggle, "sliders-horizontal");
+		moreToggle.setAttr("aria-label", "More filters");
+		const moreFilters = filterBar.createDiv({ cls: "mediavault-explore-filter-more is-collapsed" });
+		moreToggle.addEventListener("click", () => {
+			moreFilters.toggleClass("is-collapsed", !moreFilters.hasClass("is-collapsed"));
+			moreToggle.toggleClass("is-active", moreFilters.hasClass("is-collapsed") === false);
+		});
+
+		const yearMin = moreFilters.createEl("input", { type: "number", attr: { placeholder: "Year from" } });
 		yearMin.value = this.browseFilters.yearMin?.toString() ?? "";
 		yearMin.addEventListener("change", () => {
 			this.browseFilters.yearMin = yearMin.value ? parseInt(yearMin.value, 10) : undefined;
 			void this.refreshBrowseResults(body);
 		});
 
-		const yearMax = filterBar.createEl("input", { type: "number", attr: { placeholder: "Year to" } });
+		const yearMax = moreFilters.createEl("input", { type: "number", attr: { placeholder: "Year to" } });
 		yearMax.value = this.browseFilters.yearMax?.toString() ?? "";
 		yearMax.addEventListener("change", () => {
 			this.browseFilters.yearMax = yearMax.value ? parseInt(yearMax.value, 10) : undefined;
 			void this.refreshBrowseResults(body);
 		});
 
-		const runtimeMin = filterBar.createEl("input", { type: "number", attr: { placeholder: "Runtime min" } });
+		const runtimeMin = moreFilters.createEl("input", { type: "number", attr: { placeholder: "Runtime min" } });
 		runtimeMin.value = this.browseFilters.runtimeMin?.toString() ?? "";
 		runtimeMin.addEventListener("change", () => {
 			this.browseFilters.runtimeMin = runtimeMin.value ? parseInt(runtimeMin.value, 10) : undefined;
 			void this.refreshBrowseResults(body);
 		});
 
-		const runtimeMax = filterBar.createEl("input", { type: "number", attr: { placeholder: "Runtime max" } });
+		const runtimeMax = moreFilters.createEl("input", { type: "number", attr: { placeholder: "Runtime max" } });
 		runtimeMax.value = this.browseFilters.runtimeMax?.toString() ?? "";
 		runtimeMax.addEventListener("change", () => {
 			this.browseFilters.runtimeMax = runtimeMax.value ? parseInt(runtimeMax.value, 10) : undefined;
 			void this.refreshBrowseResults(body);
 		});
 
-		const ratingMin = filterBar.createEl("input", {
+		const ratingMin = moreFilters.createEl("input", {
 			type: "number",
 			attr: { placeholder: "Rating min", step: "0.5", min: "0", max: "10" },
 		});
@@ -235,7 +252,7 @@ export class ExploreView extends ItemView {
 			void this.refreshBrowseResults(body);
 		});
 
-		const langInput = filterBar.createEl("input", { type: "text", attr: { placeholder: "Language (e.g. en)", maxlength: "2" } });
+		const langInput = moreFilters.createEl("input", { type: "text", attr: { placeholder: "Language (e.g. en)", maxlength: "2" } });
 		langInput.value = this.browseFilters.language ?? "";
 		langInput.addEventListener("change", () => {
 			this.browseFilters.language = langInput.value.trim() || undefined;
@@ -345,15 +362,51 @@ export class ExploreView extends ItemView {
 		if (card.reason) el.createDiv({ cls: "mediavault-explore-reason", text: card.reason });
 
 		const owned = this.ownedKeys.has(`${card.mediaKind}:${card.tmdbId}`);
+
+		// Mobile Milestone 3 (Explore Page Mobile Improvements): the Add
+		// button now floats on top of the poster (streaming-app convention)
+		// instead of sitting in normal flow below it — tapping it adds
+		// without opening details; tapping anywhere else on the poster
+		// opens Media Detail. Desktop keeps the same floating treatment
+		// (harmless, and consistent rather than mobile-only markup).
+		poster.addEventListener("click", async () => {
+			const type = card.mediaKind === "movie" ? MediaType.Movie : MediaType.TVShow;
+			const media = await this.plugin.storage.media.findByTmdbId(card.tmdbId, type);
+			if (media) {
+				this.plugin.openMediaDetail(media);
+				return;
+			}
+			// Not in the library yet — read-only preview built straight from
+			// TMDB data (same pattern as the Cast filmography preview),
+			// rather than importing on a poster tap.
+			try {
+				const details =
+					card.mediaKind === "movie" ? await this.plugin.tmdb.getMovie(card.tmdbId) : await this.plugin.tmdb.getTV(card.tmdbId);
+				const previewMedia = buildMediaItemFromTMDB(details);
+				new MediaDetailModal(
+					this.app,
+					this.plugin.storage,
+					this.plugin.tmdb,
+					previewMedia,
+					undefined,
+					undefined,
+					"cast",
+					undefined,
+					undefined,
+					true,
+					details.tmdbRating
+				).open();
+			} catch (err) {
+				new Notice(`MediaVault: couldn't load "${card.title}" — ${(err as Error).message}`);
+			}
+		});
+
 		if (owned) {
-			el.createDiv({ cls: "mediavault-explore-owned-badge", text: "In library" });
-			el.addEventListener("click", async () => {
-				const type = card.mediaKind === "movie" ? MediaType.Movie : MediaType.TVShow;
-				const media = await this.plugin.storage.media.findByTmdbId(card.tmdbId, type);
-				if (media) this.plugin.openMediaDetail(media);
-			});
+			poster.createDiv({ cls: "mediavault-explore-owned-badge", text: "In library" });
 		} else {
-			const addBtn = el.createEl("button", { cls: "mod-cta", text: "+ Add" });
+			const addBtn = poster.createDiv({ cls: "mediavault-explore-add-floating" });
+			addBtn.setAttr("aria-label", "Add to library");
+			addBtn.setText("+");
 			addBtn.addEventListener("click", async (evt) => {
 				evt.stopPropagation();
 				try {
@@ -365,8 +418,8 @@ export class ExploreView extends ItemView {
 					);
 					this.plugin.refreshLibraryViews();
 					this.ownedKeys.add(`${card.mediaKind}:${card.tmdbId}`);
-					addBtn.setText("Added");
-					addBtn.setAttr("disabled", "true");
+					addBtn.addClass("is-added");
+					addBtn.setText("✓");
 				} catch (err) {
 					new Notice(`MediaVault: failed to add — ${(err as Error).message}`);
 				}

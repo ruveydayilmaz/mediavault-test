@@ -1,4 +1,5 @@
 import { App, Modal, Notice, Menu, setIcon } from "obsidian";
+import { renderMobileBackButton } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import type { TMDBService } from "../../api/tmdb";
 import type { TraktService, TraktComment, TraktCommentTarget } from "../../api/trakt";
@@ -173,6 +174,7 @@ export class MediaDetailModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.addClass("mediavault-detail-modal");
+		renderMobileBackButton(this, contentEl);
 
 		// Re-fetch the media item in case aggregates changed since opening.
 		const fresh = await this.storage.media.findById(this.media.id);
@@ -732,7 +734,8 @@ export class MediaDetailModal extends Modal {
 
 	private async renderCommentsTab(contentEl: HTMLElement): Promise<void> {
 		const section = contentEl.createDiv({ cls: "mediavault-detail-section" });
-		section.createEl("h3", { text: "Comments" });
+		const heading = section.createDiv({ cls: "mediavault-comments-heading" });
+		heading.createEl("h3", { text: "Comments" });
 
 		if (!this.trakt) {
 			section.createDiv({ cls: "mediavault-modal-hint", text: "Trakt isn't available for this item." });
@@ -748,7 +751,19 @@ export class MediaDetailModal extends Modal {
 				? this.trakt!.getMovieComments(this.media.tmdbId)
 				: this.trakt!.getShowComments(this.media.tmdbId);
 
-		await this.renderCommentComposer(section, target, () => this.refreshCommentList(listWrap, target, fetchComments));
+		// Mobile Milestone 2: the composer used to sit permanently expanded
+		// at the bottom, eating most of the screen before you ever saw a
+		// comment. It now starts collapsed (mobile only — desktop keeps the
+		// original always-visible composer) behind a compose icon next to
+		// the heading, matching a mobile "reply" affordance.
+		const composeToggle = heading.createDiv({ cls: "mediavault-comment-compose-toggle" });
+		setIcon(composeToggle, "square-pen");
+		composeToggle.setAttribute("aria-label", "Write a comment");
+
+		const composer = await this.renderCommentComposer(section, target, () => this.refreshCommentList(listWrap, target, fetchComments));
+		composer?.addClass("is-collapsed");
+		composeToggle.addEventListener("click", () => composer?.toggleClass("is-collapsed", !composer.hasClass("is-collapsed")));
+
 		await this.refreshCommentList(listWrap, target, fetchComments);
 	}
 
@@ -963,7 +978,7 @@ export class MediaDetailModal extends Modal {
 		container: HTMLElement,
 		target: TraktCommentTarget,
 		onPosted: () => Promise<void>
-	): Promise<void> {
+	): Promise<HTMLElement | null> {
 		const composer = container.createDiv({ cls: "mediavault-comment-composer" });
 		const token = await ensureValidTraktToken(this.storage);
 
@@ -972,7 +987,7 @@ export class MediaDetailModal extends Modal {
 				cls: "mediavault-modal-hint",
 				text: "Connect your Trakt account to post comments.",
 			});
-			return;
+			return composer;
 		}
 
 		const TRAKT_COMMENT_LIMIT = 2000;
@@ -989,7 +1004,18 @@ export class MediaDetailModal extends Modal {
 
 		const warningEl = composer.createDiv({ cls: "mediavault-comment-refresh-warning" });
 
-		const postBtn = composer.createEl("button", { cls: "mod-cta", text: "Post Comment" });
+		const buttonRow = composer.createDiv({ cls: "mediavault-comment-compose-buttons" });
+		// Mobile-only affordance (Milestone 2) for collapsing the composer
+		// back behind the compose icon without posting anything; harmless
+		// no-op on desktop where the composer stays visible either way.
+		const cancelBtn = buttonRow.createEl("button", { cls: "mediavault-comment-compose-cancel", text: "Cancel" });
+		cancelBtn.addEventListener("click", () => {
+			textarea.value = "";
+			counter.setText(`0 / ${TRAKT_COMMENT_LIMIT}`);
+			composer.addClass("is-collapsed");
+		});
+
+		const postBtn = buttonRow.createEl("button", { cls: "mod-cta", text: "Post Comment" });
 		postBtn.addEventListener("click", async () => {
 			const text = textarea.value.trim();
 			if (text === "") {
@@ -1023,11 +1049,14 @@ export class MediaDetailModal extends Modal {
 			new Notice("MediaVault: comment posted.");
 			textarea.value = "";
 			counter.setText(`0 / ${TRAKT_COMMENT_LIMIT}`);
+			composer.addClass("is-collapsed");
 			this.pendingHighlightCommentId = posted.id;
 			postBtn.setText("Refreshing...");
 
 			await this.refreshCommentsAfterPost(warningEl, postBtn, onPosted);
 		});
+
+		return composer;
 	}
 
 	/** Runs the post-submit list refresh, re-enabling the button either way and offering a Retry on failure. */
@@ -1456,13 +1485,18 @@ export class MediaDetailModal extends Modal {
 
 		// Trakt comments — only ever shown once the episode has been watched.
 		const commentsSection = contentEl.createDiv({ cls: "mediavault-detail-section" });
-		commentsSection.createEl("h3", { text: "Comments" });
+		const commentsHeading = commentsSection.createDiv({ cls: "mediavault-comments-heading" });
+		commentsHeading.createEl("h3", { text: "Comments" });
 		if (!this.trakt) {
 			commentsSection.createDiv({ cls: "mediavault-modal-hint", text: "Trakt isn't available for this item." });
 			return;
 		}
 
 		if (episode.tmdbEpisodeId !== null) {
+			const composeToggle = commentsHeading.createDiv({ cls: "mediavault-comment-compose-toggle" });
+			setIcon(composeToggle, "square-pen");
+			composeToggle.setAttribute("aria-label", "Write a comment");
+
 			const target: TraktCommentTarget = {
 				kind: "episode",
 				showTmdbId: this.media.tmdbId,
@@ -1472,7 +1506,9 @@ export class MediaDetailModal extends Modal {
 			};
 			const listWrap = commentsSection.createDiv();
 			const fetchComments = () => this.trakt!.getEpisodeComments(this.media.tmdbId, episode.seasonNumber, episode.episodeNumber);
-			await this.renderCommentComposer(commentsSection, target, () => this.refreshCommentList(listWrap, target, fetchComments));
+			const composer = await this.renderCommentComposer(commentsSection, target, () => this.refreshCommentList(listWrap, target, fetchComments));
+			composer?.addClass("is-collapsed");
+			composeToggle.addEventListener("click", () => composer?.toggleClass("is-collapsed", !composer.hasClass("is-collapsed")));
 			await this.refreshCommentList(listWrap, target, fetchComments);
 		} else {
 			// No per-episode TMDB id on record (older import) — can still read/edit/delete via the season+episode number cache key, just can't post against this exact episode (no id to send Trakt).

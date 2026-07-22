@@ -1,4 +1,5 @@
 import { App, Modal } from "obsidian";
+import { renderMobileBackButton } from "./modal-chrome";
 import type MediaVaultPlugin from "../../main";
 import { MediaVaultNotification } from "../../models/notification";
 
@@ -26,6 +27,7 @@ export class NotificationHistoryModal extends Modal {
 	async onOpen(): Promise<void> {
 		const { contentEl } = this;
 		contentEl.addClass("mediavault-notification-history-modal");
+		renderMobileBackButton(this, contentEl);
 		contentEl.createEl("h3", { text: "Notifications" });
 
 		const markAllBtn = contentEl.createEl("button", { text: "Mark all read" });

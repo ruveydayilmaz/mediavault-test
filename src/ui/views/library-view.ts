@@ -265,7 +265,6 @@ export class LibraryView extends ItemView {
 	 */
 	private renderFilterPanel(all: MediaItem[]): void {
 		const active = hasActiveFilters(this.filterCriteria);
-		this.filterToggleBtn.setText(active ? "Filters ●" : "Filters");
 		this.filterToggleBtn.toggleClass("is-active", active);
 
 		this.filtersEl.empty();
@@ -499,15 +498,23 @@ export class LibraryView extends ItemView {
 			void this.refresh();
 		});
 
-		// Advanced filters toggle (Milestone 4 — Universal Filtering)
-		this.filterToggleBtn = toolbar.createEl("button", { cls: "mediavault-filters-toggle" });
+		// Advanced filters toggle (Milestone 4 — Universal Filtering; iconified
+		// per Mobile UI Polish Milestone 2 — the active-state "Filters ●" text
+		// badge becomes a CSS dot on the icon instead).
+		this.filterToggleBtn = toolbar.createEl("button", { cls: "clickable-icon mediavault-filters-toggle" });
+		setIcon(this.filterToggleBtn, "sliders-horizontal");
+		this.filterToggleBtn.setAttr("aria-label", "Filters");
 		this.filterToggleBtn.addEventListener("click", () => {
 			this.filterPanelOpen = !this.filterPanelOpen;
 			void this.refresh();
 		});
 
 		// Sort dropdown + direction toggle
-		const sortSelect = toolbar.createEl("select", { cls: "mediavault-library-sort" });
+		const sortGroup = toolbar.createDiv({ cls: "mediavault-library-sort-group" });
+		const sortIcon = sortGroup.createDiv({ cls: "mediavault-library-sort-icon" });
+		setIcon(sortIcon, "arrow-up-down");
+		sortIcon.setAttr("aria-label", "Sort");
+		const sortSelect = sortGroup.createEl("select", { cls: "mediavault-library-sort" });
 		SORT_OPTIONS.forEach((opt) => {
 			sortSelect.createEl("option", { value: opt.value, text: `Sort: ${opt.label}` });
 		});
@@ -518,13 +525,13 @@ export class LibraryView extends ItemView {
 			void this.refresh();
 		});
 
-		const dirBtn = toolbar.createEl("button", {
-			cls: "mediavault-library-sort-dir",
-			text: this.query.sortDirection === "asc" ? "↑" : "↓",
-		});
+		const dirBtn = sortGroup.createEl("button", { cls: "clickable-icon mediavault-library-sort-dir" });
+		setIcon(dirBtn, this.query.sortDirection === "asc" ? "arrow-up" : "arrow-down");
+		dirBtn.setAttr("aria-label", this.query.sortDirection === "asc" ? "Ascending" : "Descending");
 		dirBtn.addEventListener("click", () => {
 			this.query.sortDirection = this.query.sortDirection === "asc" ? "desc" : "asc";
-			dirBtn.setText(this.query.sortDirection === "asc" ? "↑" : "↓");
+			setIcon(dirBtn, this.query.sortDirection === "asc" ? "arrow-up" : "arrow-down");
+			dirBtn.setAttr("aria-label", this.query.sortDirection === "asc" ? "Ascending" : "Descending");
 			void this.plugin.storage.settings.update({ defaultSortDirection: this.query.sortDirection });
 			void this.refresh();
 		});

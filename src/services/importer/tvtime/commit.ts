@@ -9,6 +9,14 @@ import { importEpisodesForShow } from "../../episode-import";
 import { findBestMatch, MatchTier } from "../tmdb-match";
 import { NormalizedImportBundle, WatchImport, ReviewImport, LikeImport, RatingImport, ListImport, ExternalIds, ImportMediaKind, MatchMetadata } from "./types";
 import { recalculateAndPersistStatus } from "../../status-service";
+import { ImportTimer } from "../import-timer";
+import { mapWithConcurrency } from "../concurrency";
+
+/** How many distinct titles to resolve (TMDB search) or import episodes for concurrently. Bounded well below TMDB's own rate limit headroom so a large import behaves like a well-mannered client, not to avoid races — every mutation below is still applied sequentially. */
+const RESOLVE_CONCURRENCY = 5;
+const EPISODE_IMPORT_CONCURRENCY = 4;
+/** Minimum time between progress-callback UI updates. A 10k+ record import used to call back (and repaint a progress bar) on every single record; this caps DOM churn without making the bar feel unresponsive. */
+const PROGRESS_THROTTLE_MS = 100;
 
 export interface UnmatchedItem {
 	kind: ImportMediaKind;
@@ -66,6 +74,9 @@ export interface ImportReport {
 	totalImportedRuntimeSeconds: number;
 	/** Every row skipped anywhere in the pipeline (parse-time warnings + resolution/apply-time skips), tallied by human-readable reason so the report can show *where* records were lost instead of just a total count. */
 	skippedByReason: Record<string, number>;
+
+	/** Stage-by-stage timing breakdown (GDPR Import Performance Audit) — slowest stage first, plus a synthetic "Total" row. Populated by commitBundle(); left empty by callers/tests that construct an ImportReport directly. */
+	timing: { stage: string; ms: number; calls: number }[];
 }
 
 export function emptyReport(): ImportReport {
@@ -92,6 +103,7 @@ export function emptyReport(): ImportReport {
 		unmatchedEpisodes: 0,
 		totalImportedRuntimeSeconds: 0,
 		skippedByReason: {},
+		timing: [],
 	};
 }
 
@@ -104,6 +116,11 @@ function resolutionKey(ids: ExternalIds, title: string, year: number | null, kin
 	return JSON.stringify([kind, ids.tvdbId ?? null, ids.imdbId ?? null, ids.tvTimeUuid ?? null, ids.tvTimeId ?? null, title.toLowerCase().trim(), year, match?.originalTitle ?? null, match?.releaseDate ?? null]);
 }
 
+/** Local, incrementally-maintained lookup indexes over the media library, used by MediaResolver's title-fallback path so it never has to re-scan `storage.media.getAll()` for every distinct unresolved title in an import. */
+function normalizeTitleKey(title: string): string {
+	return title.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 /**
  * Resolves a bundle item (movie or show) to a local MediaItem, creating one
  * via TMDB if nothing matches locally yet. Matches in priority order:
@@ -111,23 +128,67 @@ function resolutionKey(ids: ExternalIds, title: string, year: number | null, kin
  * title(+year) search. Memoized per commitBundle() call so the same title
  * referenced across watches/reviews/likes/ratings/favorites only resolves
  * (and only hits TMDB) once.
+ *
+ * PERFORMANCE (GDPR Import Performance Audit): two changes from the
+ * original implementation, neither changing what gets matched or created:
+ *
+ * 1. The cache now stores in-flight Promises, not just settled results.
+ *    commitBundle() pre-resolves every distinct title concurrently before
+ *    applying anything; without this, two concurrent resolve() calls for
+ *    the same title would both miss the cache and both hit TMDB/create a
+ *    duplicate MediaItem. Storing (and awaiting) the same Promise makes
+ *    concurrent identical resolutions collapse onto one piece of work,
+ *    same as the old cache did for sequential calls.
+ * 2. The title(+year) fallback used to call `storage.media.getAll()` and
+ *    linearly re-normalize every title in the library on every distinct
+ *    unresolved title. It now builds one normalized-title index up front
+ *    and keeps it updated as new MediaItems are created during this run.
  */
 export class MediaResolver {
-	private cache = new Map<string, { media: MediaItem | null; isNew: boolean }>();
+	private cache = new Map<string, Promise<{ media: MediaItem | null; isNew: boolean }>>();
 	/** Resolution keys already tallied into matchedMediaCount/unmatchedMediaCount — resolve() is called once per bundle item, but the same title (e.g. a show referenced by hundreds of episode watches) should only count once. */
 	private countedKeys = new Set<string>();
+
+	/** normalized title -> candidate MediaItems, built once and appended to (never re-scanned) as this run creates new items. */
+	private titleIndex: Map<string, MediaItem[]> | null = null;
 
 	constructor(
 		private storage: StorageService,
 		private tmdb: TMDBService,
-		private report: ImportReport
+		private report: ImportReport,
+		private timer: ImportTimer = new ImportTimer()
 	) {}
+
+	private async ensureTitleIndex(): Promise<Map<string, MediaItem[]>> {
+		if (!this.titleIndex) {
+			const allMedia = await this.storage.media.getAll();
+			this.titleIndex = new Map();
+			for (const m of allMedia) {
+				const key = normalizeTitleKey(m.title);
+				const bucket = this.titleIndex.get(key);
+				if (bucket) bucket.push(m);
+				else this.titleIndex.set(key, [m]);
+			}
+		}
+		return this.titleIndex;
+	}
+
+	private indexNewMedia(media: MediaItem): void {
+		if (!this.titleIndex) return; // not built yet — next ensureTitleIndex() call will pick it up fresh
+		const key = normalizeTitleKey(media.title);
+		const bucket = this.titleIndex.get(key);
+		if (bucket) bucket.push(media);
+		else this.titleIndex.set(key, [media]);
+	}
 
 	async resolve(ids: ExternalIds, title: string, year: number | null, kind: ImportMediaKind, match?: MatchMetadata): Promise<MediaItem | null> {
 		const key = resolutionKey(ids, title, year, kind, match);
-		const cached = this.cache.get(key);
-		const result = cached ?? (await this.doResolve(ids, title, year, kind, match));
-		if (!cached) this.cache.set(key, result);
+		let pending = this.cache.get(key);
+		if (!pending) {
+			pending = this.doResolve(ids, title, year, kind, match);
+			this.cache.set(key, pending);
+		}
+		const result = await pending;
 
 		if (!this.countedKeys.has(key)) {
 			this.countedKeys.add(key);
@@ -172,13 +233,13 @@ export class MediaResolver {
 			}
 		}
 
-		// 4. Title (+year) fallback — search the local library first, then TMDB to create if nothing local matches.
-		const allMedia = await this.storage.media.getAll();
-		const normalizedTitle = title.toLowerCase().replace(/[^a-z0-9]/g, "");
-		const localMatch = allMedia.find((m) => {
-			if (m.title.toLowerCase().replace(/[^a-z0-9]/g, "") !== normalizedTitle) return false;
-			return year === null || m.year === null || m.year === year;
-		});
+		// 4. Title (+year) fallback — search the local library first (via the
+		// maintained index, not a fresh full-collection scan), then TMDB to
+		// create if nothing local matches.
+		const titleIndex = await this.ensureTitleIndex();
+		const normalizedTitle = normalizeTitleKey(title);
+		const candidates = titleIndex.get(normalizedTitle) ?? [];
+		const localMatch = candidates.find((m) => year === null || m.year === null || m.year === year);
 		if (localMatch) {
 			this.report.duplicatesMerged++;
 			return { media: localMatch, isNew: false };
@@ -188,7 +249,9 @@ export class MediaResolver {
 		// or every matching strategy comes up empty, this title is skipped rather than guessed at.
 		try {
 			const tmdbKind = kind === "movie" ? "movie" : "tv";
-			const tmdbMatch = await findBestMatch(this.tmdb, { kind: tmdbKind, title, year, ...match });
+			const tmdbMatch = await this.timer.time("Media matching (TMDB search)", () =>
+				findBestMatch(this.tmdb, { kind: tmdbKind, title, year, ...match })
+			);
 
 			this.report.matchLog.push({
 				title,
@@ -211,7 +274,9 @@ export class MediaResolver {
 			}
 
 			const top = tmdbMatch.candidate;
-			const details = tmdbKind === "movie" ? await this.tmdb.getMovie(top.tmdbId) : await this.tmdb.getTV(top.tmdbId);
+			const details = await this.timer.time("Media matching (TMDB details)", () =>
+				tmdbKind === "movie" ? this.tmdb.getMovie(top.tmdbId) : this.tmdb.getTV(top.tmdbId)
+			);
 
 			// Someone else in this same import run may have already created this exact tmdbId — check before saving again.
 			const existingByTmdb = await this.storage.media.findByTmdbId(top.tmdbId, tmdbKind === "movie" ? MediaType.Movie : MediaType.TVShow);
@@ -226,6 +291,7 @@ export class MediaResolver {
 			mediaItem.tvTimeUuid = ids.tvTimeUuid ?? null;
 
 			const saved = await this.storage.media.save(mediaItem);
+			this.indexNewMedia(saved);
 			if (kind === "movie") this.report.moviesImported++;
 			else this.report.showsImported++;
 
@@ -569,6 +635,36 @@ export type ImportProgressCallback = (done: number, total: number, stage: string
  * potentially a TMDB lookup) can take a while, so the UI has something to
  * show besides a frozen "Importing..." notice.
  */
+/** One (kind/ids/title/year/match) tuple, deduped by the same key MediaResolver caches on, gathered from every collection in the bundle. */
+interface DistinctResolution {
+	ids: ExternalIds;
+	title: string;
+	year: number | null;
+	kind: ImportMediaKind;
+	match?: MatchMetadata;
+}
+
+/** Walks every collection in the bundle and returns one entry per distinct title reference (same dedupe key MediaResolver itself uses), so the pre-resolution pass below only does exactly as much work as the old sequential loops did — just concurrently instead of one at a time. */
+function collectDistinctResolutions(bundle: NormalizedImportBundle): DistinctResolution[] {
+	const seen = new Set<string>();
+	const out: DistinctResolution[] = [];
+	const consider = (ids: ExternalIds, title: string, year: number | null, kind: ImportMediaKind, match?: MatchMetadata) => {
+		const key = resolutionKey(ids, title, year, kind, match);
+		if (seen.has(key)) return;
+		seen.add(key);
+		out.push({ ids, title, year, kind, match });
+	};
+
+	for (const w of bundle.watches) consider(w.ids, w.title, w.year, w.kind, w.match);
+	for (const r of bundle.reviews) consider(r.ids, r.title, r.year, r.kind, r.match);
+	for (const l of bundle.likes) consider(l.ids, l.title, l.year, l.kind, l.match);
+	for (const r of bundle.ratings) consider(r.ids, r.title, r.year, r.kind, r.match);
+	for (const f of bundle.favorites) consider(f.ids, f.title, f.year, f.kind, f.match);
+	for (const list of bundle.lists) for (const item of list.items) consider(item.ids, item.title, item.year, item.kind, item.match);
+
+	return out;
+}
+
 export async function commitBundle(
 	storage: StorageService,
 	tmdb: TMDBService,
@@ -576,7 +672,8 @@ export async function commitBundle(
 	onProgress?: ImportProgressCallback
 ): Promise<ImportReport> {
 	const report = emptyReport();
-	const resolver = new MediaResolver(storage, tmdb, report);
+	const timer = new ImportTimer();
+	const resolver = new MediaResolver(storage, tmdb, report, timer);
 	const episodeIndexes = new Map<string, Map<string, Episode>>();
 	const affectedSeries = new Set<string>();
 
@@ -589,88 +686,149 @@ export async function commitBundle(
 		bundle.lists.length;
 	report.totalRecordsParsed = total + bundle.warnings.length;
 	let done = 0;
-	const tick = (stage: string) => {
+	let lastProgressAt = 0;
+	const tick = (stage: string, force = false) => {
 		done++;
-		onProgress?.(done, total, stage);
+		if (!onProgress) return;
+		// PERFORMANCE (GDPR Import Performance Audit): a 10k+ record archive
+		// used to repaint the progress bar once per record — thousands of
+		// DOM writes that cost real time on their own. Time-throttled here;
+		// the very last item of each stage always forces a repaint so the
+		// bar never visibly "sticks" below 100%.
+		const now = Date.now();
+		if (force || done === total || now - lastProgressAt >= PROGRESS_THROTTLE_MS) {
+			lastProgressAt = now;
+			onProgress(done, total, stage);
+		}
 	};
 
-	for (const watch of bundle.watches) {
-		const media = await resolver.resolve(watch.ids, watch.title, watch.year, watch.kind, watch.match);
-		if (!media) {
-			report.skipped++;
-			trackSkip(report, "No media match — watch not imported");
-		} else {
-			await applyWatch(storage, tmdb, watch, media, report, episodeIndexes, affectedSeries);
-		}
-		tick("Watch history");
-	}
+	// PERFORMANCE (GDPR Import Performance Audit): resolve every distinct
+	// title referenced anywhere in the bundle up front, with several TMDB
+	// lookups in flight at once, instead of one-at-a-time as each record
+	// happened to be encountered in the (necessarily sequential) apply
+	// loops below. MediaResolver's cache means this changes nothing about
+	// *what* gets matched/created — the exact same distinct-title lookups
+	// still happen exactly once each — only *when* the network cost is
+	// paid, and how much of it overlaps.
+	const distinctResolutions = collectDistinctResolutions(bundle);
+	await timer.time("Media matching (total)", () =>
+		mapWithConcurrency(distinctResolutions, RESOLVE_CONCURRENCY, (item) =>
+			resolver.resolve(item.ids, item.title, item.year, item.kind, item.match)
+		)
+	);
 
-	for (const review of bundle.reviews) {
-		const media = await resolver.resolve(review.ids, review.title, review.year, review.kind, review.match);
-		if (!media) {
-			report.skipped++;
-			trackSkip(report, "No media match — comment not imported");
-		} else {
-			await applyReview(storage, review, media, report);
+	// PERFORMANCE: same idea for episode catalogues. Every distinct TV show
+	// referenced by an episode-level watch needs its full season/episode
+	// list from TMDB exactly once (as before) — now fetched for several
+	// shows concurrently rather than interleaved one show at a time with
+	// applying individual watch records.
+	await timer.time("Episode importing (catalogue fetch)", async () => {
+		const distinctShows = new Map<string, MediaItem>();
+		for (const watch of bundle.watches) {
+			if (watch.kind !== "series" || watch.seasonNumber === undefined || watch.episodeNumber === undefined) continue;
+			const media = await resolver.resolve(watch.ids, watch.title, watch.year, watch.kind, watch.match);
+			if (media && !distinctShows.has(media.id)) distinctShows.set(media.id, media);
 		}
-		tick("Comments");
-	}
 
-	for (const like of bundle.likes) {
-		const media = await resolver.resolve(like.ids, like.title, like.year, like.kind, like.match);
-		if (!media) {
-			report.skipped++;
-			trackSkip(report, "No media match — like not imported");
-		} else {
-			await applyLike(storage, like, media, report);
-		}
-		tick("Likes");
-	}
+		await mapWithConcurrency([...distinctShows.values()], EPISODE_IMPORT_CONCURRENCY, async (media) => {
+			await importEpisodesForShow(storage, tmdb, media);
+			const episodes = new Map((await storage.episodes.findByMediaId(media.id)).map((e) => [`${e.seasonNumber}:${e.episodeNumber}`, e]));
+			episodeIndexes.set(media.id, episodes);
+		});
+	});
 
-	for (const rating of bundle.ratings) {
-		const media = await resolver.resolve(rating.ids, rating.title, rating.year, rating.kind, rating.match);
-		if (!media) {
-			report.skipped++;
-			trackSkip(report, "No media match — rating not imported");
-		} else {
-			await applyRating(storage, rating, media, report);
-		}
-		tick("Ratings");
-	}
-
-	for (const fav of bundle.favorites) {
-		const media = await resolver.resolve(fav.ids, fav.title, fav.year, fav.kind, fav.match);
-		if (!media) {
-			report.skipped++;
-			trackSkip(report, "No media match — favorite not imported");
-		} else {
-			await applyFavorite(storage, media, report);
-		}
-		tick("Favorites");
-	}
-
-	for (const list of bundle.lists) {
-		const mediaIds: string[] = [];
-		for (const item of list.items) {
-			const media = await resolver.resolve(item.ids, item.title, item.year, item.kind, item.match);
-			if (media) mediaIds.push(media.id);
-			else {
+	await timer.time("Applying watch history", async () => {
+		for (const watch of bundle.watches) {
+			const media = await resolver.resolve(watch.ids, watch.title, watch.year, watch.kind, watch.match);
+			if (!media) {
 				report.skipped++;
-				trackSkip(report, "No media match — list item not imported");
+				trackSkip(report, "No media match — watch not imported");
+			} else {
+				await applyWatch(storage, tmdb, watch, media, report, episodeIndexes, affectedSeries);
 			}
+			tick("Watch history");
 		}
-		await applyList(storage, list, mediaIds, report);
-		tick("Custom lists");
-	}
+	});
 
-	for (const mediaId of affectedSeries) {
-		await recalculateAndPersistStatus(storage, mediaId);
-	}
+	await timer.time("Applying comments", async () => {
+		for (const review of bundle.reviews) {
+			const media = await resolver.resolve(review.ids, review.title, review.year, review.kind, review.match);
+			if (!media) {
+				report.skipped++;
+				trackSkip(report, "No media match — comment not imported");
+			} else {
+				await applyReview(storage, review, media, report);
+			}
+			tick("Comments");
+		}
+	});
+
+	await timer.time("Applying likes", async () => {
+		for (const like of bundle.likes) {
+			const media = await resolver.resolve(like.ids, like.title, like.year, like.kind, like.match);
+			if (!media) {
+				report.skipped++;
+				trackSkip(report, "No media match — like not imported");
+			} else {
+				await applyLike(storage, like, media, report);
+			}
+			tick("Likes");
+		}
+	});
+
+	await timer.time("Applying ratings", async () => {
+		for (const rating of bundle.ratings) {
+			const media = await resolver.resolve(rating.ids, rating.title, rating.year, rating.kind, rating.match);
+			if (!media) {
+				report.skipped++;
+				trackSkip(report, "No media match — rating not imported");
+			} else {
+				await applyRating(storage, rating, media, report);
+			}
+			tick("Ratings");
+		}
+	});
+
+	await timer.time("Applying favorites", async () => {
+		for (const fav of bundle.favorites) {
+			const media = await resolver.resolve(fav.ids, fav.title, fav.year, fav.kind, fav.match);
+			if (!media) {
+				report.skipped++;
+				trackSkip(report, "No media match — favorite not imported");
+			} else {
+				await applyFavorite(storage, media, report);
+			}
+			tick("Favorites");
+		}
+	});
+
+	await timer.time("Applying custom lists", async () => {
+		for (const list of bundle.lists) {
+			const mediaIds: string[] = [];
+			for (const item of list.items) {
+				const media = await resolver.resolve(item.ids, item.title, item.year, item.kind, item.match);
+				if (media) mediaIds.push(media.id);
+				else {
+					report.skipped++;
+					trackSkip(report, "No media match — list item not imported");
+				}
+			}
+			await applyList(storage, list, mediaIds, report);
+			tick("Custom lists");
+		}
+	});
+
+	await timer.time("Status recalculation", async () => {
+		for (const mediaId of affectedSeries) {
+			await recalculateAndPersistStatus(storage, mediaId);
+		}
+	});
 
 	for (const warning of bundle.warnings) {
 		report.skipped++;
 		trackSkip(report, warning.reason);
 	}
 
+	report.timing = timer.breakdown();
 	return report;
 }

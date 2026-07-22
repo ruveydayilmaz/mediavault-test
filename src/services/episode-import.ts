@@ -4,6 +4,10 @@ import { Episode } from "../models/episode";
 import { MediaItem } from "../models/media";
 import { MediaStatus } from "../types/enums";
 import { TMDBNormalizedEpisode } from "../types/tmdb";
+import { mapWithConcurrency } from "./importer/concurrency";
+
+/** How many season requests to have in flight at once. Seasons are independent GET requests, so there's no correctness reason to serialize them — bounded purely to stay a well-behaved TMDB client, not to avoid races. */
+const SEASON_FETCH_CONCURRENCY = 5;
 
 /** Converts a normalized TMDB episode into a storable Episode record (still missing id/mediaId). */
 export function tmdbEpisodeToEpisodeInput(
@@ -63,14 +67,28 @@ export async function importEpisodesForShow(
 	let episodesAdded = 0;
 	let episodesSkipped = 0;
 
-	for (const season of seasons) {
-		const tmdbEpisodes = await tmdb.getEpisodes(media.tmdbId, season.seasonNumber);
+	// PERFORMANCE (GDPR Import Performance Audit): seasons are independent
+	// TMDB requests — a show with N seasons used to cost N sequential round
+	// trips here. Fetching them concurrently (bounded) turns that into
+	// roughly N/SEASON_FETCH_CONCURRENCY round trips. The diff+create step
+	// below stays sequential and in season order (so episode numbering and
+	// idempotency behavior are unchanged) using a locally-maintained key
+	// set instead of re-querying storage.episodes on every iteration, which
+	// was a redundant read (already-indexed, but still pure overhead) since
+	// nothing outside this loop touches this show's episodes concurrently.
+	const seasonEpisodes = await mapWithConcurrency(seasons, SEASON_FETCH_CONCURRENCY, (season) =>
+		tmdb.getEpisodes(media.tmdbId, season.seasonNumber)
+	);
+
+	const existingKeys = new Set(existing.map((e) => `${e.seasonNumber}:${e.episodeNumber}`));
+
+	for (const tmdbEpisodes of seasonEpisodes) {
 		const inputs = tmdbEpisodes.map((ep) => tmdbEpisodeToEpisodeInput(media.id, ep));
-		const freshExisting = await storage.episodes.findByMediaId(media.id);
-		const toAdd = diffNewEpisodes(inputs, freshExisting);
+		const toAdd = inputs.filter((e) => !existingKeys.has(`${e.seasonNumber}:${e.episodeNumber}`));
 
 		for (const input of toAdd) {
 			await storage.episodes.create(input);
+			existingKeys.add(`${input.seasonNumber}:${input.episodeNumber}`);
 			episodesAdded++;
 		}
 		episodesSkipped += inputs.length - toAdd.length;

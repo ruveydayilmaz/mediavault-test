@@ -1,4 +1,5 @@
 import { App, Modal, Notice, Menu } from "obsidian";
+import { renderMobileBackButton } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import type MediaVaultPlugin from "../../main";
 import { CustomList, ListSortMode } from "../../models/list";
@@ -58,6 +59,7 @@ export class ListDetailModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.addClass("mediavault-list-detail-modal");
+		renderMobileBackButton(this, contentEl);
 
 		const fresh = await this.storage.customLists.findById(this.list.id);
 		if (!fresh) {

@@ -1,4 +1,5 @@
 import { App, Modal, Notice } from "obsidian";
+import { renderMobileBackButton } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import type { TMDBService } from "../../api/tmdb";
 import { runImport, ImportManagerResult } from "../../services/importer/tvtime/manager";
@@ -6,6 +7,7 @@ import { runZipImport, ZipImportResult } from "../../services/importer/tvtime/zi
 import { previewBundle, ImportPreviewSummary } from "../../services/importer/tvtime/preview";
 import { commitBundle, ImportReport, UnmatchedItem } from "../../services/importer/tvtime/commit";
 import { NormalizedImportBundle } from "../../services/importer/tvtime/types";
+import { ImportTimer } from "../../services/importer/import-timer";
 
 /**
  * File → detect format/category → dry-run preview → confirm → commit.
@@ -36,6 +38,8 @@ export class ImportModal extends Modal {
 	private zip: ZipImportResult | null = null;
 	private zipPreview: ImportPreviewSummary | null = null;
 	private detecting = false;
+	/** ZIP extraction/parsing timing, captured during detection so it can be merged with commit-phase timing in the final report (GDPR Import Performance Audit). */
+	private zipTiming: { stage: string; ms: number; calls: number }[] = [];
 
 	constructor(app: App, storage: StorageService, tmdb: TMDBService, onImported?: () => void) {
 		super(app);
@@ -52,6 +56,7 @@ export class ImportModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.addClass("mediavault-import-modal");
+		renderMobileBackButton(this, contentEl);
 
 		contentEl.createEl("h2", { text: "Import from TV Time" });
 
@@ -140,6 +145,7 @@ export class ImportModal extends Modal {
 			this.zip = await runZipImport(zipData, (done, total) => {
 				this.updateProgress(done, total, "Scanning files");
 			});
+			this.zipTiming = this.zip.timing;
 			this.zipPreview = await previewBundle(this.storage, this.zip.bundle);
 			this.result = null;
 			this.preview = null;
@@ -235,6 +241,20 @@ export class ImportModal extends Modal {
 
 	private renderReport(container: HTMLElement, report: ImportReport): void {
 		container.createEl("h3", { text: "Import complete" });
+
+		// Timing breakdown (GDPR Import Performance Audit) — shown first so
+		// it's easy to spot on a large/slow import without digging.
+		if (report.timing.length > 0) {
+			const timingBox = container.createDiv({ cls: "mediavault-import-timing" });
+			timingBox.createEl("h4", { text: "Time breakdown" });
+			report.timing.forEach(({ stage, ms }) => {
+				timingBox.createDiv({
+					cls: stage === "Total" ? "mediavault-import-report-row is-total" : "mediavault-import-report-row",
+					text: `${stage}: ${ImportTimer.formatMs(ms)}`,
+				});
+			});
+		}
+
 		const box = container.createDiv({ cls: "mediavault-import-report" });
 
 		const rows: [string, number][] = [
@@ -338,6 +358,25 @@ export class ImportModal extends Modal {
 			this.report = await commitBundle(this.storage, this.tmdb, bundle, (done, total, stage) => {
 				this.updateProgress(done, total, stage);
 			});
+			if (this.zipTiming.length > 0) {
+				// Merge the ZIP-extraction/parsing timing captured during
+				// detection with commit.ts's own breakdown into one combined
+				// stage list, re-sorted slowest-first (dropping the two
+				// separate "Total" rows in favor of a single combined one).
+				const merged = new Map<string, { ms: number; calls: number }>();
+				for (const { stage, ms, calls } of [...this.zipTiming, ...this.report.timing]) {
+					if (stage === "Total") continue;
+					const existing = merged.get(stage);
+					merged.set(stage, { ms: (existing?.ms ?? 0) + ms, calls: (existing?.calls ?? 0) + calls });
+				}
+				const totalMs =
+					(this.zipTiming.find((t) => t.stage === "Total")?.ms ?? 0) +
+					(this.report.timing.find((t) => t.stage === "Total")?.ms ?? 0);
+				this.report.timing = [
+					...[...merged.entries()].map(([stage, v]) => ({ stage, ms: v.ms, calls: v.calls })).sort((a, b) => b.ms - a.ms),
+					{ stage: "Total", ms: totalMs, calls: 0 },
+				];
+			}
 			new Notice(
 				`MediaVault: import complete — ${this.report.moviesImported + this.report.showsImported} title(s) imported, ${this.report.duplicatesMerged} merged.`
 			);

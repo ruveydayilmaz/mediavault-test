@@ -1,4 +1,5 @@
 import { App, Modal, Notice } from "obsidian";
+import { renderMobileBackButton } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import { requestDeviceCode, pollDeviceToken } from "../../api/trakt-auth";
 
@@ -23,6 +24,7 @@ export class TraktAuthModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.addClass("mediavault-trakt-auth-modal");
+		renderMobileBackButton(this, contentEl);
 		contentEl.createEl("h2", { text: "Connect Trakt" });
 
 		const settings = this.storage.settings.get();

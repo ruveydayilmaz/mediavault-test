@@ -147,6 +147,16 @@
 	gap: 8px;
 }
 
+/* Mobile Library Layout (Milestone 4): a fixed 4-per-row grid rather than
+   the desktop auto-fill (which, at phone widths, would only fit 2 — far
+   below what the screen can comfortably hold at a proper poster aspect
+   ratio). Tablet/desktop are untouched; this only applies at the phone
+   tier. */
+.is-phone .mediavault-grid {
+	grid-template-columns: repeat(4, 1fr);
+	gap: 6px;
+}
+
 .mediavault-card {
 	display: flex;
 	flex-direction: column;
@@ -827,6 +837,58 @@
 	margin-top: 4px;
 }
 
+/* Comments heading row + compose toggle (Mobile UI Polish Milestone 2) —
+   the icon sits to the right of the "Comments" title; the composer itself
+   collapses behind it on mobile only. Desktop keeps the original
+   always-visible composer (the toggle icon still renders there too, but
+   is a harmless no-op since .is-collapsed has no effect outside
+   .is-phone). */
+.mediavault-comments-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.mediavault-comments-heading h3 {
+	margin: 0;
+}
+
+.mediavault-comment-compose-toggle {
+	display: none;
+}
+
+.is-phone .mediavault-comment-compose-toggle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	cursor: pointer;
+	color: var(--text-muted);
+	flex: 0 0 auto;
+}
+
+.is-phone .mediavault-comment-compose-toggle:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.is-phone .mediavault-comment-composer.is-collapsed {
+	display: none;
+}
+
+.mediavault-comment-compose-buttons {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+}
+
+.mediavault-comment-compose-cancel {
+	background: none;
+}
+
 /* Episode Details view (Milestone 4) */
 .mediavault-episode-nav-row {
 	display: flex;
@@ -1158,6 +1220,20 @@
 
 .mediavault-fav-btn.is-favorite {
 	color: var(--text-accent);
+}
+
+/* Mobile UI Polish (Milestone 2): the empty heart against a hero image or
+   card background had very little contrast — a subtle circular backdrop
+   makes it findable without competing visually with the filled/accent
+   state, which stays as-is. */
+.is-phone .mediavault-fav-btn:not(.is-favorite) {
+	background: rgba(0, 0, 0, 0.35);
+	border-radius: 50%;
+	width: 32px;
+	height: 32px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .mediavault-episode-empty {
@@ -1672,6 +1748,15 @@
 	font-size: 0.8em;
 }
 
+/* Mobile Milestone 3 (Recommendation modal): the modal is full-screen here
+   rather than a small centered dialog, so the same 140px card size that
+   suits desktop leaves posters looking cramped and under-tall relative to
+   the available space. Sizing up (aspect-ratio is unchanged at 2:3) makes
+   better use of the vertical room without needing a different layout. */
+.is-phone .mediavault-rec-card {
+	flex: 0 0 165px;
+}
+
 /* --- Virtual list (used for large List-view libraries) --- */
 
 .mediavault-virtual-viewport {
@@ -2043,6 +2128,13 @@
 	transition: color .15s;
 }
 
+/* Mobile UI Polish (Milestone 2): titles under carousel posters are dropped
+   on mobile — posters alone read faster at phone card sizes, and the tap
+   target (the whole card) still opens the item. Desktop is untouched. */
+.is-phone .mediavault-favorite-title {
+	display: none;
+}
+
 /* --- Lists carousel (Milestone 4: Carousel Layout Improvements — reverted
    to one fixed-width card at a time, navigated via Prev/Next/swipe, after
    the Milestone 5 poster-row-of-tiles redesign proved too cramped) --- */
@@ -2135,7 +2227,8 @@
 	color: var(--interactive-accent);
 }
 
-/* --- Mobile modal improvements (Milestone 6) ---
+/* --- Mobile modal improvements (Milestone 6, extended Milestone 1:
+   Mobile Modal Navigation & Safe Area Support) ---
  * Targets any of our modals via `:has()` against the `mediavault-*` class
  * every MediaVault modal's contentEl carries — so this applies uniformly
  * without needing per-modal opt-in, and never touches Obsidian's own
@@ -2158,7 +2251,19 @@
 	flex-direction: column;
 }
 
+/* Obsidian's own top-right close-only "X" is a fixed small offset from the
+   modal's corner — it doesn't know about the notch/status bar, and doesn't
+   distinguish "close this screen" from "close the whole modal stack".
+   Every MediaVault modal now renders its own safe-area-aware back button
+   instead (see .mediavault-modal-back below), so the native one is hidden
+   on mobile to avoid two overlapping, differently-behaved controls in the
+   same corner. Desktop is untouched. */
+.is-phone .modal:has(> .modal-content[class*="mediavault-"]) .modal-close-button {
+	display: none;
+}
+
 .is-phone .modal:has(> .modal-content[class*="mediavault-"])>.modal-content {
+	position: relative; /* anchors .mediavault-modal-back below, which overlays rather than displaces content */
 	flex: 1 1 auto;
 	min-height: 0;
 	overflow-y: auto;
@@ -2177,8 +2282,48 @@
 	   only elements that actually touch the true bottom edge, so they're
 	   the only place that inset belongs. */
 	padding-bottom: 16px;
+	/* Symmetric horizontal padding, each side keyed to its OWN safe-area
+	   inset (left uses inset-left, right uses inset-right) rather than one
+	   value reused for both — matters in landscape, where the notch sits
+	   on one side only and the two insets genuinely differ. */
 	padding-left: max(16px, env(safe-area-inset-left));
 	padding-right: max(16px, env(safe-area-inset-right));
+}
+
+/* Circular back button, top-left, matching Obsidian's mobile back-chevron
+   convention. Absolutely positioned against modal-content (fixed at the
+   viewport's top-left regardless of scroll, since modal-content is the
+   fixed-size flex child that scrolls internally) so it overlays whatever
+   the modal renders — including a hero banner that itself extends under
+   the status bar — instead of pushing content down or scrolling away. */
+.mediavault-modal-back {
+	display: none;
+}
+
+.is-phone .mediavault-modal-back {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	position: fixed;
+	top: max(8px, env(safe-area-inset-top));
+	left: max(8px, env(safe-area-inset-left));
+	width: 36px;
+	height: 36px;
+	border-radius: 50%;
+	background: var(--background-secondary);
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+	color: var(--text-normal);
+	z-index: 5;
+	cursor: pointer;
+}
+
+.mediavault-modal-back svg {
+	width: 18px;
+	height: 18px;
+}
+
+.is-phone .mediavault-modal-back:active {
+	background: var(--background-modifier-active-hover);
 }
 
 /* Sticky header — MediaDetailModal's hero banner stays pinned while the body scrolls beneath it. */
@@ -2195,13 +2340,17 @@
 
 /* Sticky action bars — the two reusable "row of buttons" patterns used
    across modals. These sit at the true bottom edge, so they're the only
-   place the bottom safe area is reserved — once. */
+   place the bottom safe area is reserved — once. Left and right insets are
+   kept distinct (Milestone 1: Horizontal Padding) — matters in landscape,
+   where a notch on one side means inset-left and inset-right genuinely
+   differ; the previous single shared value (keyed off inset-left only)
+   under-compensated one side in that orientation. */
 .is-phone .mediavault-modal-buttons,
 .is-phone .mediavault-detail-actions {
 	position: sticky;
 	bottom: 0;
-	margin: 12px calc(-1 * max(16px, env(safe-area-inset-left))) -16px;
-	padding: 12px max(16px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-bottom));
+	margin: 12px calc(-1 * max(16px, env(safe-area-inset-right))) -16px calc(-1 * max(16px, env(safe-area-inset-left)));
+	padding: 12px max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
 	background: var(--background-primary);
 	border-top: 1px solid var(--background-modifier-border);
 	z-index: 3;
@@ -2294,6 +2443,22 @@
 	padding-right: var(--p-spacing);
 }
 
+.is-phone .mediavault-detail-tabs {
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+	flex-wrap: nowrap;
+	scrollbar-width: none;
+}
+
+.is-phone .mediavault-detail-tabs::-webkit-scrollbar {
+	display: none;
+}
+
+.is-phone .mediavault-detail-tab {
+	flex: 0 0 auto;
+	white-space: nowrap;
+}
+
 .mediavault-detail-tab {
 	padding: 8px 16px;
 	border: none;
@@ -2329,7 +2494,32 @@
 
 .mediavault-filters-toggle.is-active {
 	color: var(--interactive-accent);
-	font-weight: 600;
+	position: relative;
+}
+
+/* Mobile UI Polish (Milestone 2): Filters is now an icon button — the old
+   "Filters ●" text badge becomes a small dot on the icon itself instead. */
+.mediavault-filters-toggle.is-active::after {
+	content: "";
+	position: absolute;
+	top: 2px;
+	right: 2px;
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--interactive-accent);
+}
+
+.mediavault-library-sort-group {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.mediavault-library-sort-icon {
+	display: flex;
+	align-items: center;
+	color: var(--text-muted);
 }
 
 .mediavault-filters-container:empty {
@@ -3088,6 +3278,7 @@
 }
 
 .mediavault-explore-poster {
+	position: relative;
 	width: 100%;
 	aspect-ratio: 2 / 3;
 	border-radius: 6px;
@@ -3097,12 +3288,58 @@
 	align-items: center;
 	justify-content: center;
 	font-size: 2em;
+	cursor: pointer;
 }
 
 .mediavault-explore-poster img {
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
+}
+
+/* Floating overlay Add button (Mobile Explore Milestone 3) — streaming-app
+   style: sits on top of the poster itself rather than in normal flow below
+   it, so tapping it adds without opening details while tapping anywhere
+   else on the poster opens Media Detail. */
+.mediavault-explore-add-floating {
+	position: absolute;
+	top: 6px;
+	right: 6px;
+	width: 28px;
+	height: 28px;
+	border-radius: 50%;
+	background: rgba(0, 0, 0, 0.55);
+	color: #fff;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 1.1em;
+	font-weight: 600;
+	line-height: 1;
+	cursor: pointer;
+	z-index: 2;
+}
+
+.mediavault-explore-add-floating:active {
+	background: rgba(0, 0, 0, 0.75);
+}
+
+.mediavault-explore-add-floating.is-added {
+	background: var(--interactive-accent);
+}
+
+.mediavault-explore-owned-badge {
+	position: absolute;
+	left: 6px;
+	bottom: 6px;
+	display: inline-block;
+	width: fit-content;
+	padding: 1px 6px;
+	border-radius: 4px;
+	font-size: 0.72em;
+	background: rgba(0, 0, 0, 0.55);
+	color: #fff;
+	z-index: 2;
 }
 
 .mediavault-explore-title {
@@ -3121,26 +3358,45 @@
 	white-space: nowrap;
 }
 
-.mediavault-explore-owned-badge {
-	display: inline-block;
-	width: fit-content;
-	padding: 1px 6px;
-	border-radius: 4px;
-	font-size: 0.72em;
-	background: var(--background-modifier-border);
-	color: var(--text-muted);
-}
-
-.mediavault-explore-card button {
-	font-size: 0.78em;
-	padding: 3px 8px;
-}
-
 .mediavault-explore-filter-bar {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin-bottom: 14px;
+}
+
+.mediavault-explore-filter-primary {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+
+.mediavault-explore-more-filters-toggle.is-active {
+	color: var(--interactive-accent);
+}
+
+.mediavault-explore-filter-more {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 8px;
-	margin-bottom: 14px;
+}
+
+/* Mobile-first collapsible "More filters" (Explore Page Mobile Improvements,
+   Milestone 3) — on mobile the secondary filters (year/runtime/rating/
+   language) start hidden behind the toggle instead of six stacked
+   desktop-style rows filling the screen before any results appear.
+   Desktop keeps everything visible (is-collapsed has no effect there). */
+.is-phone .mediavault-explore-filter-more.is-collapsed {
+	display: none;
+}
+
+.is-phone .mediavault-explore-filter-more {
+	flex-direction: column;
+}
+
+.is-phone .mediavault-explore-filter-more input {
+	max-width: none;
 }
 
 .mediavault-explore-filter-bar input,
