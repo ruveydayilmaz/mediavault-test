@@ -2085,7 +2085,7 @@
 }
 
 .mediavault-lists-carousel-container {
-	margin: 0 24px;
+	/* margin: 0 24px; */
 }
 
 .mediavault-carousel-mobile.mediavault-lists-carousel-container {
@@ -3405,7 +3405,8 @@
 }
 
 .mediavault-stat-mobile-card {
-	background: var(--background-secondary);
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
 	border-radius: 8px;
 	padding: 12px;
 }
@@ -3423,18 +3424,28 @@
 .mediavault-stat-mobile-value {
 	font-size: 1.2em;
 	font-weight: 700;
-	color: var(--text-accent);
 }
 
 .mediavault-stat-mobile-label {
 	font-size: 0.75em;
-	color: var(--text-muted);
 	margin-top: 3px;
 }
 
 .is-phone .mediavault-detail-menu-btn {
-	top: max(12px, env(safe-area-inset-top));
-	right: max(12px, env(safe-area-inset-right));
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	position: fixed;
+	top: max(8px, env(safe-area-inset-top));
+	right: max(8px, env(safe-area-inset-left));
+	width: 36px;
+	height: 36px;
+	border-radius: 50%;
+	background: var(--background-secondary);
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+	color: var(--text-normal);
+	z-index: 5;
+	cursor: pointer;
 }
 
 .is-phone .mediavault-parent-container {
@@ -3448,10 +3459,7 @@
 
 	margin-left: calc(-1 * max(16px, env(safe-area-inset-left)));
 	margin-right: calc(-1 * max(16px, env(safe-area-inset-right)));
-	width: calc(
-		100% + max(16px, env(safe-area-inset-left)) +
-		max(16px, env(safe-area-inset-right))
-	);
+	width: calc(100% + max(16px, env(safe-area-inset-left)) + max(16px, env(safe-area-inset-right)));
 
 	transform: translateY(-50px);
 }
@@ -3484,6 +3492,9 @@
 	overflow-x: hidden;
 }
 
+.is-phone .mediavault-library-view,
+.is-phone .mediavault-lists-view,
+.is-phone .mediavault-explore-view,
 .is-phone .mediavault-image-picker-grid,
 .is-phone .mediavault-add-to-list-options,
 .is-phone .mediavault-episode-modal,
@@ -3549,7 +3560,7 @@
 	display: none;
 }
 
-.is-phone .mediavault-detail-tabs {
+/* .is-phone .mediavault-detail-tabs {
 	position: sticky;
 	top: var(--mediavault-detail-hero-height, 220px);
 	z-index: 2;
@@ -3558,7 +3569,7 @@
 	-webkit-overflow-scrolling: touch;
 	flex-wrap: nowrap;
 	scrollbar-width: none;
-}
+} */
 
 .is-phone .mediavault-detail-tabs::-webkit-scrollbar {
 	display: none;
@@ -3611,13 +3622,13 @@
 }
 
 .is-phone .modal.mediavault-detail-modal {
-    padding: 0;
-    margin: 0;
-    inset: 0;
-    width: 100vw;
-    height: 100vh;
-    max-width: none;
-    max-height: none;
+	padding: 0;
+	margin: 0;
+	inset: 0;
+	width: 100vw;
+	height: 100vh;
+	max-width: none;
+	max-height: none;
 }
 
 .is-phone .mediavault-comment-compose-toggle {

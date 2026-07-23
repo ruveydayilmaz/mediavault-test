@@ -10,16 +10,6 @@ interface MobileStatRefs {
 	movieCount: HTMLElement;
 	episodeCount: HTMLElement;
 }
-
-/**
- * Reusable Statistics component (Milestone 1: Statistics Refresh & Delete
- * Bug). Mounts the 4 stat cards exactly once via `mount()`; every
- * subsequent update calls `update()`, which writes into the already-mounted
- * value nodes instead of tearing down and recreating the bar. This makes
- * repeated/overlapping refreshes (e.g. two async refresh() calls racing
- * after a delete) idempotent — there's nothing to duplicate because nothing
- * is re-appended.
- */
 export class StatsBar {
 	private barEl: HTMLElement | null = null;
 	private cards: StatCardRefs[] = [];

@@ -311,7 +311,6 @@ export class ListDetailModal extends Modal {
 			if (percent === null) return;
 			renderProgressOverlay(poster, percent, media.status);
 		});
-		card.createDiv({ cls: "mediavault-list-detail-card-title", text: media.title });
 
 		const removeBtn = card.createEl("button", { cls: "mediavault-list-detail-remove", text: "✕" });
 		removeBtn.setAttr("aria-label", "Remove from list");

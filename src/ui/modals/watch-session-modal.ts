@@ -51,7 +51,7 @@ export class WatchSessionModal extends Modal {
 		renderModalHeader(
 			this,
 			contentEl,
-			isEdit ? `Edit review — ${this.options.mediaTitle}` : `Log a watch — ${this.options.mediaTitle}`
+			isEdit ? `Edit review` : `Log a watch`
 		);
 
 		if (!isEdit) {
