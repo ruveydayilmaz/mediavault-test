@@ -42,14 +42,30 @@ function screenTierForWidth(width: number): ScreenTier {
 }
 
 /**
- * Mirrors the CSS breakpoint that decides the Library grid's column count
- * on mobile (`.is-phone .mediavault-grid` = 4 columns, or 3 at ≤380px —
- * see styles.css). The Favorites carousel reads this same number so it
- * always shows exactly as many posters at once as the grid currently
- * displays per row, per spec, rather than duplicating its own breakpoint.
+ * Reads the Library grid's *actual* rendered column count straight off
+ * its computed `grid-template-columns` (each track becomes one
+ * space-separated px value once computed, so splitting and counting
+ * gives the true column count). This is how the Favorites carousel
+ * mirrors the grid on mobile, per spec — reading the real DOM instead of
+ * re-guessing the CSS breakpoint in JS, which is what previously caused
+ * the two to disagree: the old helper compared the library pane's own
+ * `clientWidth` (already narrowed by the pane's internal padding)
+ * against a 380px threshold, while the CSS media query that actually
+ * decides the grid's column count evaluates against the *window's* width
+ * — so a pane with, say, safe-area padding could read as "mobile-narrow"
+ * in JS well before the grid itself had actually dropped to 3 columns,
+ * leaving Favorites out of sync with what the grid was showing.
+ *
+ * Falls back to a width-based guess only for the brief window before the
+ * grid has ever been rendered (mobile always defaults to grid view, so
+ * in practice this fallback is only used for the very first paint).
  */
-function mobileGridColumns(width: number): number {
-	return width <= 380 ? 3 : 4;
+function actualGridColumnCount(gridEl: HTMLElement | undefined, fallbackWidth: number): number {
+	if (gridEl && gridEl.isConnected) {
+		const columns = getComputedStyle(gridEl).gridTemplateColumns.split(" ").filter(Boolean).length;
+		if (columns > 0) return columns;
+	}
+	return fallbackWidth <= 380 ? 3 : 4;
 }
 
 /**
@@ -109,6 +125,8 @@ export class LibraryView extends ItemView {
 	/** Responsive Favorites carousel count (Milestone 2) — mobile mirrors the Library grid's column count, desktop is a continuous function of available width. Recomputed on every resize, not just tier changes. */
 	private favoritesVisibleCount = 4;
 	private lastAllMedia: MediaItem[] = [];
+	/** Live reference to the currently-rendered `.mediavault-grid`, if the grid view mode is active — read directly (see actualGridColumnCount) so mobile Favorites always mirrors what's actually on screen. */
+	private gridEl?: HTMLElement;
 
 	constructor(leaf: WorkspaceLeaf, plugin: MediaVaultPlugin) {
 		super(leaf);
@@ -152,14 +170,21 @@ export class LibraryView extends ItemView {
 		// behaves correctly regardless of what device it's running on.
 		this.screenTier = screenTierForWidth(root.clientWidth);
 		this.viewMode = this.defaultViewModeForTier(this.screenTier);
-		this.favoritesVisibleCount = Platform.isMobile ? mobileGridColumns(root.clientWidth) : desktopFavoritesCount(root.clientWidth);
+		// No grid has been rendered yet on first paint, so this is just the
+		// fallback guess — refreshFavorites() re-derives it from the real
+		// grid the moment refresh() below actually renders one.
+		this.favoritesVisibleCount = Platform.isMobile ? actualGridColumnCount(this.gridEl, root.clientWidth) : desktopFavoritesCount(root.clientWidth);
 		this.renderViewToggle();
 
 		this.resizeObserver = new ResizeObserver((entries) => {
 			const width = entries[0]?.contentRect.width ?? root.clientWidth;
 
+			// On mobile, read the grid's real column count directly rather
+			// than re-guessing the CSS breakpoint — the grid's own layout
+			// has already settled by the time this fires, since it resizes
+			// with the same reflow that triggers this observer.
 			const nextFavoritesCount = Platform.isMobile
-				? mobileGridColumns(width)
+				? actualGridColumnCount(this.gridEl, width)
 				: desktopFavoritesCount(this.favoritesEl.clientWidth || width);
 			const favoritesCountChanged = nextFavoritesCount !== this.favoritesVisibleCount;
 			if (favoritesCountChanged) {
@@ -221,6 +246,13 @@ export class LibraryView extends ItemView {
 
 	private async refreshFavorites(all: MediaItem[]): Promise<void> {
 		this.favoritesEl.empty();
+
+		if (Platform.isMobile) {
+			// renderContent() (called earlier in refresh()) has already put
+			// the real grid in the DOM by this point, so this reads the
+			// actual current column count rather than a guess.
+			this.favoritesVisibleCount = actualGridColumnCount(this.gridEl, this.contentEl2.clientWidth);
+		}
 
 		await renderFavoritesSection(
 			this.favoritesEl,
@@ -650,6 +682,7 @@ export class LibraryView extends ItemView {
 
 	private renderContent(items: MediaItem[], total: number, page: number, totalPages: number): void {
 		this.contentEl2.empty();
+		this.gridEl = undefined;
 
 		if (total === 0) {
 			this.contentEl2.createDiv({
@@ -672,6 +705,7 @@ export class LibraryView extends ItemView {
 
 	private renderGrid(items: MediaItem[]): void {
 		const grid = this.contentEl2.createDiv({ cls: "mediavault-grid" });
+		this.gridEl = grid;
 		items.forEach((item) => {
 			const card = grid.createDiv({ cls: "mediavault-card" });
 			card.addEventListener("click", () => this.openDetail(item));
