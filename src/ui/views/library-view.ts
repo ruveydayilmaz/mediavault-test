@@ -31,7 +31,6 @@ import {
 type ViewMode = "grid" | "list" | "table";
 type ScreenTier = "mobile" | "tablet" | "desktop";
 
-/** Container-width breakpoints — measured on this view's own pane, not the device, so a narrow desktop sidebar behaves like mobile and a wide phone split-view doesn't. */
 const MOBILE_BREAKPOINT_PX = 520;
 const TABLET_BREAKPOINT_PX = 900;
 
@@ -41,37 +40,12 @@ function screenTierForWidth(width: number): ScreenTier {
 	return "desktop";
 }
 
-/**
- * Mirrors the Library grid's mobile column count. The grid's own
- * breakpoint (`.is-phone .mediavault-grid`, see styles.css) is a
- * `@media (max-width: 380px)` query, which — like all media queries —
- * evaluates against the window's viewport width. So that's what this
- * checks too, rather than re-deriving it from an element's clientWidth:
- * a container narrowed by its own padding (e.g. safe-area insets) would
- * disagree with the window-width threshold the CSS is actually using,
- * which is exactly what caused Favorites to fall out of sync with the
- * grid previously.
- *
- * (A tempting alternative is reading the grid's rendered
- * `grid-template-columns` directly off the DOM — but that requires the
- * grid to have already gone through a real layout pass, which isn't
- * reliably true the moment the view opens, before the workspace leaf has
- * settled to its final size. That produced a worse bug: a bogus
- * single-column reading. Checking the same window width the CSS itself
- * uses sidesteps layout timing entirely.)
- */
 const MOBILE_GRID_BREAKPOINT_PX = 380;
 
 function mobileGridColumnCount(): number {
 	return window.innerWidth <= MOBILE_GRID_BREAKPOINT_PX ? 3 : 4;
 }
 
-/**
- * Desktop/web Favorites poster count — a continuous function of the
- * carousel's own available width (not the device), so it grows and
- * shrinks smoothly as the pane is resized instead of jumping at fixed
- * breakpoints. Clamped to the spec's given range (narrow → 3, wide → 6).
- */
 function desktopFavoritesCount(width: number): number {
 	const IDEAL_CARD_WIDTH_PX = 150;
 	return Math.min(6, Math.max(3, Math.round(width / IDEAL_CARD_WIDTH_PX)));
@@ -112,7 +86,6 @@ export class LibraryView extends ItemView {
 	private searchDebounce: ReturnType<typeof setTimeout> | null = null;
 
 	private favoritesTab: "movies" | "shows" = "movies";
-	/** Guards refreshCustomLists() against overlapping calls (same race class fixed in ListsView.refresh() — see notifyChanged() in list-detail-modal.ts). */
 	private customListsRefreshToken = 0;
 	private customListsEl!: HTMLElement;
 
@@ -120,7 +93,6 @@ export class LibraryView extends ItemView {
 	private resizeObserver?: ResizeObserver;
 	private viewToggleEl!: HTMLElement;
 
-	/** Responsive Favorites carousel count (Milestone 2) — mobile mirrors the Library grid's column count, desktop is a continuous function of available width. Recomputed on every resize, not just tier changes. */
 	private favoritesVisibleCount = 4;
 	private lastAllMedia: MediaItem[] = [];
 
@@ -156,16 +128,14 @@ export class LibraryView extends ItemView {
 			cls: "mediavault-custom-lists-container",
 		});
 		this.tabsEl = root.createDiv({ cls: "mediavault-tabs-container" });
+
+		this.screenTier = screenTierForWidth(root.clientWidth);
+		this.viewMode = this.defaultViewModeForTier(this.screenTier);
+
 		this.renderToolbar(root);
 		this.filtersEl = root.createDiv({ cls: "mediavault-filters-container" });
 		this.contentEl2 = root.createDiv({ cls: "mediavault-library-content" });
 
-		// Responsive view modes (Milestone 2): breakpoints are measured on
-		// this view's own pane width via ResizeObserver, not device
-		// detection — so a narrow desktop sidebar or a split-screen tablet
-		// behaves correctly regardless of what device it's running on.
-		this.screenTier = screenTierForWidth(root.clientWidth);
-		this.viewMode = this.defaultViewModeForTier(this.screenTier);
 		this.favoritesVisibleCount = Platform.isMobile ? mobileGridColumnCount() : desktopFavoritesCount(root.clientWidth);
 		this.renderViewToggle();
 
@@ -202,13 +172,11 @@ export class LibraryView extends ItemView {
 		this.resizeObserver?.disconnect();
 	}
 
-	/** Mobile always remembers/uses Grid only; tablet and desktop share one remembered preference. */
 	private defaultViewModeForTier(tier: ScreenTier): ViewMode {
 		if (tier === "mobile") return "grid";
 		return this.plugin.storage.settings.get().defaultView;
 	}
 
-	/** Call after any mutation (add/remove media, log a watch, import, Trakt sync, etc.) elsewhere in the plugin to keep this view in sync. */
 	async refresh(): Promise<void> {
 		const all = await this.plugin.storage.media.getAll();
 		this.lastAllMedia = all;
@@ -230,7 +198,12 @@ export class LibraryView extends ItemView {
 
 	private async refreshStats(): Promise<void> {
 		const stats = await this.plugin.statistics.getAll();
-		this.statsBar.update(this.statsEl, stats);
+
+		this.statsBar.update(
+			this.statsEl,
+			stats,
+			this.screenTier === "mobile"
+		);
 	}
 
 	private async refreshFavorites(all: MediaItem[]): Promise<void> {
@@ -250,14 +223,6 @@ export class LibraryView extends ItemView {
 				this.refreshFavorites(all);
 			},
 			() => {
-				// "View All" (Milestone 5: Favorites "View All" Navigation)
-				// reuses the existing Library layout/pipeline rather than a
-				// separate page: constrain to this favorites tab's media
-				// type (query.filter, already-solved primitive) plus
-				// favoritesOnly (already-solved primitive from the
-				// universal filter engine) — sorting, page size, and view
-				// mode are left untouched, so they carry over exactly as
-				// the user left them.
 				this.query.filter = this.favoritesTab === "movies" ? "movies" : "shows";
 				this.filterCriteria.favoritesOnly = true;
 				this.query.page = 1;
@@ -316,14 +281,6 @@ export class LibraryView extends ItemView {
 		});
 	}
 
-	// ---- Universal Filtering (Milestone 4) ----
-
-	/**
-	 * Collapsible panel for the non-Progress criteria in FilterCriteria.
-	 * Option lists (genres/actors/directors/studios/tags) are derived from
-	 * the full, unfiltered library so removing a constraint doesn't also
-	 * hide the option that would restore it.
-	 */
 	private renderFilterPanel(all: MediaItem[]): void {
 		const active = hasActiveFilters(this.filterCriteria);
 		this.filterToggleBtn.toggleClass("is-active", active);
@@ -334,10 +291,6 @@ export class LibraryView extends ItemView {
 		const options = collectFilterOptions(all);
 		const panel = this.filtersEl.createDiv({ cls: "mediavault-filter-panel" });
 
-		// Mobile Library Controls (Milestone 4): sort and pagination move
-		// into this expandable panel instead of the toolbar, to keep the
-		// toolbar compact on small screens. Desktop/tablet keep them in the
-		// toolbar (rendered by renderToolbar) and skip them here.
 		if (this.screenTier === "mobile") {
 			const mobileControlsRow = panel.createDiv({ cls: "mediavault-filter-row mediavault-filter-mobile-controls" });
 			this.renderSortControls(mobileControlsRow);
@@ -569,9 +522,6 @@ export class LibraryView extends ItemView {
 			void this.refresh();
 		});
 
-		// Advanced filters toggle (Milestone 4 — Universal Filtering; iconified
-		// per Mobile UI Polish Milestone 2 — the active-state "Filters ●" text
-		// badge becomes a CSS dot on the icon instead).
 		this.filterToggleBtn = toolbar.createEl("button", { cls: "clickable-icon mediavault-filters-toggle" });
 		setIcon(this.filterToggleBtn, "sliders-horizontal");
 		this.filterToggleBtn.setAttr("aria-label", "Filters");
@@ -580,19 +530,11 @@ export class LibraryView extends ItemView {
 			void this.refresh();
 		});
 
-		// Sort dropdown + direction toggle, and page size (Mobile Library
-		// Controls, Milestone 4): on mobile these move into the expandable
-		// Filter panel instead of the toolbar, to keep the toolbar compact.
 		if (this.screenTier !== "mobile") {
 			this.renderSortControls(toolbar);
 			this.renderPageSizeControl(toolbar);
 		}
 
-		// View mode toggle (Milestone 3: Library UI Polish; Milestone 2 of
-		// this roadmap gates which modes are offered by screen tier). The
-		// Grid toggle is removed entirely on mobile (Milestone 4) — the
-		// library already always uses the responsive grid there, so a
-		// single-option toggle button was pure clutter.
 		this.viewToggleEl = toolbar.createDiv({ cls: "mediavault-library-view-toggle" });
 		this.renderViewToggle();
 	}
@@ -790,15 +732,6 @@ export class LibraryView extends ItemView {
 			this.plugin.tmdb,
 			item,
 			() => {
-				// Milestone 8 (Watch Next Synchronization): calling only
-				// `this.refresh()` here refreshed this LibraryView leaf but
-				// never Watch Next or Analytics, since those are only
-				// refreshed by `plugin.refreshLibraryViews()` — so marking
-				// an episode watched from the detail modal silently left
-				// the Watch Next sidebar stale. `refreshLibraryViews()`
-				// already iterates every LibraryView leaf (this one
-				// included), so it's a straight replacement, not an
-				// addition.
 				this.plugin.refreshLibraryViews();
 				this.plugin.refreshListViews();
 			},

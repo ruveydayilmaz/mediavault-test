@@ -525,13 +525,6 @@
 
 .mediavault-detail-body {
 	padding: var(--p-spacing);
-	/* Banner / Content Overlap (Milestone 3): this padding-top was
-	   previously disabled, leaving the status/rating/description content
-	   flush against — and on some aspect ratios, visually underneath —
-	   the hero banner right above it. Restored (after the shorthand, so
-	   it isn't clobbered) so content always starts clearly below the
-	   banner. */
-	padding-top: 16px;
 }
 
 .mediavault-detail-title-row {
@@ -2097,7 +2090,7 @@
 
 .mediavault-carousel-mobile.mediavault-lists-carousel-container {
 	/* No nav buttons to leave room for on mobile. */
-	margin: 0 4px;
+	/* margin: 0 4px; */
 }
 
 .mediavault-lists-track {
@@ -2124,7 +2117,8 @@
 	position: relative;
 	display: grid;
 	grid-template-columns: repeat(4, 1fr);
-	aspect-ratio: 16 / 9;
+	aspect-ratio: auto;
+	height: 180px;
 	background: var(--background-modifier-border);
 }
 
@@ -3406,6 +3400,38 @@
 /* MOBILE ONLY — .is-phone / phone-width overrides                */
 /* ============================================================ */
 
+.mediavault-stats-mobile {
+	display: block;
+}
+
+.mediavault-stat-mobile-card {
+	background: var(--background-secondary);
+	border-radius: 8px;
+	padding: 12px;
+}
+
+.mediavault-stat-mobile-columns {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 8px;
+}
+
+.mediavault-stat-mobile-column {
+	text-align: center;
+}
+
+.mediavault-stat-mobile-value {
+	font-size: 1.2em;
+	font-weight: 700;
+	color: var(--text-accent);
+}
+
+.mediavault-stat-mobile-label {
+	font-size: 0.75em;
+	color: var(--text-muted);
+	margin-top: 3px;
+}
+
 .is-phone .mediavault-detail-menu-btn {
 	top: max(12px, env(safe-area-inset-top));
 	right: max(12px, env(safe-area-inset-right));
@@ -3476,6 +3502,10 @@
 
 .is-phone .mediavault-library-toolbar {
 	flex-wrap: wrap;
+}
+
+.is-phone .mediavault-list-tile-banner {
+	height: 140px;
 }
 
 @media (max-width: 380px) {
