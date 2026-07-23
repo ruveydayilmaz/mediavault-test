@@ -1,5 +1,5 @@
 import { App, Modal, Notice } from "obsidian";
-import { renderMobileBackButton } from "./modal-chrome";
+import { renderModalHeader } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import { MediaItem } from "../../models/media";
 
@@ -28,9 +28,7 @@ export class AddToListModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.addClass("mediavault-add-to-list-modal");
-		renderMobileBackButton(this, contentEl);
-
-		contentEl.createEl("h3", { text: `Add "${this.media.title}" to a list` });
+		renderModalHeader(this, contentEl, `Add "${this.media.title}" to a list`, "h3");
 
 		const lists = await this.storage.customLists.getAll();
 		const listEl = contentEl.createDiv({ cls: "mediavault-add-to-list-options" });

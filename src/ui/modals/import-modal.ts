@@ -1,5 +1,5 @@
 import { App, Modal, Notice } from "obsidian";
-import { renderMobileBackButton } from "./modal-chrome";
+import { renderModalHeader } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import type { TMDBService } from "../../api/tmdb";
 import { runImport, ImportManagerResult } from "../../services/importer/tvtime/manager";
@@ -56,9 +56,7 @@ export class ImportModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.addClass("mediavault-import-modal");
-		renderMobileBackButton(this, contentEl);
-
-		contentEl.createEl("h2", { text: "Import from TV Time" });
+		renderModalHeader(this, contentEl, "Import from TV Time");
 
 		if (this.importing) {
 			this.renderProgress(contentEl);

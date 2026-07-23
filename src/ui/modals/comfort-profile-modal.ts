@@ -1,5 +1,5 @@
 import { App, Modal, Notice, Setting } from "obsidian";
-import { renderMobileBackButton } from "./modal-chrome";
+import { renderModalHeader } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import { MediaItem } from "../../models/media";
 import { ComfortProfile, ComfortFlags } from "../../models/comfort";
@@ -50,9 +50,7 @@ export class ComfortProfileModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.addClass("mediavault-comfort-modal");
-		renderMobileBackButton(this, contentEl);
-
-		contentEl.createEl("h2", { text: `Comfort profile — ${this.media.title}` });
+		renderModalHeader(this, contentEl, `Comfort profile — ${this.media.title}`);
 
 		this.renderSlider(contentEl, "Comfort score", "comfortScore");
 		this.renderSlider(contentEl, "Energy level", "energyLevel");

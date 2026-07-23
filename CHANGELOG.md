@@ -2,6 +2,39 @@
 
 All notable changes to MediaVault are documented in this file.
 
+## [4.13.0] — Mobile Library Controls (New roadmap, Milestone 4, final)
+
+- **Filters**: sort (field + direction) and page-size controls now render inside the expandable Filter panel on mobile instead of the toolbar — extracted into shared `renderSortControls()`/`renderPageSizeControl()` methods so the exact same controls, wiring, and settings-persistence are reused rather than duplicated, just mounted in a different container depending on screen tier. Desktop/tablet keep them in the toolbar, unchanged. The page-navigation Prev/Next buttons at the bottom of the results themselves are unchanged — those are page navigation, not toolbar clutter, and weren't the "pagination controls" the spec meant to relocate (matched to the page-size selector as the actual toolbar control).
+- **Narrow screen layout (≤380px)**: the search input now spans the full width on its own row, with the Filter button and Media Type selector on the row below via `order` (no DOM changes needed — same elements, just reflowed at that breakpoint).
+- **Grid toggle removed on mobile**: previously mobile rendered a single-option Grid-only toggle button (dead clutter, since there was nothing to toggle to); `renderViewToggle()` now returns immediately on mobile and renders nothing. Desktop/tablet keep the full Grid/List/Table toggle.
+
+## [4.12.0] — Mobile Modal Layout Fixes (New roadmap, Milestone 3)
+
+- **Sticky Tabs**: the Media Detail tab bar (Episodes/Cast/Comments/etc.) now stays pinned directly below the sticky hero banner instead of scrolling out of view. The hero's rendered height is measured once per render (`requestAnimationFrame` after layout) and exposed as a `--mediavault-detail-hero-height` CSS custom property, which the tab bar's `top` reads — so it sticks at exactly the right offset regardless of title wrapping or safe-area insets, rather than a guessed fixed value. Desktop is untouched (tabs aren't sticky there).
+- **Hero Banner edge-to-edge fix**: root-caused the left/right padding on the banner to the hero inheriting the modal-content's own horizontal padding, same as every other child. Fixed by giving the hero container itself negative margins (offsetting exactly the modal's `max(16px, safe-area-inset)` padding) so only the hero — image and overlay together, since both are absolutely `inset: 0` within it — extends edge-to-edge, while the rest of the modal (and the hero's own inner title/meta content) keeps its normal padding.
+- Removed an old `top: -30%` hack on the mobile banner image/overlay that was misaligning the overlay from the image (overlay no longer "exactly matches banner height" once shifted). It's no longer needed now that the hero itself is edge-to-edge — the absolutely-positioned image and overlay are naturally aligned and full-bleed.
+- Added a phone-only offset for the hero's three-dot menu button so it clears the safe-area/notch now that the hero extends under it.
+
+## [4.11.0] — Responsive Favorites & Lists Carousels (New roadmap, Milestone 2)
+
+- **Mobile**: the Favorites carousel now always mirrors the Library grid's column count exactly — `mobileGridColumns()` reads the same 380px breakpoint the grid's own CSS uses (3 columns at ≤380px, 4 above it), and the carousel's card width is computed as `calc((100% - (N-1)*gap) / N)` so it's always in lockstep, never a separately-tuned approximation. When there are fewer favorites than slots, placeholder cards fill the remainder so the row's width stays stable instead of collapsing or stretching.
+- **Desktop/web**: `desktopFavoritesCount()` is a continuous function of the carousel's own available width (not the device) — `round(width / 150px)` clamped to the spec's 3–6 range — so the poster count grows and shrinks smoothly as the pane is resized instead of jumping at fixed breakpoints. Recomputed on every resize via the view's existing `ResizeObserver`, not just on tier changes, and only triggers a (cheap) Favorites-only re-render when the count actually changes.
+- Removed the old `max-width: 1100px` cap on the Favorites/Lists row so it genuinely shares the full available pane width ~50/50, per spec — previously this silently capped how wide the row (and therefore how many desktop posters) could ever grow.
+- Lists carousel needed no changes — its tiles were already percentage-width (`flex: 0 0 100%`) from earlier work, so they already adapt to whatever width the 50/50 split gives them.
+- Incidentally removed an unused `Platform` import from `favorites-carousel.ts` that was flagged by lint before this milestone (not a new issue introduced here, but no longer present either).
+
+## [4.10.0] — Comment Composer & Universal Modal Navigation (New roadmap, Milestone 1)
+
+- **Public Comment Composer**: audited against the spec and found it was already fully built from earlier work — it renders directly below the Comments header (not at the bottom of the list), pushes existing comments down, collapses on submit/cancel, and refreshes the list immediately after a successful post. No changes needed here.
+- **Universal Back Button**: this was the real gap. It previously existed only as a `position: fixed`, mobile-only overlay circle, with each modal separately rendering its own title elsewhere — despite a stale code comment claiming it was already hidden on desktop (it wasn't; it just had no accompanying title anywhere).
+  - New `renderModalHeader()` (`modal-chrome.ts`): a shared Back button + title row rendered identically on desktop and mobile, used by every MediaVault modal except Movie/Series/Episode Details.
+  - New `renderInlineBackButton()`: for List Details, which already builds its own rich title row (editable title, imported badge, hamburger menu) — the Back button is prepended to that row instead of duplicating a new one.
+  - Updated all 14 non-Details modals (Actor Details, Comfort Finder/Profile, Create/Add-to List, Drop Series, Image Picker, Import, Movie Progress, Notification History, Recommendations, Trakt Auth, Watch Session, List Detail) to use the shared header.
+  - `MediaDetailModal` (Movie/Series/Episode Details) is unchanged per spec — it keeps its existing hero-banner header and fixed-overlay back button, since it already has its own back affordance and layout.
+  - "Back" always just closes the current modal — every MediaVault modal that stacks on top of another already leaves its parent open underneath rather than closing it, so this is already exactly "return to the previous screen" with no separate navigation-stack bookkeeping needed; closing the last modal is indistinguishable from the spec's "simply close" fallback.
+- **Known gap**: the uploaded canonical source jumped from v4.7.0 (last documented milestone) to v4.9.0 with no changelog entries for 4.8.0/4.9.0 — flagging rather than inventing history for work this session didn't do.
+- **Also flagging**: the uploaded ZIP contains no `tests/` directory at all, despite `vitest.config.ts` expecting one. `tsc -noEmit` and `eslint src` are clean; `vitest run` currently has nothing to run. Nothing was written to fill this gap, per standing instruction never to add new tests — but it's worth restoring the test directory from wherever it was dropped, since "patch pre-existing tests broken by interface changes" isn't possible without it.
+
 ## [4.7.0] — GDPR Import Matching Accuracy & Diagnostics
 
 ### Milestone 1 — Improve GDPR Import Matching Accuracy

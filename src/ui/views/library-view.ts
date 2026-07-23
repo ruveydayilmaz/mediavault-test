@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, setIcon } from "obsidian";
+import { ItemView, WorkspaceLeaf, setIcon, Platform } from "obsidian";
 import type MediaVaultPlugin from "../../main";
 import { VIEW_TYPE_LIBRARY } from "../../constants";
 import { MediaItem } from "../../models/media";
@@ -39,6 +39,28 @@ function screenTierForWidth(width: number): ScreenTier {
 	if (width < MOBILE_BREAKPOINT_PX) return "mobile";
 	if (width < TABLET_BREAKPOINT_PX) return "tablet";
 	return "desktop";
+}
+
+/**
+ * Mirrors the CSS breakpoint that decides the Library grid's column count
+ * on mobile (`.is-phone .mediavault-grid` = 4 columns, or 3 at ≤380px —
+ * see styles.css). The Favorites carousel reads this same number so it
+ * always shows exactly as many posters at once as the grid currently
+ * displays per row, per spec, rather than duplicating its own breakpoint.
+ */
+function mobileGridColumns(width: number): number {
+	return width <= 380 ? 3 : 4;
+}
+
+/**
+ * Desktop/web Favorites poster count — a continuous function of the
+ * carousel's own available width (not the device), so it grows and
+ * shrinks smoothly as the pane is resized instead of jumping at fixed
+ * breakpoints. Clamped to the spec's given range (narrow → 3, wide → 6).
+ */
+function desktopFavoritesCount(width: number): number {
+	const IDEAL_CARD_WIDTH_PX = 150;
+	return Math.min(6, Math.max(3, Math.round(width / IDEAL_CARD_WIDTH_PX)));
 }
 
 const FILTER_OPTIONS: { value: LibraryFilter; label: string }[] = [
@@ -84,6 +106,10 @@ export class LibraryView extends ItemView {
 	private resizeObserver?: ResizeObserver;
 	private viewToggleEl!: HTMLElement;
 
+	/** Responsive Favorites carousel count (Milestone 2) — mobile mirrors the Library grid's column count, desktop is a continuous function of available width. Recomputed on every resize, not just tier changes. */
+	private favoritesVisibleCount = 4;
+	private lastAllMedia: MediaItem[] = [];
+
 	constructor(leaf: WorkspaceLeaf, plugin: MediaVaultPlugin) {
 		super(leaf);
 		this.plugin = plugin;
@@ -126,12 +152,27 @@ export class LibraryView extends ItemView {
 		// behaves correctly regardless of what device it's running on.
 		this.screenTier = screenTierForWidth(root.clientWidth);
 		this.viewMode = this.defaultViewModeForTier(this.screenTier);
+		this.favoritesVisibleCount = Platform.isMobile ? mobileGridColumns(root.clientWidth) : desktopFavoritesCount(root.clientWidth);
 		this.renderViewToggle();
 
 		this.resizeObserver = new ResizeObserver((entries) => {
 			const width = entries[0]?.contentRect.width ?? root.clientWidth;
+
+			const nextFavoritesCount = Platform.isMobile
+				? mobileGridColumns(width)
+				: desktopFavoritesCount(this.favoritesEl.clientWidth || width);
+			const favoritesCountChanged = nextFavoritesCount !== this.favoritesVisibleCount;
+			if (favoritesCountChanged) {
+				this.favoritesVisibleCount = nextFavoritesCount;
+			}
+
 			const nextTier = screenTierForWidth(width);
-			if (nextTier === this.screenTier) return;
+			if (nextTier === this.screenTier) {
+				// No view-mode change, but the Favorites carousel may still
+				// need to re-render at the new poster count.
+				if (favoritesCountChanged) void this.refreshFavorites(this.lastAllMedia);
+				return;
+			}
 
 			this.screenTier = nextTier;
 			this.viewMode = this.defaultViewModeForTier(nextTier);
@@ -156,6 +197,7 @@ export class LibraryView extends ItemView {
 	/** Call after any mutation (add/remove media, log a watch, import, Trakt sync, etc.) elsewhere in the plugin to keep this view in sync. */
 	async refresh(): Promise<void> {
 		const all = await this.plugin.storage.media.getAll();
+		this.lastAllMedia = all;
 		const filterCtx = await buildFilterContext(this.plugin.storage);
 		const universallyFiltered = applyUniversalFilter(all, this.filterCriteria, filterCtx);
 
@@ -206,7 +248,8 @@ export class LibraryView extends ItemView {
 					this.contentEl2.scrollIntoView({ behavior: "smooth", block: "start" });
 				})();
 			},
-			(item) => this.openDetail(item)
+			(item) => this.openDetail(item),
+			{ visibleCount: this.favoritesVisibleCount, fillPlaceholders: Platform.isMobile }
 		);
 	}
 
@@ -272,6 +315,16 @@ export class LibraryView extends ItemView {
 
 		const options = collectFilterOptions(all);
 		const panel = this.filtersEl.createDiv({ cls: "mediavault-filter-panel" });
+
+		// Mobile Library Controls (Milestone 4): sort and pagination move
+		// into this expandable panel instead of the toolbar, to keep the
+		// toolbar compact on small screens. Desktop/tablet keep them in the
+		// toolbar (rendered by renderToolbar) and skip them here.
+		if (this.screenTier === "mobile") {
+			const mobileControlsRow = panel.createDiv({ cls: "mediavault-filter-row mediavault-filter-mobile-controls" });
+			this.renderSortControls(mobileControlsRow);
+			this.renderPageSizeControl(mobileControlsRow);
+		}
 
 		const applyAndRefresh = () => {
 			this.query.page = 1;
@@ -509,8 +562,25 @@ export class LibraryView extends ItemView {
 			void this.refresh();
 		});
 
-		// Sort dropdown + direction toggle
-		const sortGroup = toolbar.createDiv({ cls: "mediavault-library-sort-group" });
+		// Sort dropdown + direction toggle, and page size (Mobile Library
+		// Controls, Milestone 4): on mobile these move into the expandable
+		// Filter panel instead of the toolbar, to keep the toolbar compact.
+		if (this.screenTier !== "mobile") {
+			this.renderSortControls(toolbar);
+			this.renderPageSizeControl(toolbar);
+		}
+
+		// View mode toggle (Milestone 3: Library UI Polish; Milestone 2 of
+		// this roadmap gates which modes are offered by screen tier). The
+		// Grid toggle is removed entirely on mobile (Milestone 4) — the
+		// library already always uses the responsive grid there, so a
+		// single-option toggle button was pure clutter.
+		this.viewToggleEl = toolbar.createDiv({ cls: "mediavault-library-view-toggle" });
+		this.renderViewToggle();
+	}
+
+	private renderSortControls(container: HTMLElement): void {
+		const sortGroup = container.createDiv({ cls: "mediavault-library-sort-group" });
 		const sortIcon = sortGroup.createDiv({ cls: "mediavault-library-sort-icon" });
 		setIcon(sortIcon, "arrow-up-down");
 		sortIcon.setAttr("aria-label", "Sort");
@@ -535,9 +605,11 @@ export class LibraryView extends ItemView {
 			void this.plugin.storage.settings.update({ defaultSortDirection: this.query.sortDirection });
 			void this.refresh();
 		});
+	}
 
+	private renderPageSizeControl(container: HTMLElement): void {
 		// Page size — larger sizes rely on virtualized rendering (list view) to stay fast.
-		const pageSizeSelect = toolbar.createEl("select", { cls: "mediavault-library-page-size" });
+		const pageSizeSelect = container.createEl("select", { cls: "mediavault-library-page-size" });
 		[
 			{ value: "24", label: "24 / page" },
 			{ value: "100", label: "100 / page" },
@@ -550,17 +622,13 @@ export class LibraryView extends ItemView {
 			this.query.page = 1;
 			void this.refresh();
 		});
-
-		// View mode toggle (Milestone 3: Library UI Polish; Milestone 2 of
-		// this roadmap gates which modes are offered by screen tier).
-		this.viewToggleEl = toolbar.createDiv({ cls: "mediavault-library-view-toggle" });
-		this.renderViewToggle();
 	}
 
 	private renderViewToggle(): void {
 		this.viewToggleEl.empty();
+		if (this.screenTier === "mobile") return;
 		const viewModeIcons: Record<ViewMode, string> = { grid: "layout-grid", list: "rows-3", table: "table" };
-		const availableModes: ViewMode[] = this.screenTier === "mobile" ? ["grid"] : ["grid", "list", "table"];
+		const availableModes: ViewMode[] = ["grid", "list", "table"];
 
 		availableModes.forEach((mode) => {
 			const btn = this.viewToggleEl.createEl("button", {
@@ -572,11 +640,7 @@ export class LibraryView extends ItemView {
 				this.viewMode = mode;
 				this.viewToggleEl.querySelectorAll("button").forEach((b) => b.removeClass("is-active"));
 				btn.addClass("is-active");
-				// Mobile only ever has one option, so there's nothing meaningful
-				// to remember there — only tablet/desktop persist a preference.
-				if (this.screenTier !== "mobile") {
-					void this.plugin.storage.settings.update({ defaultView: mode });
-				}
+				void this.plugin.storage.settings.update({ defaultView: mode });
 				void this.refresh();
 			});
 		});

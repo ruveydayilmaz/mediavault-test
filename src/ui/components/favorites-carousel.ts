@@ -1,9 +1,20 @@
-import { Platform } from "obsidian";
 import { MediaItem } from "../../models/media";
 import { MediaType } from "../../types/enums";
 import { StorageService } from "../../services/storage";
 import { renderPoster, progressFillClasses, getMediaPercentWatched } from "./media-render";
 import { createCarousel } from "./carousel";
+
+export interface FavoritesResponsiveOptions {
+	/** How many posters should be visible at once without scrolling. */
+	visibleCount: number;
+	/**
+	 * Fill unused slots with placeholder cards so the carousel's width
+	 * stays stable instead of collapsing/stretching (Milestone 2: mobile
+	 * requirement — the Favorites row must mirror the Library grid's
+	 * width even when there are fewer favorites than grid slots).
+	 */
+	fillPlaceholders: boolean;
+}
 
 export async function renderFavoritesSection(
 	container: HTMLElement,
@@ -12,7 +23,8 @@ export async function renderFavoritesSection(
 	activeTab: "movies" | "shows",
 	onTabChange: (tab: "movies" | "shows") => void,
 	onViewAll: () => void,
-	onOpen: (item: MediaItem) => void
+	onOpen: (item: MediaItem) => void,
+	responsive: FavoritesResponsiveOptions
 ): Promise<void> {
 	container.empty();
 
@@ -65,10 +77,30 @@ export async function renderFavoritesSection(
 	const { track } = createCarousel(carouselContainer);
 	track.addClass("mediavault-favorites-track");
 
+	const visibleCount = Math.max(1, responsive.visibleCount);
+	const cardWidth = `calc((100% - ${(visibleCount - 1) * 12}px) / ${visibleCount})`;
+
 	for (const item of items) {
 		const progress = await getMediaPercentWatched(storage, item);
-		track.appendChild(buildFavoriteCard(item, progress, onOpen));
+		const card = buildFavoriteCard(item, progress, onOpen);
+		card.style.width = cardWidth;
+		track.appendChild(card);
 	}
+
+	if (responsive.fillPlaceholders) {
+		for (let i = items.length; i < visibleCount; i++) {
+			const placeholder = buildPlaceholderCard();
+			placeholder.style.width = cardWidth;
+			track.appendChild(placeholder);
+		}
+	}
+}
+
+function buildPlaceholderCard(): HTMLElement {
+	const card = document.createElement("div");
+	card.addClass("mediavault-favorite-card", "mediavault-favorite-card-placeholder");
+	card.createDiv({ cls: "mediavault-favorite-poster" });
+	return card;
 }
 
 function buildFavoriteCard(item: MediaItem, percentWatched: number | null, onOpen: (item: MediaItem) => void): HTMLElement {

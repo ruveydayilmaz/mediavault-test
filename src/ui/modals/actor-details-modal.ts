@@ -1,5 +1,5 @@
 import { App, Modal, Notice } from "obsidian";
-import { renderMobileBackButton } from "./modal-chrome";
+import { renderModalHeader } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import type { TMDBService } from "../../api/tmdb";
 import { TMDBFilmographyItem, TMDBPersonDetails } from "../../types/tmdb";
@@ -49,7 +49,7 @@ export class ActorDetailsModal extends Modal {
 		contentEl.empty();
 		contentEl.addClass("mediavault-detail-modal");
 		contentEl.addClass("mediavault-actor-modal");
-		renderMobileBackButton(this, contentEl);
+		const headerRow = renderModalHeader(this, contentEl, "Actor");
 
 		const loading = contentEl.createDiv({ cls: "mediavault-modal-hint", text: "Loading actor details..." });
 		try {
@@ -59,6 +59,7 @@ export class ActorDetailsModal extends Modal {
 			return;
 		}
 		loading.remove();
+		headerRow.querySelector<HTMLElement>(".mediavault-modal-header-title")?.setText(this.person.name);
 
 		const header = contentEl.createDiv({ cls: "mediavault-actor-header" });
 		const photoUrl = tmdbImageUrl(this.person.profilePath, "w342");
@@ -66,7 +67,6 @@ export class ActorDetailsModal extends Modal {
 			header.createEl("img", { cls: "mediavault-actor-photo", attr: { src: photoUrl, alt: this.person.name } });
 		}
 		const info = header.createDiv({ cls: "mediavault-actor-info" });
-		info.createEl("h2", { text: this.person.name });
 		if (this.person.birthday) {
 			info.createDiv({ cls: "mediavault-detail-meta", text: `Born ${this.person.birthday}` });
 		}

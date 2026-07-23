@@ -1,5 +1,5 @@
 import { App, Modal, Notice } from "obsidian";
-import { renderMobileBackButton } from "./modal-chrome";
+import { renderModalHeader } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import { CustomList } from "../../models/list";
 
@@ -16,8 +16,7 @@ export class CreateListModal extends Modal {
 	onOpen(): void {
 		const { contentEl } = this;
 		contentEl.addClass("mediavault-create-list-modal");
-		renderMobileBackButton(this, contentEl);
-		contentEl.createEl("h3", { text: "New list" });
+		renderModalHeader(this, contentEl, "New list", "h3");
 
 		const titleInput = contentEl.createEl("input", { type: "text", attr: { placeholder: "Title, e.g. \"Cozy Anime\"" } });
 		const descInput = contentEl.createEl("textarea", { attr: { placeholder: "Description (optional)" } });

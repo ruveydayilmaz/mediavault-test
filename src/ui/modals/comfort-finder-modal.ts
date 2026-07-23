@@ -1,5 +1,5 @@
 import { App, Modal, Notice, Setting } from "obsidian";
-import { renderMobileBackButton } from "./modal-chrome";
+import { renderModalHeader } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import { getComfortableMedia } from "../../services/comfort/join";
 import { filterByComfortCriteria, presetToCriteria, ComfortCriteria, ComfortableMedia } from "../../services/comfort/filter";
@@ -51,9 +51,7 @@ export class ComfortFinderModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.addClass("mediavault-comfort-finder");
-		renderMobileBackButton(this, contentEl);
-
-		contentEl.createEl("h2", { text: "Comfort Finder" });
+		renderModalHeader(this, contentEl, "Comfort Finder");
 
 		if (this.allComfortable.length === 0) {
 			contentEl.createDiv({

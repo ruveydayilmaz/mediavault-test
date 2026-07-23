@@ -228,6 +228,16 @@ export class MediaDetailModal extends Modal {
 	private async renderHero(contentEl: HTMLElement): Promise<void> {
 		const hero = contentEl.createDiv({ cls: "mediavault-detail-hero" });
 
+		// Sticky Tabs (Milestone 3): the tab bar sticks directly below the
+		// hero banner on mobile. The hero's own height isn't fixed (title
+		// wrapping, safe-area insets, etc.), so rather than guess a value in
+		// CSS, measure the real rendered height once layout settles and
+		// expose it as a custom property `.mediavault-detail-tabs` reads via
+		// `top: var(...)`. Harmless on desktop, where tabs aren't sticky.
+		requestAnimationFrame(() => {
+			contentEl.style.setProperty("--mediavault-detail-hero-height", `${hero.offsetHeight}px`);
+		});
+
 		const bannerUrl = tmdbImageUrl(this.media.backdropPath ?? this.media.posterPath, "original");
 		if (bannerUrl) {
 			hero.createEl("img", { cls: "mediavault-detail-banner-img", attr: { src: bannerUrl, alt: "" } });

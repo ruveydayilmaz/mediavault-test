@@ -1,5 +1,5 @@
 import { App, Modal, Notice } from "obsidian";
-import { renderMobileBackButton } from "./modal-chrome";
+import { renderModalHeader } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import type { TMDBService } from "../../api/tmdb";
 import { buildRecommendations, RecommendationSet } from "../../services/recommendation/engine";
@@ -30,8 +30,7 @@ export class RecommendationsModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.addClass("mediavault-recommendations-modal");
-		renderMobileBackButton(this, contentEl);
-		contentEl.createEl("h2", { text: "Recommended for you" });
+		renderModalHeader(this, contentEl, "Recommended for you");
 
 		const loading = contentEl.createDiv({ cls: "mediavault-rec-loading", text: "Building recommendations..." });
 

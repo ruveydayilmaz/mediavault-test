@@ -1,5 +1,5 @@
 import { App, Modal, Setting, Notice } from "obsidian";
-import { renderMobileBackButton } from "./modal-chrome";
+import { renderModalHeader } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import { MediaItem } from "../../models/media";
 import { setMovieProgress } from "../../services/movie-progress-service";
@@ -26,8 +26,7 @@ export class MoviePartialWatchModal extends Modal {
 	onOpen(): void {
 		const { contentEl } = this;
 		contentEl.addClass("mediavault-movie-progress-modal");
-		renderMobileBackButton(this, contentEl);
-		contentEl.createEl("h3", { text: "Where did you stop watching?" });
+		renderModalHeader(this, contentEl, "Where did you stop watching?", "h3");
 
 		new Setting(contentEl).setName("Minutes in").addText((text) => {
 			text.inputEl.type = "number";

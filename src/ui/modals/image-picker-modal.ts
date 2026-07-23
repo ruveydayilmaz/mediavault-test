@@ -1,5 +1,5 @@
 import { App, Modal, Notice } from "obsidian";
-import { renderMobileBackButton } from "./modal-chrome";
+import { renderModalHeader } from "./modal-chrome";
 import type { TMDBService } from "../../api/tmdb";
 import { tmdbImageUrl } from "../../api/tmdb-normalize";
 import { TMDBImageOption } from "../../types/tmdb";
@@ -45,9 +45,7 @@ export class ImagePickerModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.addClass("mediavault-image-picker-modal");
-		renderMobileBackButton(this, contentEl);
-
-		contentEl.createEl("h3", { text: this.imageKind === "poster" ? "Choose a poster" : "Choose a banner" });
+		renderModalHeader(this, contentEl, this.imageKind === "poster" ? "Choose a poster" : "Choose a banner", "h3");
 
 		const loading = contentEl.createDiv({ cls: "mediavault-modal-hint", text: "Loading images from TMDB..." });
 
