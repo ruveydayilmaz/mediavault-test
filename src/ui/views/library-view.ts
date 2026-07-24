@@ -251,6 +251,9 @@ export class LibraryView extends ItemView {
 			lists,
 			(list) => {
 				new ListDetailModal(this.app, this.plugin, list).open();
+			},
+			() => {
+				void this.plugin.activateListsView();
 			}
 		);
 	}

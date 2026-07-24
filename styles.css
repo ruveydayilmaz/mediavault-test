@@ -719,6 +719,10 @@
 .mediavault-comment-author {
 	font-weight: 600;
 	color: var(--text-normal);
+	max-width: 55%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .mediavault-comment-rating {
@@ -1981,7 +1985,6 @@
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
-	margin-bottom: 12px;
 	min-height: 200px;
 	min-width: 0;
 }
@@ -1990,6 +1993,25 @@
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
+	gap: 8px;
+}
+
+/* Arrow-style nav icon (mobile) vs "View All" text button (desktop) — only
+   one is shown at a time per screen tier, both call the same handler. */
+.mediavault-section-nav-arrow {
+	display: none;
+	order: -1;
+	flex: 0 0 auto;
+	color: var(--text-muted);
+}
+
+.is-phone .mediavault-section-nav-arrow {
+	display: inline-flex;
+}
+
+.is-phone .mediavault-favorites-view-all,
+.is-phone .mediavault-lists-view-all {
+	display: none;
 }
 
 .mediavault-favorites-view-all {
@@ -2078,10 +2100,32 @@
 }
 
 .mediavault-lists-carousel-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
 	padding: 8px 0;
 	font-weight: 600;
 	color: var(--text-normal);
 	user-select: none;
+}
+
+.mediavault-lists-carousel-title {
+	font-weight: 600;
+}
+
+.mediavault-lists-view-all {
+	background: none;
+	border: none;
+	color: var(--text-muted);
+	cursor: pointer;
+	font-size: 0.85em;
+	font-weight: 400;
+	padding: 0;
+}
+
+.mediavault-lists-view-all:hover {
+	color: var(--interactive-accent);
 }
 
 .mediavault-lists-carousel-container {
@@ -2339,7 +2383,12 @@
 }
 
 .mediavault-filters-container:empty {
-	margin: 0;
+	/* Root cause of the excessive toolbar-to-grid gap: .mediavault-library-root
+	   uses flex `gap`, which applies between every direct child box regardless
+	   of its content — an empty filter-panel spacer still consumed a gap on
+	   both sides of it. display:none removes it from flex layout entirely
+	   when there's nothing to show, collapsing back to a single gap. */
+	display: none;
 }
 
 .mediavault-filter-panel {
@@ -2649,10 +2698,11 @@
 }
 
 /* --- Grid (single scroll — no nested scroll container) --- */
+/* Matches .mediavault-grid (Library) sizing exactly — Milestone 1: Consistent Grid Sizes */
 .mediavault-list-detail-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-	gap: 16px;
+	grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+	gap: 8px;
 }
 
 .mediavault-list-detail-empty {
@@ -2769,15 +2819,14 @@
 	}
 
 	.mediavault-list-detail-grid {
-		grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-		gap: 10px;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 6px;
 	}
 }
 
 @media (max-width: 380px) {
 	.mediavault-list-detail-grid {
-		grid-template-columns: repeat(auto-fill, minmax(85px, 1fr));
-		gap: 8px;
+		grid-template-columns: repeat(3, 1fr);
 	}
 }
 
@@ -3078,16 +3127,17 @@
 	padding-bottom: 8px;
 }
 
+/* Matches .mediavault-grid (Library) sizing exactly — Milestone 1: Consistent Grid Sizes */
 .mediavault-explore-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-	gap: 14px;
+	grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+	gap: 8px;
 }
 
 .mediavault-explore-card {
 	position: relative;
 	flex: 0 0 auto;
-	width: 150px;
+	width: 140px;
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
@@ -3375,6 +3425,24 @@
 	display: none;
 }
 
+.is-phone .mediavault-comment-composer {
+	position: relative;
+}
+
+.mediavault-comment-compose-done {
+	display: none;
+}
+
+.is-phone .mediavault-comment-compose-done {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	position: absolute;
+	top: 0;
+	right: 0;
+	color: var(--text-muted);
+}
+
 .mediavault-comment-compose-buttons {
 	display: flex;
 	gap: 8px;
@@ -3437,7 +3505,7 @@
 	justify-content: center;
 	position: fixed;
 	top: max(8px, env(safe-area-inset-top));
-	right: max(8px, env(safe-area-inset-left));
+	right: max(8px, env(safe-area-inset-right));
 	width: 36px;
 	height: 36px;
 	border-radius: 50%;
@@ -3452,6 +3520,11 @@
 	grid-template-columns: 1fr;
 }
 
+.is-phone .mediavault-favorites-container,
+.is-phone .mediavault-custom-lists-container {
+	min-height: 0;
+}
+
 .is-phone .mediavault-detail-hero {
 	position: sticky;
 	top: calc(-1 * env(safe-area-inset-top));
@@ -3462,13 +3535,16 @@
 	width: calc(100% + max(16px, env(safe-area-inset-left)) + max(16px, env(safe-area-inset-right)));
 
 	transform: translateY(-50px);
+	/* translateY doesn't affect layout flow — without this, the 50px the
+	   hero visually moved up remains as empty space before the next
+	   sibling, creating an unwanted gap above the description. */
+	margin-bottom: -50px;
 }
 
 .is-phone .mediavault-modal-buttons,
 .is-phone .mediavault-detail-actions {
 	position: sticky;
 	bottom: 0;
-	/* margin: 12px calc(-1 * max(16px, env(safe-area-inset-right))) calc(-1 * max(16px, env(safe-area-inset-bottom))) calc(-1 * max(16px, env(safe-area-inset-left))); */
 	padding: 12px max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
 	background: var(--background-primary);
 	border-top: 1px solid var(--background-modifier-border);
@@ -3480,7 +3556,7 @@
 .is-phone .mediavault-lists-root,
 .is-phone .mediavault-explore-root,
 .is-phone .mediavault-analytics-view {
-	padding-bottom: max(24px, env(safe-area-inset-bottom));
+	padding-bottom: calc(var(--mobile-toolbar-height, 48px) + max(16px, env(safe-area-inset-bottom)));
 	box-sizing: border-box;
 }
 
@@ -3560,16 +3636,25 @@
 	display: none;
 }
 
-/* .is-phone .mediavault-detail-tabs {
-	position: sticky;
-	top: var(--mediavault-detail-hero-height, 220px);
-	z-index: 2;
-	background: var(--background-primary);
+.is-phone .mediavault-detail-tabs {
 	overflow-x: auto;
 	-webkit-overflow-scrolling: touch;
 	flex-wrap: nowrap;
 	scrollbar-width: none;
-} */
+}
+
+/* Sticky positioning is scoped to the actual Media/Episode Details modal,
+   which has a hero banner whose measured height feeds
+   --mediavault-detail-hero-height. Other modals sharing .mediavault-detail-tabs
+   (e.g. Actor Details/Filmography) have no such hero, so making their tabs
+   sticky at that offset would misposition them — they still get the
+   horizontal-scroll treatment above, just not the sticky pin. */
+.is-phone .mediavault-detail-modal:not(.mediavault-actor-modal) .mediavault-detail-tabs {
+	position: sticky;
+	top: var(--mediavault-detail-hero-height, 220px);
+	z-index: 2;
+	background: var(--background-primary);
+}
 
 .is-phone .mediavault-detail-tabs::-webkit-scrollbar {
 	display: none;
@@ -3586,10 +3671,21 @@
 
 .is-phone .mediavault-explore-grid {
 	grid-template-columns: repeat(4, 1fr);
-	gap: 8px;
+	gap: 6px;
 }
 
-.is-phone .mediavault-explore-card {
+@media (max-width: 380px) {
+	.is-phone .mediavault-explore-grid {
+		grid-template-columns: repeat(3, 1fr);
+	}
+}
+
+/* Only the grid contexts (Browse/Search results) should stretch cards to
+   fill their grid cell — rows (Trending/Popular/Recommended) are a
+   horizontally-scrolling carousel and must keep their fixed card width,
+   matching the Favorites carousel's behavior, or every card stretches to
+   the full row width and only one is visible at a time. */
+.is-phone .mediavault-explore-grid .mediavault-explore-card {
 	width: 100%;
 }
 

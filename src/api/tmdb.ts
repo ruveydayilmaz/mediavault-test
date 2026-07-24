@@ -34,6 +34,8 @@ export interface TMDBServiceConfig {
 	getLanguage?: () => string;
 	/** ISO 3166-1 region code for release dates/availability. Optional. */
 	getRegion?: () => string;
+	/** Mobile Milestone 4: Adult Content Filter. Defaults to false (excluded) when omitted. */
+	getShowAdultContent?: () => boolean;
 }
 
 /**
@@ -56,6 +58,10 @@ export class TMDBService {
 
 	private get language(): string {
 		return this.config.getLanguage?.() ?? "en-US";
+	}
+
+	private get includeAdult(): "true" | "false" {
+		return this.config.getShowAdultContent?.() ? "true" : "false";
 	}
 
 	private async cached<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
@@ -81,7 +87,7 @@ export class TMDBService {
 					query,
 					page,
 					language: this.language,
-					include_adult: "false",
+					include_adult: this.includeAdult,
 					...(year !== null ? { primary_release_year: year } : {}),
 				},
 			});
@@ -102,7 +108,7 @@ export class TMDBService {
 					query,
 					page,
 					language: this.language,
-					include_adult: "false",
+					include_adult: this.includeAdult,
 					...(year !== null ? { first_air_date_year: year } : {}),
 				},
 			});
@@ -120,7 +126,7 @@ export class TMDBService {
 		const key = `search:multi:${query}:${page}:${this.language}`;
 		return this.cached(key, async () => {
 			const raw = await this.http.get<TMDBRawSearchResponse>("/search/multi", {
-				params: { query, page, language: this.language, include_adult: "false" },
+				params: { query, page, language: this.language, include_adult: this.includeAdult },
 			});
 			const items = raw.results
 				.filter((r) => r.media_type === "movie" || r.media_type === "tv")
@@ -263,32 +269,37 @@ export class TMDBService {
 	// ---- Recommendations / similar ----
 
 	async getRecommendations(tmdbId: number, kind: "movie" | "tv", page = 1): Promise<PagedResult<TMDBSearchResult>> {
-		const key = `recs:${kind}:${tmdbId}:${page}:${this.language}`;
+		const key = `recs:${kind}:${tmdbId}:${page}:${this.language}:${this.includeAdult}`;
 		return this.cached(key, async () => {
 			const raw = await this.http.get<TMDBRawSearchResponse>(
 				`/${kind}/${tmdbId}/recommendations`,
 				{ params: { page, language: this.language } }
 			);
+			// TMDB's recommendations/similar endpoints don't accept
+			// include_adult server-side — filtered client-side instead,
+			// using TMDB's own `adult` flag on each result.
+			const items = raw.results.map((r) => normalizeSearchResult(r, kind)).filter((r) => this.includeAdult === "true" || !r.adult);
 			return {
-				items: raw.results.map((r) => normalizeSearchResult(r, kind)),
+				items,
 				total: raw.total_results,
 				page: raw.page,
-				pageSize: raw.results.length,
+				pageSize: items.length,
 			};
 		});
 	}
 
 	async getSimilar(tmdbId: number, kind: "movie" | "tv", page = 1): Promise<PagedResult<TMDBSearchResult>> {
-		const key = `similar:${kind}:${tmdbId}:${page}:${this.language}`;
+		const key = `similar:${kind}:${tmdbId}:${page}:${this.language}:${this.includeAdult}`;
 		return this.cached(key, async () => {
 			const raw = await this.http.get<TMDBRawSearchResponse>(`/${kind}/${tmdbId}/similar`, {
 				params: { page, language: this.language },
 			});
+			const items = raw.results.map((r) => normalizeSearchResult(r, kind)).filter((r) => this.includeAdult === "true" || !r.adult);
 			return {
-				items: raw.results.map((r) => normalizeSearchResult(r, kind)),
+				items,
 				total: raw.total_results,
 				page: raw.page,
-				pageSize: raw.results.length,
+				pageSize: items.length,
 			};
 		});
 	}
@@ -297,10 +308,10 @@ export class TMDBService {
 
 	/** TMDB's trending feed — genuinely trending right now, distinct from the all-time "popular" ranking. */
 	async getTrending(kind: "movie" | "tv", window: "day" | "week" = "week", page = 1): Promise<PagedResult<TMDBSearchResult>> {
-		const key = `trending:${kind}:${window}:${page}:${this.language}`;
+		const key = `trending:${kind}:${window}:${page}:${this.language}:${this.includeAdult}`;
 		return this.cached(key, async () => {
 			const raw = await this.http.get<TMDBRawSearchResponse>(`/trending/${kind}/${window}`, {
-				params: { page, language: this.language },
+				params: { page, language: this.language, include_adult: this.includeAdult },
 			});
 			return {
 				items: raw.results.map((r) => normalizeSearchResult(r, kind)),
@@ -313,10 +324,10 @@ export class TMDBService {
 
 	/** Overall popularity ranking (TMDB's /popular), as opposed to the trending-algorithm feed above. */
 	async getPopular(kind: "movie" | "tv", page = 1): Promise<PagedResult<TMDBSearchResult>> {
-		const key = `popular:${kind}:${page}:${this.language}`;
+		const key = `popular:${kind}:${page}:${this.language}:${this.includeAdult}`;
 		return this.cached(key, async () => {
 			const raw = await this.http.get<TMDBRawSearchResponse>(`/${kind}/popular`, {
-				params: { page, language: this.language },
+				params: { page, language: this.language, include_adult: this.includeAdult },
 			});
 			return {
 				items: raw.results.map((r) => normalizeSearchResult(r, kind)),
@@ -365,7 +376,7 @@ export class TMDBService {
 	 * lookup TMDB doesn't return alongside genres.
 	 */
 	async discover(kind: "movie" | "tv", filters: DiscoverFilters, page = 1): Promise<PagedResult<TMDBSearchResult>> {
-		const params: Record<string, string | number> = { page, language: this.language };
+		const params: Record<string, string | number> = { page, language: this.language, include_adult: this.includeAdult };
 		if (filters.genreId !== undefined) params.with_genres = filters.genreId;
 		if (filters.yearMin !== undefined || filters.yearMax !== undefined) {
 			// TMDB has no native year-range param; primary_release_year/first_air_date_year are exact-year only,

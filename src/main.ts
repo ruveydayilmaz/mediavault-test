@@ -49,6 +49,7 @@ export default class MediaVaultPlugin extends Plugin {
 		this.tmdb = new TMDBService({
 			getApiKey: () => this.storage.settings.get().tmdbApiKey,
 			getCacheDurationMinutes: () => this.storage.settings.get().cacheDurationMinutes,
+			getShowAdultContent: () => this.storage.settings.get().showAdultContent,
 		});
 
 		this.trakt = new TraktService({

@@ -25,6 +25,7 @@ export interface TMDBRawSearchResultItem {
 	/** TV search results only — TMDB does not return this for movie search results. */
 	origin_country?: string[];
 	original_language?: string;
+	adult?: boolean;
 }
 
 export interface TMDBRawSearchResponse {
@@ -145,6 +146,8 @@ export interface TMDBSearchResult {
 	country: string | null;
 	/** Original language code, used as a secondary matching hint alongside country. */
 	language: string | null;
+	/** TMDB's own adult flag — used to filter Search/Explore/Recommendations/Discovery when the "Show Adult Content" setting is off, instead of a local title-based heuristic. Movies always return this; TV search results generally do not (TV has no adult flag concept on TMDB), so it's undefined there and never filtered. */
+	adult: boolean | undefined;
 }
 
 export interface TMDBNormalizedDetails {

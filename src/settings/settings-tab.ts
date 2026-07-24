@@ -70,6 +70,17 @@ export class MediaVaultSettingTab extends PluginSettingTab {
 					})
 			);
 
+		new Setting(containerEl)
+			.setName("Show Adult (+18) Content")
+			.setDesc(
+				"When off (default), adult movies/TV are excluded from Search, Explore, Recommendations, Similar items, Discovery, and all other TMDB-backed results."
+			)
+			.addToggle((toggle) =>
+				toggle.setValue(settings.get().showAdultContent).onChange(async (value) => {
+					await settings.update({ showAdultContent: value });
+				})
+			);
+
 		// --- Trakt ---
 		containerEl.createEl("h3", { text: "Trakt" });
 

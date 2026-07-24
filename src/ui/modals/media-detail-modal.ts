@@ -741,6 +741,12 @@ export class MediaDetailModal extends Modal {
 
 		const composer = await this.renderCommentComposer(section, target, () => this.refreshCommentList(listWrap, target, fetchComments));
 		composer?.addClass("is-collapsed");
+		composeToggle.addEventListener("click", () => {
+			composer?.toggleClass("is-collapsed", !composer.hasClass("is-collapsed"));
+			if (composer && !composer.hasClass("is-collapsed")) {
+				composer.querySelector<HTMLTextAreaElement>(".mediavault-comment-compose-input")?.focus();
+			}
+		});
 
 		if (composer) section.insertBefore(composer, listWrap);
 
@@ -860,7 +866,7 @@ export class MediaDetailModal extends Modal {
 			const main = item.createDiv({ cls: "mediavault-comment-main" });
 
 			const header = main.createDiv({ cls: "mediavault-comment-header" });
-			header.createSpan({ cls: "mediavault-comment-author", text: comment.userName });
+			header.createSpan({ cls: "mediavault-comment-author", text: comment.userName, attr: { title: comment.userName } });
 			if (comment.userRating !== null) {
 				header.createSpan({ cls: "mediavault-comment-rating", text: `★ ${comment.userRating}/10` });
 			}
@@ -955,13 +961,24 @@ export class MediaDetailModal extends Modal {
 		composer.createEl("h4", { text: "Write a Public Comment" });
 		const textarea = composer.createEl("textarea", {
 			cls: "mediavault-comment-compose-input",
-			attr: { placeholder: "Share your thoughts..." },
+			attr: { placeholder: "Share your thoughts...", enterkeyhint: "done" },
 		});
 		const counter = composer.createDiv({ cls: "mediavault-comment-char-counter", text: `0 / ${TRAKT_COMMENT_LIMIT}` });
 		textarea.addEventListener("input", () => {
 			counter.setText(`${textarea.value.length} / ${TRAKT_COMMENT_LIMIT}`);
 			counter.toggleClass("is-over-limit", textarea.value.length > TRAKT_COMMENT_LIMIT);
 		});
+
+		// Obsidian's mobile webview doesn't expose a way to attach a native
+		// "Done" accessory above the keyboard, so this in-composer button is
+		// the fallback: it dismisses the keyboard (via blur) without
+		// cancelling or posting the in-progress comment.
+		const doneBtn = composer.createEl("button", {
+			cls: "clickable-icon mediavault-comment-compose-done",
+			attr: { "aria-label": "Dismiss keyboard" },
+		});
+		setIcon(doneBtn, "chevron-down");
+		doneBtn.addEventListener("click", () => textarea.blur());
 
 		const warningEl = composer.createDiv({ cls: "mediavault-comment-refresh-warning" });
 
@@ -971,6 +988,7 @@ export class MediaDetailModal extends Modal {
 		cancelBtn.addEventListener("click", () => {
 			textarea.value = "";
 			counter.setText(`0 / ${TRAKT_COMMENT_LIMIT}`);
+			textarea.blur();
 			composer.addClass("is-collapsed");
 		});
 
@@ -1417,7 +1435,12 @@ export class MediaDetailModal extends Modal {
 			const listWrap = commentsSection.createDiv();
 			const composer = await this.renderCommentComposer(commentsSection, target, () => this.refreshCommentList(listWrap, target, fetchComments));
 			composer?.addClass("is-collapsed");
-			composeToggle.addEventListener("click", () => composer?.toggleClass("is-collapsed", !composer.hasClass("is-collapsed")));
+			composeToggle.addEventListener("click", () => {
+				composer?.toggleClass("is-collapsed", !composer.hasClass("is-collapsed"));
+				if (composer && !composer.hasClass("is-collapsed")) {
+					composer.querySelector<HTMLTextAreaElement>(".mediavault-comment-compose-input")?.focus();
+				}
+			});
 			// Public Comment Composer (Milestone 2): reorder so the composer
 			// sits immediately beneath the heading rather than at the bottom
 			// of the list (same fix as the movie/show Comments tab above).

@@ -1,3 +1,4 @@
+import { setIcon } from "obsidian";
 import { CustomList } from "../../models/list";
 import { MediaItem } from "../../models/media";
 import { formatRelativeDate, getListBannerPosters } from "../../services/list-service";
@@ -8,7 +9,8 @@ export async function renderCustomListsCarousel(
 	container: HTMLElement,
 	allMedia: MediaItem[],
 	lists: CustomList[],
-	onOpenList: (list: CustomList) => void
+	onOpenList: (list: CustomList) => void,
+	onViewAll: () => void
 ): Promise<void> {
 	container.empty();
 
@@ -20,7 +22,22 @@ export async function renderCustomListsCarousel(
 		return;
 	}
 
-	container.createDiv({ cls: "mediavault-lists-carousel-header", text: "Lists" });
+	const header = container.createDiv({ cls: "mediavault-lists-carousel-header" });
+
+	const mobileArrow = header.createEl("button", {
+		cls: "clickable-icon mediavault-section-nav-arrow",
+	});
+	setIcon(mobileArrow, "chevron-right");
+	mobileArrow.setAttr("aria-label", "View all lists");
+	mobileArrow.onclick = onViewAll;
+
+	header.createSpan({ cls: "mediavault-lists-carousel-title", text: "Lists" });
+
+	const viewAll = header.createEl("button", {
+		cls: "mediavault-lists-view-all",
+		text: "View All",
+	});
+	viewAll.onclick = onViewAll;
 
 	const carouselContainer = container.createDiv({ cls: "mediavault-lists-carousel-container" });
 	const { track } = createCarousel(carouselContainer);

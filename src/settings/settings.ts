@@ -86,6 +86,15 @@ export interface MediaVaultSettings {
 	 */
 	commentsPrimaryLanguage: string;
 	commentsAdditionalLanguages: string[];
+
+	/**
+	 * "Show Adult (+18) Content" (Mobile Milestone 4). Off by default —
+	 * when off, adult movies/TV are excluded from Search, Explore,
+	 * Recommendations, Similar, Discovery, and any other TMDB-backed
+	 * result list, using TMDB's own `adult` flag rather than a local
+	 * title-based heuristic.
+	 */
+	showAdultContent: boolean;
 }
 
 export const DEFAULT_SETTINGS: MediaVaultSettings = {
@@ -125,4 +134,5 @@ export const DEFAULT_SETTINGS: MediaVaultSettings = {
 	notificationLastCheckedDate: null,
 	commentsPrimaryLanguage: "en",
 	commentsAdditionalLanguages: [],
+	showAdultContent: false,
 };

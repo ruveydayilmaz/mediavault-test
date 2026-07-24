@@ -31,6 +31,7 @@ export function normalizeSearchResult(raw: TMDBRawSearchResultItem, mediaKind: T
 		overview: raw.overview ?? "",
 		country: raw.origin_country?.[0] ?? null,
 		language: raw.original_language ?? null,
+		adult: raw.adult,
 	};
 }
 
