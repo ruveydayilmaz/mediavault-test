@@ -50,7 +50,7 @@ export class ComfortProfileModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.addClass("mediavault-comfort-modal");
-		renderModalHeader(this, contentEl, `Comfort profile — ${this.media.title}`);
+		renderModalHeader(this, contentEl, `Comfort profile`);
 
 		this.renderSlider(contentEl, "Comfort score", "comfortScore");
 		this.renderSlider(contentEl, "Energy level", "energyLevel");

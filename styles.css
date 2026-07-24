@@ -3435,9 +3435,10 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	position: fixed;
+	/* position: fixed;
 	top: max(8px, env(safe-area-inset-top));
-	right: max(8px, env(safe-area-inset-left));
+	right: max(8px, env(safe-area-inset-left)); */
+	padding-right: 20px;
 	width: 36px;
 	height: 36px;
 	border-radius: 50%;
@@ -3480,7 +3481,7 @@
 .is-phone .mediavault-lists-root,
 .is-phone .mediavault-explore-root,
 .is-phone .mediavault-analytics-view {
-	padding-bottom: max(24px, env(safe-area-inset-bottom));
+	padding-bottom: max(50px, env(safe-area-inset-bottom));
 	box-sizing: border-box;
 }
 
@@ -3560,16 +3561,13 @@
 	display: none;
 }
 
-/* .is-phone .mediavault-detail-tabs {
-	position: sticky;
-	top: var(--mediavault-detail-hero-height, 220px);
-	z-index: 2;
+.is-phone .mediavault-detail-tabs {
 	background: var(--background-primary);
 	overflow-x: auto;
 	-webkit-overflow-scrolling: touch;
 	flex-wrap: nowrap;
 	scrollbar-width: none;
-} */
+}
 
 .is-phone .mediavault-detail-tabs::-webkit-scrollbar {
 	display: none;
