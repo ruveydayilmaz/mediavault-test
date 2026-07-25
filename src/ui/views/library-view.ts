@@ -18,6 +18,7 @@ import { StatsBar } from "../components/stats-bar";
 import { renderFavoritesSection } from "../components/favorites-carousel";
 import { renderCustomListsCarousel } from "../components/custom-lists-carousel";
 import { ListDetailModal } from "../modals/list-detail-modal";
+import { FavoriteListsModal } from "../modals/favorite-lists-modal";
 import {
 	FilterCriteria,
 	DEFAULT_FILTER_CRITERIA,
@@ -223,13 +224,7 @@ export class LibraryView extends ItemView {
 				this.refreshFavorites(all);
 			},
 			() => {
-				this.query.filter = this.favoritesTab === "movies" ? "movies" : "shows";
-				this.filterCriteria.favoritesOnly = true;
-				this.query.page = 1;
-				void (async () => {
-					await this.refresh();
-					this.contentEl2.scrollIntoView({ behavior: "smooth", block: "start" });
-				})();
+				new FavoriteListsModal(this.app, this.plugin).open();
 			},
 			(item) => this.openDetail(item),
 			{ visibleCount: this.favoritesVisibleCount, fillPlaceholders: Platform.isMobile }

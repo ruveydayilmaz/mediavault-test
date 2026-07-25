@@ -60,15 +60,17 @@ export class ListDetailModal extends Modal {
 		contentEl.empty();
 		contentEl.addClass("mediavault-list-detail-modal");
 
-		const fresh = await this.storage.customLists.findById(this.list.id);
-		if (!fresh) {
-			contentEl.createDiv({
-				cls: "mediavault-empty-state mediavault-list-detail-gone",
-				text: "This list no longer exists.",
-			});
-			return;
+		if (!this.list.isSystem) {
+			const fresh = await this.storage.customLists.findById(this.list.id);
+			if (!fresh) {
+				contentEl.createDiv({
+					cls: "mediavault-empty-state mediavault-list-detail-gone",
+					text: "This list no longer exists.",
+				});
+				return;
+			}
+			this.list = fresh;
 		}
-		this.list = fresh;
 		const allMedia = await this.storage.media.getAll();
 
 		// --- Header: read-only title + hamburger menu ---
@@ -86,44 +88,51 @@ export class ListDetailModal extends Modal {
 				text: `Imported${this.list.importSource ? ` — ${this.list.importSource}` : ""}`,
 			});
 		}
+		if (this.list.isSystem) {
+			titleRow.createDiv({ cls: "mediavault-list-imported-badge", text: "Built-in" });
+		}
 
-		// Hamburger menu button
-		const menuBtn = titleRow.createEl("button", {
-			cls: "mediavault-list-detail-menu-btn clickable-icon",
-			attr: { "aria-label": "List actions" },
-		});
-		menuBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>`;
-		menuBtn.addEventListener("click", (evt) => {
-			const menu = new Menu();
-
-			menu.addItem((item) => {
-				item.setTitle("Edit title & description")
-					.setIcon("pencil")
-					.onClick(() => this.enterEditMode(titleEl, descEl));
+		// Hamburger menu button — system lists (Favorite Movies/TV Series)
+		// have no menu: they can't be renamed, added to manually, duplicated,
+		// or deleted, since they're computed live from favorite status.
+		if (!this.list.isSystem) {
+			const menuBtn = titleRow.createEl("button", {
+				cls: "mediavault-list-detail-menu-btn clickable-icon",
+				attr: { "aria-label": "List actions" },
 			});
+			menuBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>`;
+			menuBtn.addEventListener("click", (evt) => {
+				const menu = new Menu();
 
-			menu.addItem((item) => {
-				item.setTitle("Add media")
-					.setIcon("plus")
-					.onClick(() => this.addMedia());
+				menu.addItem((item) => {
+					item.setTitle("Edit title & description")
+						.setIcon("pencil")
+						.onClick(() => this.enterEditMode(titleEl, descEl));
+				});
+
+				menu.addItem((item) => {
+					item.setTitle("Add media")
+						.setIcon("plus")
+						.onClick(() => this.addMedia());
+				});
+
+				menu.addItem((item) => {
+					item.setTitle("Duplicate list")
+						.setIcon("copy")
+						.onClick(() => this.duplicateList());
+				});
+
+				menu.addSeparator();
+
+				menu.addItem((item) => {
+					item.setTitle("Delete list")
+						.setIcon("trash")
+						.onClick(() => this.deleteList());
+				});
+
+				menu.showAtMouseEvent(evt);
 			});
-
-			menu.addItem((item) => {
-				item.setTitle("Duplicate list")
-					.setIcon("copy")
-					.onClick(() => this.duplicateList());
-			});
-
-			menu.addSeparator();
-
-			menu.addItem((item) => {
-				item.setTitle("Delete list")
-					.setIcon("trash")
-					.onClick(() => this.deleteList());
-			});
-
-			menu.showAtMouseEvent(evt);
-		});
+		}
 
 		// Meta pills
 		const metaRow = header.createDiv({ cls: "mediavault-list-detail-meta" });
@@ -141,20 +150,22 @@ export class ListDetailModal extends Modal {
 			descEl.setText("No description");
 		}
 
-		// --- Sort row ---
-		const sortRow = contentEl.createDiv({ cls: "mediavault-list-sort-row" });
-		sortRow.createSpan({ cls: "mediavault-list-sort-label", text: "Sort by" });
-		const sortSelect = sortRow.createEl("select", { cls: "mediavault-list-sort-select" });
-		SORT_MODE_OPTIONS.forEach((opt) => sortSelect.createEl("option", { value: opt.value, text: opt.label }));
-		sortSelect.value = this.list.sortMode;
-		sortSelect.addEventListener("change", async () => {
-			const updated = await this.storage.customLists.update(this.list.id, {
-				sortMode: sortSelect.value as ListSortMode,
+		// --- Sort row (system lists always sort by Recent, no picker) ---
+		if (!this.list.isSystem) {
+			const sortRow = contentEl.createDiv({ cls: "mediavault-list-sort-row" });
+			sortRow.createSpan({ cls: "mediavault-list-sort-label", text: "Sort by" });
+			const sortSelect = sortRow.createEl("select", { cls: "mediavault-list-sort-select" });
+			SORT_MODE_OPTIONS.forEach((opt) => sortSelect.createEl("option", { value: opt.value, text: opt.label }));
+			sortSelect.value = this.list.sortMode;
+			sortSelect.addEventListener("change", async () => {
+				const updated = await this.storage.customLists.update(this.list.id, {
+					sortMode: sortSelect.value as ListSortMode,
+				});
+				if (updated) this.list = updated;
+				this.notifyChanged();
+				await this.render();
 			});
-			if (updated) this.list = updated;
-			this.notifyChanged();
-			await this.render();
-		});
+		}
 
 		// --- Contents grid ---
 		const orderedMedia = sortListMedia(this.list, allMedia);
@@ -165,14 +176,14 @@ export class ListDetailModal extends Modal {
 			empty.createDiv({ cls: "mediavault-list-detail-empty-title", text: "This list is empty" });
 			empty.createDiv({
 				cls: "mediavault-empty-state",
-				text: "Use the ⋮ menu above to add media.",
+				text: this.list.isSystem ? "Mark movies or TV series as favorites to see them here." : "Use the ⋮ menu above to add media.",
 			});
 			return;
 		}
 
 		const grid = contentEl.createDiv({ cls: "mediavault-list-detail-grid" });
 
-		const isManual = this.list.sortMode === "manual";
+		const isManual = !this.list.isSystem && this.list.sortMode === "manual";
 
 		/**
 		 * Renders in batches instead of all at once (Milestone 7: List
@@ -312,15 +323,18 @@ export class ListDetailModal extends Modal {
 			renderProgressOverlay(poster, percent, media.status);
 		});
 
-		const removeBtn = card.createEl("button", { cls: "mediavault-list-detail-remove", text: "✕" });
-		removeBtn.setAttr("aria-label", "Remove from list");
-		removeBtn.addEventListener("click", async (evt) => {
-			evt.stopPropagation();
-			const updated = await this.storage.customLists.removeMedia(this.list.id, media.id);
-			if (updated) this.list = updated;
-			this.notifyChanged();
-			await this.render();
-		});
+		let removeBtn: HTMLElement | null = null;
+		if (!this.list.isSystem) {
+			removeBtn = card.createEl("button", { cls: "mediavault-list-detail-remove", text: "✕" });
+			removeBtn.setAttr("aria-label", "Remove from list");
+			removeBtn.addEventListener("click", async (evt) => {
+				evt.stopPropagation();
+				const updated = await this.storage.customLists.removeMedia(this.list.id, media.id);
+				if (updated) this.list = updated;
+				this.notifyChanged();
+				await this.render();
+			});
+		}
 
 		card.addEventListener("click", (evt) => {
 			if (evt.target === removeBtn) return;

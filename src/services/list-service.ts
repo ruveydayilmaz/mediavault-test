@@ -1,6 +1,58 @@
 import { MediaItem } from "../models/media";
+import { MediaType } from "../types/enums";
 import { CustomList } from "../models/list";
 import { recentSortKey } from "./library-query";
+
+export const SYSTEM_FAVORITE_MOVIES_ID = "system:favorite-movies";
+export const SYSTEM_FAVORITE_TV_ID = "system:favorite-tv";
+
+export function isSystemListId(id: string): boolean {
+	return id === SYSTEM_FAVORITE_MOVIES_ID || id === SYSTEM_FAVORITE_TV_ID;
+}
+
+/**
+ * The two built-in "Favorite Movies" / "Favorite TV Series" smart lists
+ * (Library/Favorites roadmap, Milestone 1). Never stored in
+ * CustomListRepository — computed live from `isFavorite` media every time,
+ * so they can't drift from actual favorite status and never need
+ * migrating. They're surfaced via the Favorites section's nav arrow, not
+ * the regular Lists carousel.
+ */
+export function getSystemFavoriteLists(allMedia: MediaItem[]): CustomList[] {
+	const now = new Date().toISOString();
+	const favorites = allMedia.filter((m) => m.isFavorite);
+	const movieIds = favorites.filter((m) => m.type === MediaType.Movie).map((m) => m.id);
+	const tvIds = favorites.filter((m) => m.type === MediaType.TVShow).map((m) => m.id);
+
+	return [
+		{
+			id: SYSTEM_FAVORITE_MOVIES_ID,
+			title: "Favorite Movies",
+			description: "Every movie you've marked as a favorite.",
+			mediaIds: movieIds,
+			sortMode: "recent",
+			owner: null,
+			isImported: false,
+			importSource: null,
+			createdAt: now,
+			updatedAt: now,
+			isSystem: true,
+		},
+		{
+			id: SYSTEM_FAVORITE_TV_ID,
+			title: "Favorite TV Series",
+			description: "Every TV series you've marked as a favorite.",
+			mediaIds: tvIds,
+			sortMode: "recent",
+			owner: null,
+			isImported: false,
+			importSource: null,
+			createdAt: now,
+			updatedAt: now,
+			isSystem: true,
+		},
+	];
+}
 
 /** "Just now" / "3 days ago" / falls back to the plain date beyond a month — used for a list's "Last updated" (roadmap Milestone 7). */
 export function formatRelativeDate(iso: string): string {

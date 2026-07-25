@@ -1,12 +1,9 @@
-import { App, Modal, Notice } from "obsidian";
+import { App, Modal } from "obsidian";
 import { renderModalHeader } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import type { TMDBService } from "../../api/tmdb";
 import { buildRecommendations, RecommendationSet } from "../../services/recommendation/engine";
-import { Recommendation } from "../../services/recommendation/types";
-import { tmdbImageUrl } from "../../api/tmdb-normalize";
-import { addMediaFromTMDB } from "../../services/media-import";
-import { MediaDetailModal } from "./media-detail-modal";
+import { renderDiscoverCard, DiscoverCardData } from "../components/discover-card";
 
 const CATEGORY_TITLES: Record<keyof RecommendationSet, string> = {
 	similarToFavorites: "Because you loved...",
@@ -16,6 +13,14 @@ const CATEGORY_TITLES: Record<keyof RecommendationSet, string> = {
 	lowAttention: "Low-attention picks",
 };
 
+/**
+ * Shares its card rendering, grid/row sizing, loading, and empty states
+ * with the Explore view's Discover tab via `renderDiscoverCard` and the
+ * `.mediavault-explore-*` classes (Library/Favorites roadmap, Milestone 3)
+ * — this modal no longer maintains its own separate card implementation.
+ * The modal itself is the only vertically-scrolling container; each
+ * recommendation row scrolls horizontally only.
+ */
 export class RecommendationsModal extends Modal {
 	private storage: StorageService;
 	private tmdb: TMDBService;
@@ -56,53 +61,21 @@ export class RecommendationsModal extends Modal {
 			const list = recs[key];
 			if (list.length === 0) return;
 			contentEl.createEl("h3", { text: CATEGORY_TITLES[key] });
-			const row = contentEl.createDiv({ cls: "mediavault-rec-row" });
-			list.forEach((rec) => this.renderCard(row, rec));
+			const row = contentEl.createDiv({ cls: "mediavault-explore-row" });
+			list.forEach((rec) => {
+				if (!rec.mediaId && (!rec.tmdbId || !rec.mediaKind)) return;
+				const card: DiscoverCardData = {
+					tmdbId: rec.tmdbId ?? 0,
+					mediaKind: rec.mediaKind ?? "movie",
+					title: rec.title,
+					year: rec.year,
+					posterPath: rec.posterPath,
+					reason: rec.reasons[0],
+					mediaId: rec.mediaId,
+				};
+				renderDiscoverCard(row, { app: this.app, storage: this.storage, tmdb: this.tmdb }, card);
+			});
 		});
-	}
-
-	private renderCard(container: HTMLElement, rec: Recommendation): void {
-		const card = container.createDiv({ cls: "mediavault-rec-card" });
-
-		const poster = card.createDiv({ cls: "mediavault-rec-poster" });
-		const posterUrl = tmdbImageUrl(rec.posterPath, "w200");
-		if (posterUrl) {
-			poster.createEl("img", { attr: { src: posterUrl, alt: rec.title, loading: "lazy" } });
-		} else {
-			poster.setText("🎬");
-		}
-
-		const info = card.createDiv({ cls: "mediavault-rec-info" });
-		info.createDiv({ cls: "mediavault-rec-title", text: rec.year ? `${rec.title} (${rec.year})` : rec.title });
-		if (rec.reasons.length > 0) {
-			info.createDiv({ cls: "mediavault-rec-reason", text: rec.reasons[0] });
-		}
-
-		if (rec.mediaId) {
-			// Already in the library — open its detail view.
-			card.addEventListener("click", async () => {
-				const media = await this.storage.media.findById(rec.mediaId as string);
-				if (media) {
-					this.close();
-					new MediaDetailModal(this.app, this.storage, this.tmdb, media).open();
-				}
-			});
-		} else if (rec.tmdbId && rec.mediaKind) {
-			const addBtn = info.createEl("button", { text: "Add to library" });
-			addBtn.addEventListener("click", async (evt) => {
-				evt.stopPropagation();
-				try {
-					const result = await addMediaFromTMDB(this.storage, this.tmdb, rec.tmdbId as number, rec.mediaKind as "movie" | "tv");
-					new Notice(
-						result.alreadyExisted
-							? `MediaVault: "${result.mediaItem.title}" is already in your library.`
-							: `MediaVault: added "${result.mediaItem.title}" to your library.`
-					);
-				} catch (err) {
-					new Notice(`MediaVault: failed to add — ${(err as Error).message}`);
-				}
-			});
-		}
 	}
 
 	onClose(): void {

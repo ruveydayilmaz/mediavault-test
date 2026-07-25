@@ -47,6 +47,14 @@ export interface CustomList {
 
 	createdAt: ISODateString;
 	updatedAt: ISODateString;
+
+	/**
+	 * True for the two built-in system lists (Favorite Movies / Favorite TV
+	 * Series). These are never persisted in CustomListRepository — they're
+	 * computed on the fly from `isFavorite` media and behave like smart
+	 * lists: no rename, delete, duplicate, manual add/remove, or reorder.
+	 */
+	isSystem?: boolean;
 }
 
 /** Fields required to create a new CustomList before defaults are applied. */

@@ -2,7 +2,14 @@
 
 All notable changes to MediaVault are documented in this file.
 
-## [4.19.0] — Remaining Mobile Layout Fixes
+## [4.20.0] — Library, Favorites & Discover UI Refinements
+
+- Moved the mobile nav arrow to the right side of the Favorites/Lists headers.
+- Added built-in "Favorite Movies"/"Favorite TV Series" smart lists (`CustomList.isSystem`, `getSystemFavoriteLists()`) — computed live from favorite status, never persisted, never in the Lists carousel. New `FavoriteListsModal` opens from the Favorites arrow. `ListDetailModal` special-cases system lists: no menu, no sort picker, no manual reorder, no remove-from-list.
+- Filmography grid now uses the exact Library grid sizing/breakpoints; poster rendering reuses `.mediavault-card-poster` (wrapper + img) instead of a bespoke img-only class.
+- New shared `renderDiscoverCard` component (`ui/components/discover-card.ts`) — Explore (Discover/Browse/Search) and the Recommended For You modal both render cards through it now, eliminating the separate `.mediavault-rec-*` implementation. Recommendations modal's own vertical scroll container was removed (per the prior roadmap's modal-root max-height fix); it's now the sole vertical scroller with horizontal-only rec rows.
+
+
 
 - Removed arbitrary vh-based max-height caps (Image Picker, Recommendations, Episode Tracker, Import, Analytics, Comfort Profile, Comfort Finder modals) — these conflicted with the mobile fullscreen modal-content sizing, capping well short of available height and compressing grid rows. Lists now grow naturally; the modal's own scroll container handles overflow.
 - Detail modal tabs disappearing: root cause was flex items (tab bar, hero, body) lacking `flex-shrink: 0` inside the mobile fullscreen flex-column contentEl — when tab content overflowed, the flex algorithm could squeeze the tab bar toward zero height. Added `flex-shrink: 0` to hero/body/tabs; no sticky positioning involved.

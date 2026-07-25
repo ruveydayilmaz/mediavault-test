@@ -43,11 +43,6 @@ export async function renderFavoritesSection(
 		cls: "mediavault-favorites-header",
 	});
 
-	// Mobile: an arrow-style nav icon at the left of the header replaces the
-	// desktop "View All" button as the way to open the full page (Mobile
-	// Milestone 2: Show All Navigation). Both are always rendered; CSS shows
-	// exactly one depending on screen tier, so there's one code path for the
-	// click handler on both platforms.
 	const tabs = header.createDiv({
 		cls: "mediavault-sidebar-tabs",
 	});
@@ -70,19 +65,23 @@ export async function renderFavoritesSection(
 		tab.onclick = () => onTabChange("shows");
 	}
 
-	const mobileArrow = header.createEl("button", {
-		cls: "clickable-icon mediavault-section-nav-arrow",
-	});
-	setIcon(mobileArrow, "chevron-right");
-	mobileArrow.setAttr("aria-label", "View all favorites");
-	mobileArrow.onclick = onViewAll;
-
 	const viewAll = header.createEl("button", {
 		cls: "mediavault-favorites-view-all",
 		text: "View All",
 	});
 
 	viewAll.onclick = onViewAll;
+
+	// Mobile: an arrow-style nav icon at the right of the header replaces the
+	// desktop "View All" button as the way to open the full page. Both are
+	// always rendered; CSS shows exactly one depending on screen tier, so
+	// there's one code path for the click handler on both platforms.
+	const mobileArrow = header.createEl("button", {
+		cls: "clickable-icon mediavault-section-nav-arrow",
+	});
+	setIcon(mobileArrow, "chevron-right");
+	mobileArrow.setAttr("aria-label", "View all favorites");
+	mobileArrow.onclick = onViewAll;
 
 	const items = activeTab === "movies" ? movies : shows;
 

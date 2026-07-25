@@ -144,10 +144,11 @@ export class ActorDetailsModal extends Modal {
 	private renderFilmographyCard(grid: HTMLElement, item: TMDBFilmographyItem): void {
 		const card = grid.createDiv({ cls: "mediavault-actor-film-card" });
 		const posterUrl = tmdbImageUrl(item.posterPath, "w200");
+		const poster = card.createDiv({ cls: "mediavault-card-poster" });
 		if (posterUrl) {
-			card.createEl("img", { cls: "mediavault-actor-film-poster", attr: { src: posterUrl, alt: item.title, loading: "lazy" } });
+			poster.createEl("img", { attr: { src: posterUrl, alt: item.title, loading: "lazy" } });
 		} else {
-			card.createDiv({ cls: "mediavault-actor-film-poster mediavault-actor-film-poster-empty", text: "🎬" });
+			poster.setText("🎬");
 		}
 		const info = card.createDiv({ cls: "mediavault-actor-film-info" });
 		info.createDiv({ cls: "mediavault-actor-film-title", text: item.year ? `${item.title} (${item.year})` : item.title });

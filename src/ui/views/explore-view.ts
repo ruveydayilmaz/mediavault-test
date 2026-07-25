@@ -1,15 +1,12 @@
-import { ItemView, WorkspaceLeaf, Notice, setIcon } from "obsidian";
+import { ItemView, WorkspaceLeaf, setIcon } from "obsidian";
 import type MediaVaultPlugin from "../../main";
 import { VIEW_TYPE_EXPLORE } from "../../constants";
 import { TMDBSearchResult } from "../../types/tmdb";
-import { tmdbImageUrl } from "../../api/tmdb-normalize";
-import { addMediaFromTMDB } from "../../services/media-import";
 import { buildRecommendations, RecommendationSet } from "../../services/recommendation/engine";
 import { Recommendation } from "../../services/recommendation/types";
 import { DiscoverFilters } from "../../api/tmdb";
 import { MediaType } from "../../types/enums";
-import { MediaDetailModal } from "../modals/media-detail-modal";
-import { buildMediaItemFromTMDB } from "../../services/media-import";
+import { renderDiscoverCard } from "../components/discover-card";
 
 type ExploreTab = "discover" | "browse" | "search";
 
@@ -342,77 +339,42 @@ export class ExploreView extends ItemView {
 		if (cards.length === 0) return;
 		if (heading) container.createEl("h3", { text: heading });
 		const row = container.createDiv({ cls: "mediavault-explore-row" });
-		cards.forEach((card) => this.renderCard(row, card));
+		cards.forEach((card) =>
+			renderDiscoverCard(
+				row,
+				{
+					app: this.app,
+					storage: this.plugin.storage,
+					tmdb: this.plugin.tmdb,
+					isOwned: (c) => this.ownedKeys.has(`${c.mediaKind}:${c.tmdbId}`),
+					onAdded: (c) => {
+						this.plugin.refreshLibraryViews();
+						this.ownedKeys.add(`${c.mediaKind}:${c.tmdbId}`);
+					},
+				},
+				card
+			)
+		);
 	}
 
 	private renderGrid(container: HTMLElement, cards: ExploreCardData[]): void {
 		const grid = container.createDiv({ cls: "mediavault-explore-grid" });
-		cards.forEach((card) => this.renderCard(grid, card));
-	}
-
-	private renderCard(container: HTMLElement, card: ExploreCardData): void {
-		const el = container.createDiv({ cls: "mediavault-explore-card" });
-
-		const poster = el.createDiv({ cls: "mediavault-explore-poster" });
-		const posterUrl = tmdbImageUrl(card.posterPath, "w200");
-		if (posterUrl) poster.createEl("img", { attr: { src: posterUrl, alt: card.title, loading: "lazy" } });
-		else poster.setText("🎬");
-
-		const owned = this.ownedKeys.has(`${card.mediaKind}:${card.tmdbId}`);
-
-		poster.addEventListener("click", async () => {
-			const type = card.mediaKind === "movie" ? MediaType.Movie : MediaType.TVShow;
-			const media = await this.plugin.storage.media.findByTmdbId(card.tmdbId, type);
-			if (media) {
-				this.plugin.openMediaDetail(media);
-				return;
-			}
-			try {
-				const details =
-					card.mediaKind === "movie" ? await this.plugin.tmdb.getMovie(card.tmdbId) : await this.plugin.tmdb.getTV(card.tmdbId);
-				const previewMedia = buildMediaItemFromTMDB(details);
-				new MediaDetailModal(
-					this.app,
-					this.plugin.storage,
-					this.plugin.tmdb,
-					previewMedia,
-					undefined,
-					undefined,
-					"cast",
-					undefined,
-					undefined,
-					true,
-					details.tmdbRating
-				).open();
-			} catch (err) {
-				new Notice(`MediaVault: couldn't load "${card.title}" — ${(err as Error).message}`);
-			}
-		});
-
-		if (owned) {
-			poster.createDiv({ cls: "mediavault-explore-owned-badge", text: "In library" });
-		} else {
-			const addBtn = poster.createDiv({ cls: "mediavault-explore-add-floating" });
-			addBtn.setAttr("aria-label", "Add to library");
-			addBtn.setText("+");
-			addBtn.addEventListener("click", async (evt) => {
-				evt.stopPropagation();
-				try {
-					const result = await addMediaFromTMDB(this.plugin.storage, this.plugin.tmdb, card.tmdbId, card.mediaKind);
-					new Notice(
-						result.alreadyExisted
-							? `MediaVault: "${result.mediaItem.title}" is already in your library.`
-							: `MediaVault: added "${result.mediaItem.title}" to your library.`
-					);
-					this.plugin.refreshLibraryViews();
-					this.ownedKeys.add(`${card.mediaKind}:${card.tmdbId}`);
-					addBtn.addClass("is-added");
-					addBtn.setText("✓");
-				} catch (err) {
-					new Notice(`MediaVault: failed to add — ${(err as Error).message}`);
-				}
-			});
-		}
+		cards.forEach((card) =>
+			renderDiscoverCard(
+				grid,
+				{
+					app: this.app,
+					storage: this.plugin.storage,
+					tmdb: this.plugin.tmdb,
+					isOwned: (c) => this.ownedKeys.has(`${c.mediaKind}:${c.tmdbId}`),
+					onAdded: (c) => {
+						this.plugin.refreshLibraryViews();
+						this.ownedKeys.add(`${c.mediaKind}:${c.tmdbId}`);
+					},
+				},
+				card
+			)
+		);
 	}
 }
 

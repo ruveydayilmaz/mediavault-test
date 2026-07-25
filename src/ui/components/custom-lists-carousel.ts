@@ -24,13 +24,6 @@ export async function renderCustomListsCarousel(
 
 	const header = container.createDiv({ cls: "mediavault-lists-carousel-header" });
 
-	const mobileArrow = header.createEl("button", {
-		cls: "clickable-icon mediavault-section-nav-arrow",
-	});
-	setIcon(mobileArrow, "chevron-right");
-	mobileArrow.setAttr("aria-label", "View all lists");
-	mobileArrow.onclick = onViewAll;
-
 	header.createSpan({ cls: "mediavault-lists-carousel-title", text: "Lists" });
 
 	const viewAll = header.createEl("button", {
@@ -38,6 +31,13 @@ export async function renderCustomListsCarousel(
 		text: "View All",
 	});
 	viewAll.onclick = onViewAll;
+
+	const mobileArrow = header.createEl("button", {
+		cls: "clickable-icon mediavault-section-nav-arrow",
+	});
+	setIcon(mobileArrow, "chevron-right");
+	mobileArrow.setAttr("aria-label", "View all lists");
+	mobileArrow.onclick = onViewAll;
 
 	const carouselContainer = container.createDiv({ cls: "mediavault-lists-carousel-container" });
 	const { track } = createCarousel(carouselContainer);
