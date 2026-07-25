@@ -285,6 +285,7 @@
 /* Hero banner header (Milestone 3: Media Details Modal Redesign) */
 .mediavault-detail-hero {
 	position: relative;
+	flex-shrink: 0;
 	min-height: 220px;
 	display: flex;
 	align-items: flex-end;
@@ -518,6 +519,7 @@
 }
 
 .mediavault-detail-body {
+	flex-shrink: 0;
 	padding: var(--p-spacing);
 }
 
@@ -585,8 +587,6 @@
 	box-sizing: border-box;
 	gap: 10px;
 	margin-top: 12px;
-	max-height: 60vh;
-	overflow-y: auto;
 }
 
 .mediavault-image-picker-grid.is-poster-grid {
@@ -996,10 +996,6 @@
 
 /* --- Episode tracker --- */
 
-.mediavault-episode-modal {
-	max-height: 70vh;
-	overflow-y: auto;
-}
 
 .mediavault-episode-summary {
 	margin: 8px 0 16px;
@@ -1178,10 +1174,6 @@
 
 /* --- Import modal --- */
 
-.mediavault-import-modal {
-	max-height: 75vh;
-	overflow-y: auto;
-}
 
 .mediavault-import-hint {
 	color: var(--text-muted);
@@ -1273,10 +1265,6 @@
 
 /* --- Analytics summary modal --- */
 
-.mediavault-analytics-modal {
-	max-height: 75vh;
-	overflow-y: auto;
-}
 
 .mediavault-analytics-headline {
 	font-size: 1.3em;
@@ -1467,10 +1455,6 @@
 
 /* --- Comfort profile editor --- */
 
-.mediavault-comfort-modal {
-	max-height: 75vh;
-	overflow-y: auto;
-}
 
 .mediavault-comfort-slider-value {
 	min-width: 24px;
@@ -1510,10 +1494,6 @@
 
 /* --- Comfort Finder --- */
 
-.mediavault-comfort-finder {
-	max-height: 78vh;
-	overflow-y: auto;
-}
 
 .mediavault-comfort-finder-empty,
 .mediavault-comfort-no-results {
@@ -1615,11 +1595,6 @@
 }
 
 /* --- Recommendations modal --- */
-
-.mediavault-recommendations-modal {
-	max-height: 78vh;
-	overflow-y: auto;
-}
 
 .mediavault-rec-loading,
 .mediavault-rec-empty {
@@ -2312,6 +2287,7 @@
 
 .mediavault-detail-tabs {
 	display: flex;
+	flex-shrink: 0;
 	gap: 6px;
 	margin: 12px 0 8px;
 	border-bottom: 1px solid var(--background-modifier-border);
@@ -3772,6 +3748,11 @@
 	padding-bottom: max(16px, env(safe-area-inset-bottom));
 	padding-left: max(16px, env(safe-area-inset-left));
 	padding-right: max(16px, env(safe-area-inset-right));
+}
+
+.is-phone .modal:has(> .modal-content > .mediavault-modal-buttons)>.modal-content,
+.is-phone .modal:has(> .modal-content > .mediavault-detail-actions)>.modal-content {
+	padding-bottom: 0;
 }
 
 @media (max-width: 380px) {

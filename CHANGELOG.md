@@ -2,7 +2,13 @@
 
 All notable changes to MediaVault are documented in this file.
 
-## [4.18.0] — Mobile UI Bug Fixes (Follow-up roadmap)
+## [4.19.0] — Remaining Mobile Layout Fixes
+
+- Removed arbitrary vh-based max-height caps (Image Picker, Recommendations, Episode Tracker, Import, Analytics, Comfort Profile, Comfort Finder modals) — these conflicted with the mobile fullscreen modal-content sizing, capping well short of available height and compressing grid rows. Lists now grow naturally; the modal's own scroll container handles overflow.
+- Detail modal tabs disappearing: root cause was flex items (tab bar, hero, body) lacking `flex-shrink: 0` inside the mobile fullscreen flex-column contentEl — when tab content overflowed, the flex algorithm could squeeze the tab bar toward zero height. Added `flex-shrink: 0` to hero/body/tabs; no sticky positioning involved.
+- Log Watch modal footer gap: contentEl's own bottom safe-area padding sat below the sticky footer (sticky respects the scrollport's padding edge), leaving a gap. Zeroed contentEl's padding-bottom when a sticky `.mediavault-modal-buttons`/`.mediavault-detail-actions` footer is present; the footer's own padding now reaches the true bottom edge.
+
+
 
 - **Banner/Poster picker grid**: audited the existing aspect-ratio-based sizing (already structurally correct) and hardened `.mediavault-image-picker-grid` with an explicit `width: 100%; min-width: 0;` against CSS Grid's documented "`auto-fill` collapses to one column when the container's own width is indefinite" failure mode, regardless of which ancestor context renders it.
 - **Discover Recommendations grid**: found `.mediavault-explore-poster`/`.mediavault-rec-poster` were near-duplicates of the Library grid's `.mediavault-card-poster` (only a mismatched border-radius differed). Consolidated `.mediavault-card-poster`/`.mediavault-rec-poster` into one shared rule and aligned `.mediavault-explore-poster` to match, per the requirement that recommendation cards use the exact same sizing system as every other poster grid. Also added `align-items: flex-start` to the row containers to remove any implicit flex-stretch sizing ambiguity.

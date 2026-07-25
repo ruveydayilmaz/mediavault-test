@@ -77,7 +77,6 @@ export async function renderFavoritesSection(
 	mobileArrow.setAttr("aria-label", "View all favorites");
 	mobileArrow.onclick = onViewAll;
 
-
 	const viewAll = header.createEl("button", {
 		cls: "mediavault-favorites-view-all",
 		text: "View All",
