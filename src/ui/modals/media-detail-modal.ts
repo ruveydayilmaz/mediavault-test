@@ -228,17 +228,18 @@ export class MediaDetailModal extends Modal {
 	private async renderHero(contentEl: HTMLElement): Promise<void> {
 		const hero = contentEl.createDiv({ cls: "mediavault-detail-hero" });
 
-		requestAnimationFrame(() => {
-			contentEl.style.setProperty("--mediavault-detail-hero-height", `${hero.offsetHeight}px`);
-		});
-
 		const bannerUrl = tmdbImageUrl(this.media.backdropPath ?? this.media.posterPath, "original");
 		if (bannerUrl) {
 			hero.createEl("img", { cls: "mediavault-detail-banner-img", attr: { src: bannerUrl, alt: "" } });
 		}
 		hero.createDiv({ cls: "mediavault-detail-banner-overlay" });
 
-		const menuBtn = hero.createEl("button", { cls: "clickable-icon mediavault-detail-menu-btn" });
+		// Rendered as a sibling of the hero (not a child) so it isn't inside the
+		// hero's `transform` — a transform on an ancestor creates a new
+		// containing block for position:fixed descendants, which would make
+		// this button track the hero's (sticky, moving) box instead of the
+		// viewport. This is the same positioning strategy as the back button.
+		const menuBtn = contentEl.createEl("button", { cls: "clickable-icon mediavault-detail-menu-btn" });
 		setIcon(menuBtn, "more-vertical");
 		menuBtn.setAttr("aria-label", "More options");
 		if (this.isPreview) {

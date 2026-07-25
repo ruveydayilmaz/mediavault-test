@@ -155,19 +155,6 @@
 	gap: 4px;
 }
 
-.mediavault-card-poster {
-	width: 100%;
-	aspect-ratio: 2 / 3;
-	border-radius: 3px;
-	overflow: hidden;
-	background: var(--background-modifier-border);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	font-size: 2em;
-	position: relative;
-}
-
 .mediavault-card-poster img {
 	width: 100%;
 	height: 100%;
@@ -284,8 +271,8 @@
 
 /* --- Media detail modal --- */
 
-.mediavault-detail-modal .modal-header,
-.mediavault-detail-modal .modal-close-button {
+.modal:has(> .modal-content[class*="mediavault-"]) .modal-header,
+.modal:has(> .modal-content[class*="mediavault-"]) .modal-close-button {
 	display: none;
 }
 
@@ -319,23 +306,30 @@
 }
 
 .mediavault-detail-menu-btn {
-	position: absolute;
-	top: 12px;
-	right: 12px;
-	z-index: 2;
-	width: 32px;
-	height: 32px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	position: fixed;
+	top: max(8px, env(safe-area-inset-top));
+	right: max(8px, env(safe-area-inset-right));
+	width: 36px;
+	height: 36px;
 	border-radius: 50%;
-	background: rgba(0, 0, 0, 0.45);
-	color: #fff;
+	background: var(--background-secondary);
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+	color: var(--text-normal);
 	border: none;
-	font-size: 1.2em;
-	line-height: 1;
+	z-index: 5;
 	cursor: pointer;
 }
 
+.mediavault-detail-menu-btn svg {
+	width: 18px;
+	height: 18px;
+}
+
 .mediavault-detail-menu-btn:hover {
-	background: rgba(0, 0, 0, 0.65);
+	background: var(--background-modifier-hover);
 }
 
 .mediavault-detail-hero-content {
@@ -586,6 +580,9 @@
 
 .mediavault-image-picker-grid {
 	display: grid;
+	width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
 	gap: 10px;
 	margin-top: 12px;
 	max-height: 60vh;
@@ -1633,6 +1630,7 @@
 
 .mediavault-rec-row {
 	display: flex;
+	align-items: flex-start;
 	gap: 12px;
 	overflow-x: auto;
 	padding-bottom: 8px;
@@ -1647,16 +1645,18 @@
 	cursor: pointer;
 }
 
+.mediavault-card-poster,
 .mediavault-rec-poster {
 	width: 100%;
 	aspect-ratio: 2 / 3;
-	border-radius: 6px;
+	border-radius: 3px;
 	overflow: hidden;
 	background: var(--background-modifier-border);
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	font-size: 2em;
+	position: relative;
 }
 
 .mediavault-rec-poster img {
@@ -3122,6 +3122,7 @@
 
 .mediavault-explore-row {
 	display: flex;
+	align-items: flex-start;
 	gap: 12px;
 	overflow-x: auto;
 	padding-bottom: 8px;
@@ -3147,7 +3148,7 @@
 	position: relative;
 	width: 100%;
 	aspect-ratio: 2 / 3;
-	border-radius: 6px;
+	border-radius: 3px;
 	overflow: hidden;
 	background: var(--background-modifier-border);
 	display: flex;
@@ -3499,23 +3500,6 @@
 	margin-top: 3px;
 }
 
-.is-phone .mediavault-detail-menu-btn {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	position: fixed;
-	top: max(8px, env(safe-area-inset-top));
-	right: max(8px, env(safe-area-inset-right));
-	width: 36px;
-	height: 36px;
-	border-radius: 50%;
-	background: var(--background-secondary);
-	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
-	color: var(--text-normal);
-	z-index: 5;
-	cursor: pointer;
-}
-
 .is-phone .mediavault-parent-container {
 	grid-template-columns: 1fr;
 }
@@ -3643,18 +3627,16 @@
 	scrollbar-width: none;
 }
 
-/* Sticky positioning is scoped to the actual Media/Episode Details modal,
-   which has a hero banner whose measured height feeds
-   --mediavault-detail-hero-height. Other modals sharing .mediavault-detail-tabs
-   (e.g. Actor Details/Filmography) have no such hero, so making their tabs
-   sticky at that offset would misposition them — they still get the
-   horizontal-scroll treatment above, just not the sticky pin. */
-.is-phone .mediavault-detail-modal:not(.mediavault-actor-modal) .mediavault-detail-tabs {
-	position: sticky;
-	top: var(--mediavault-detail-hero-height, 220px);
-	z-index: 2;
-	background: var(--background-primary);
-}
+/* Tabs are intentionally NOT sticky in the Details modal (Mobile UI Bug
+   Fixes, Milestone 2: Non-Sticky Tabs) — they scroll away naturally with
+   the rest of the content, same as everywhere else .mediavault-detail-tabs
+   is used (e.g. Actor Details/Filmography). A previous attempt made them
+   sticky at a JS-measured --mediavault-detail-hero-height offset; when that
+   measurement was stale/off, the tab bar locked in underneath the
+   still-visible hero banner while its border-bottom peeked out below it,
+   looking like a fixed element even though the tabs themselves were hidden.
+   Horizontal scroll (the rule above) still applies here same as anywhere
+   else — only the sticky pin has been removed. */
 
 .is-phone .mediavault-detail-tabs::-webkit-scrollbar {
 	display: none;
@@ -3775,10 +3757,6 @@
 	border-radius: 0;
 	display: flex;
 	flex-direction: column;
-}
-
-.is-phone .modal:has(> .modal-content[class*="mediavault-"]) .modal-close-button {
-	display: none;
 }
 
 .is-phone .modal:has(> .modal-content[class*="mediavault-"])>.modal-content {
