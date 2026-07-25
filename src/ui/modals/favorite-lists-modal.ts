@@ -29,7 +29,7 @@ export class FavoriteListsModal extends Modal {
 		renderModalHeader(this, contentEl, "Favorite Lists", "h3");
 
 		const allMedia = await this.plugin.storage.media.getAll();
-		const lists = getSystemFavoriteLists(allMedia);
+		const lists = getSystemFavoriteLists(allMedia, this.plugin.storage.settings.get());
 
 		const grid = contentEl.createDiv({ cls: "mediavault-lists-grid" });
 		lists.forEach((list) => this.renderCard(grid, list, allMedia));

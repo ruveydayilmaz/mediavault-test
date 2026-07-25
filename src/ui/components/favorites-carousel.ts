@@ -1,9 +1,9 @@
 import { setIcon } from "obsidian";
 import { MediaItem } from "../../models/media";
-import { MediaType } from "../../types/enums";
 import { StorageService } from "../../services/storage";
 import { renderPoster, progressFillClasses, getMediaPercentWatched } from "./media-render";
 import { createCarousel } from "./carousel";
+import { getSystemFavoriteLists, sortListMedia } from "../../services/list-service";
 
 export interface FavoritesResponsiveOptions {
 	/** How many posters should be visible at once without scrolling. */
@@ -29,10 +29,9 @@ export async function renderFavoritesSection(
 ): Promise<void> {
 	container.empty();
 
-	const favorites = allMedia.filter((m) => m.isFavorite);
-
-	const movies = favorites.filter((m) => m.type === MediaType.Movie);
-	const shows = favorites.filter((m) => m.type === MediaType.TVShow);
+	const [movieList, tvList] = getSystemFavoriteLists(allMedia, storage.settings.get());
+	const movies = sortListMedia(movieList, allMedia);
+	const shows = sortListMedia(tvList, allMedia);
 
 	if (!movies.length && !shows.length) return;
 

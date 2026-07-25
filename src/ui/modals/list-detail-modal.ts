@@ -4,7 +4,7 @@ import type { StorageService } from "../../services/storage";
 import type MediaVaultPlugin from "../../main";
 import { CustomList, ListSortMode } from "../../models/list";
 import { MediaItem } from "../../models/media";
-import { sortListMedia, formatRelativeDate } from "../../services/list-service";
+import { sortListMedia, formatRelativeDate, getSystemFavoriteLists, SYSTEM_FAVORITE_MOVIES_ID } from "../../services/list-service";
 import { renderPoster, getMediaPercentWatched, renderProgressOverlay } from "../components/media-render";
 import { SelectMediaModal } from "./select-media-modal";
 
@@ -15,6 +15,7 @@ const SORT_MODE_OPTIONS: { value: ListSortMode; label: string }[] = [
 	{ value: "title", label: "Title" },
 	{ value: "rating", label: "Rating" },
 	{ value: "year", label: "Year" },
+	{ value: "runtime", label: "Runtime" },
 ];
 
 export class ListDetailModal extends Modal {
@@ -70,6 +71,10 @@ export class ListDetailModal extends Modal {
 				return;
 			}
 			this.list = fresh;
+		} else {
+			const allMediaForRefresh = await this.storage.media.getAll();
+			const fresh = getSystemFavoriteLists(allMediaForRefresh, this.storage.settings.get()).find((l) => l.id === this.list.id);
+			if (fresh) this.list = fresh;
 		}
 		const allMedia = await this.storage.media.getAll();
 
@@ -151,17 +156,23 @@ export class ListDetailModal extends Modal {
 		}
 
 		// --- Sort row (system lists always sort by Recent, no picker) ---
-		if (!this.list.isSystem) {
+		{
 			const sortRow = contentEl.createDiv({ cls: "mediavault-list-sort-row" });
 			sortRow.createSpan({ cls: "mediavault-list-sort-label", text: "Sort by" });
 			const sortSelect = sortRow.createEl("select", { cls: "mediavault-list-sort-select" });
 			SORT_MODE_OPTIONS.forEach((opt) => sortSelect.createEl("option", { value: opt.value, text: opt.label }));
 			sortSelect.value = this.list.sortMode;
 			sortSelect.addEventListener("change", async () => {
-				const updated = await this.storage.customLists.update(this.list.id, {
-					sortMode: sortSelect.value as ListSortMode,
-				});
-				if (updated) this.list = updated;
+				const mode = sortSelect.value as ListSortMode;
+				if (this.list.isSystem) {
+					const key = this.list.id === SYSTEM_FAVORITE_MOVIES_ID ? "movies" : "tv";
+					await this.storage.settings.update({
+						favoriteListSortModes: { ...this.storage.settings.get().favoriteListSortModes, [key]: mode },
+					});
+				} else {
+					const updated = await this.storage.customLists.update(this.list.id, { sortMode: mode });
+					if (updated) this.list = updated;
+				}
 				this.notifyChanged();
 				await this.render();
 			});
@@ -183,7 +194,7 @@ export class ListDetailModal extends Modal {
 
 		const grid = contentEl.createDiv({ cls: "mediavault-list-detail-grid" });
 
-		const isManual = !this.list.isSystem && this.list.sortMode === "manual";
+		const isManual = this.list.sortMode === "manual";
 
 		/**
 		 * Renders in batches instead of all at once (Milestone 7: List
@@ -309,7 +320,14 @@ export class ListDetailModal extends Modal {
 				const toIdx = order.indexOf(media.id);
 				if (fromIdx === -1 || toIdx === -1) return;
 				order.splice(toIdx, 0, order.splice(fromIdx, 1)[0]);
-				await this.storage.customLists.reorder(this.list.id, order);
+				if (this.list.isSystem) {
+					const key = this.list.id === SYSTEM_FAVORITE_MOVIES_ID ? "movies" : "tv";
+					await this.storage.settings.update({
+						favoriteListManualOrder: { ...this.storage.settings.get().favoriteListManualOrder, [key]: order },
+					});
+				} else {
+					await this.storage.customLists.reorder(this.list.id, order);
+				}
 				this.dragMediaId = null;
 				this.notifyChanged();
 				await this.render();

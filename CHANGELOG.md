@@ -2,7 +2,13 @@
 
 All notable changes to MediaVault are documented in this file.
 
-## [4.20.0] — Library, Favorites & Discover UI Refinements
+## [4.21.0] — Built-in Favorite Lists Sorting
+
+- Added `runtime` as a new shared `ListSortMode` (available to all lists, not just the built-in ones).
+- Favorite Movies/TV Series now support every sort mode via new settings fields (`favoriteListSortModes`, `favoriteListManualOrder`) since they have no repository record to hold this — `ListDetailModal`'s sort-mode change and manual drag-reorder branch to settings persistence for system lists, CustomListRepository for regular ones, reusing the same `sortListMedia`/`ListSortMode` machinery throughout.
+- Favorites carousel now orders movies/shows via `sortListMedia(systemList, allMedia)` instead of raw filter order, so it always reflects the saved sort/manual order.
+
+
 
 - Moved the mobile nav arrow to the right side of the Favorites/Lists headers.
 - Added built-in "Favorite Movies"/"Favorite TV Series" smart lists (`CustomList.isSystem`, `getSystemFavoriteLists()`) — computed live from favorite status, never persisted, never in the Lists carousel. New `FavoriteListsModal` opens from the Favorites arrow. `ListDetailModal` special-cases system lists: no menu, no sort picker, no manual reorder, no remove-from-list.

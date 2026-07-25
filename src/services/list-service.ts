@@ -2,6 +2,7 @@ import { MediaItem } from "../models/media";
 import { MediaType } from "../types/enums";
 import { CustomList } from "../models/list";
 import { recentSortKey } from "./library-query";
+import { MediaVaultSettings } from "../settings/settings";
 
 export const SYSTEM_FAVORITE_MOVIES_ID = "system:favorite-movies";
 export const SYSTEM_FAVORITE_TV_ID = "system:favorite-tv";
@@ -10,27 +11,42 @@ export function isSystemListId(id: string): boolean {
 	return id === SYSTEM_FAVORITE_MOVIES_ID || id === SYSTEM_FAVORITE_TV_ID;
 }
 
+/** Applies a persisted manual order to a fresh set of favorite ids: known ids keep their saved relative order, anything newly favorited (not yet in the saved order) is appended at the end, anything no longer favorited is dropped. */
+function applyManualOrder(currentIds: string[], savedOrder: string[]): string[] {
+	const currentSet = new Set(currentIds);
+	const ordered = savedOrder.filter((id) => currentSet.has(id));
+	const known = new Set(ordered);
+	for (const id of currentIds) {
+		if (!known.has(id)) ordered.push(id);
+	}
+	return ordered;
+}
+
 /**
  * The two built-in "Favorite Movies" / "Favorite TV Series" smart lists
- * (Library/Favorites roadmap, Milestone 1). Never stored in
- * CustomListRepository — computed live from `isFavorite` media every time,
- * so they can't drift from actual favorite status and never need
- * migrating. They're surfaced via the Favorites section's nav arrow, not
- * the regular Lists carousel.
+ * (Library/Favorites roadmap, Milestone 1; sorting persistence added in a
+ * follow-up milestone). Never stored in CustomListRepository — membership
+ * is always computed live from `isFavorite` media so it can't drift, but
+ * sort mode and manual order ARE persisted (in settings, since there's no
+ * repository record to hold them) and reused via the exact same
+ * `sortListMedia`/`ListSortMode` machinery as regular custom lists.
  */
-export function getSystemFavoriteLists(allMedia: MediaItem[]): CustomList[] {
+export function getSystemFavoriteLists(allMedia: MediaItem[], settings: MediaVaultSettings): CustomList[] {
 	const now = new Date().toISOString();
 	const favorites = allMedia.filter((m) => m.isFavorite);
 	const movieIds = favorites.filter((m) => m.type === MediaType.Movie).map((m) => m.id);
 	const tvIds = favorites.filter((m) => m.type === MediaType.TVShow).map((m) => m.id);
+
+	const movieSort = settings.favoriteListSortModes.movies;
+	const tvSort = settings.favoriteListSortModes.tv;
 
 	return [
 		{
 			id: SYSTEM_FAVORITE_MOVIES_ID,
 			title: "Favorite Movies",
 			description: "Every movie you've marked as a favorite.",
-			mediaIds: movieIds,
-			sortMode: "recent",
+			mediaIds: movieSort === "manual" ? applyManualOrder(movieIds, settings.favoriteListManualOrder.movies) : movieIds,
+			sortMode: movieSort,
 			owner: null,
 			isImported: false,
 			importSource: null,
@@ -42,8 +58,8 @@ export function getSystemFavoriteLists(allMedia: MediaItem[]): CustomList[] {
 			id: SYSTEM_FAVORITE_TV_ID,
 			title: "Favorite TV Series",
 			description: "Every TV series you've marked as a favorite.",
-			mediaIds: tvIds,
-			sortMode: "recent",
+			mediaIds: tvSort === "manual" ? applyManualOrder(tvIds, settings.favoriteListManualOrder.tv) : tvIds,
+			sortMode: tvSort,
 			owner: null,
 			isImported: false,
 			importSource: null,
@@ -98,6 +114,8 @@ export function sortListMedia(list: CustomList, allMedia: MediaItem[]): MediaIte
 			return [...media].sort((a, b) => (b.averageRating ?? -1) - (a.averageRating ?? -1));
 		case "year":
 			return [...media].sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+		case "runtime":
+			return [...media].sort((a, b) => (b.runtime ?? 0) - (a.runtime ?? 0));
 		case "dateAdded":
 			// mediaIds is append-ordered (addMedia pushes to the end), so its
 			// current order already reflects date-added order.

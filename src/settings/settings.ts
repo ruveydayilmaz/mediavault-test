@@ -1,4 +1,5 @@
 import { RatingScale } from "../types/enums";
+import { ListSortMode } from "../models/list";
 
 export type { RatingScale };
 
@@ -95,6 +96,15 @@ export interface MediaVaultSettings {
 	 * title-based heuristic.
 	 */
 	showAdultContent: boolean;
+
+	/**
+	 * Persisted sort mode + manual order for the built-in Favorite Movies /
+	 * Favorite TV Series smart lists, since they're never stored in
+	 * CustomListRepository. Reuses the same ListSortMode type as regular
+	 * lists — no second sorting system.
+	 */
+	favoriteListSortModes: { movies: ListSortMode; tv: ListSortMode };
+	favoriteListManualOrder: { movies: string[]; tv: string[] };
 }
 
 export const DEFAULT_SETTINGS: MediaVaultSettings = {
@@ -135,4 +145,6 @@ export const DEFAULT_SETTINGS: MediaVaultSettings = {
 	commentsPrimaryLanguage: "en",
 	commentsAdditionalLanguages: [],
 	showAdultContent: false,
+	favoriteListSortModes: { movies: "recent", tv: "recent" },
+	favoriteListManualOrder: { movies: [], tv: [] },
 };

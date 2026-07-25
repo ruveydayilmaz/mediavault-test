@@ -6,7 +6,7 @@ import { MediaVaultId, ISODateString } from "../types/common";
  * that array); the others are computed sorts applied at render time and
  * never mutate `mediaIds` itself.
  */
-export type ListSortMode = "manual" | "recent" | "title" | "dateAdded" | "rating" | "year";
+export type ListSortMode = "manual" | "recent" | "title" | "dateAdded" | "rating" | "year" | "runtime";
 
 /**
  * A user-created collection of media (roadmap Milestone 5), e.g. "Best
