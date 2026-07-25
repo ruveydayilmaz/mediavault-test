@@ -2,7 +2,11 @@
 
 All notable changes to MediaVault are documented in this file.
 
-## [4.21.0] — Built-in Favorite Lists Sorting
+## [4.21.1] — Regression Fix: Favorites Carousel Disappeared
+
+- Root cause: `SettingsRepository.get()` only ever returned settings.json as-stored; new optional fields (`favoriteListSortModes`/`favoriteListManualOrder`) are only backfilled during a schema-version-bump migration, which doesn't run for vaults already on the current version. `getSystemFavoriteLists()` read `settings.favoriteListSortModes.movies` on an object missing that key entirely, throwing and silently killing the whole Favorites section render. `get()`/`update()` now always merge against `DEFAULT_SETTINGS` first, fixing this for every settings field added this way (not just the new ones).
+
+
 
 - Added `runtime` as a new shared `ListSortMode` (available to all lists, not just the built-in ones).
 - Favorite Movies/TV Series now support every sort mode via new settings fields (`favoriteListSortModes`, `favoriteListManualOrder`) since they have no repository record to hold this — `ListDetailModal`'s sort-mode change and manual drag-reorder branch to settings persistence for system lists, CustomListRepository for regular ones, reusing the same `sortListMedia`/`ListSortMode` machinery throughout.
