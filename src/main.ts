@@ -1,4 +1,4 @@
-import { Notice, Plugin, WorkspaceLeaf } from "obsidian";
+import { normalizePath, Notice, Plugin, WorkspaceLeaf } from "obsidian";
 import { MediaVaultSettings } from "./settings/settings";
 import { MediaVaultSettingTab } from "./settings/settings-tab";
 import { PLUGIN_NAME, RIBBON_ICON, VIEW_TYPE_LIBRARY, VIEW_TYPE_ANALYTICS, VIEW_TYPE_LISTS, VIEW_TYPE_WATCH_NEXT, VIEW_TYPE_EXPLORE } from "./constants";
@@ -29,6 +29,10 @@ import { runNotificationCheck, shouldRunDailyCheck } from "./services/notificati
 import type { MediaItem } from "./models/media";
 import type { Episode } from "./models/episode";
 import { MediaType } from "./types/enums";
+import JSZip from "jszip";
+import { promises as fs } from "fs";
+import path from "path";
+
 
 export default class MediaVaultPlugin extends Plugin {
 	storage!: StorageService;
@@ -37,12 +41,93 @@ export default class MediaVaultPlugin extends Plugin {
 	statistics!: StatisticsService;
 	private syncIntervalHandle: number | null = null;
 	private notificationCheckIntervalHandle: number | null = null;
+	private readonly TEST_DATA_VERSION = "test-v3";
+
+
+	async installTestData() {
+		const url =
+			"https://github.com/ruveydayilmaz/mediavault-test/releases/latest/download/storage.zip";
+
+		const response = await fetch(url);
+
+		if (!response.ok) {
+			throw new Error("Failed downloading test data");
+		}
+
+		const zipBuffer = await response.arrayBuffer();
+		const zip = await JSZip.loadAsync(zipBuffer);
+
+		const pluginDir = this.manifest.dir;
+
+		if (!pluginDir) {
+			throw new Error("Plugin directory unavailable");
+		}
+
+		for (const [filename, file] of Object.entries(zip.files)) {
+			if (file.dir) continue;
+
+			const content = await file.async("string");
+
+			const destination = path.join(pluginDir, filename);
+
+			await fs.mkdir(path.dirname(destination), {
+				recursive: true,
+			});
+
+			await fs.writeFile(
+				destination,
+				content,
+				"utf8"
+			);
+		}
+
+		await fs.writeFile(
+			path.join(pluginDir, "storage/version.txt"),
+			this.TEST_DATA_VERSION,
+			"utf8"
+		);
+	}
+
+	async loadTestData() {
+		const path =
+			`${this.manifest.dir}/storage/test-data.json`;
+
+		const raw =
+			await this.app.vault.adapter.read(path);
+
+		return JSON.parse(raw);
+	}
 
 	async onload() {
 		console.log(`Loading ${PLUGIN_NAME}`);
 
+		const versionPath = path.join(
+			this.manifest.dir!,
+			"storage/version.txt"
+		);
+
+		let needsInstall = true;
+
+		try {
+			const installedVersion = await fs.readFile(
+				versionPath,
+				"utf8"
+			);
+
+			needsInstall =
+				installedVersion.trim() !== this.TEST_DATA_VERSION;
+
+		} catch {
+			needsInstall = true;
+		}
+
+		if (needsInstall) {
+			await this.installTestData();
+		}
+
 		this.storage = new StorageService(this);
 		await this.storage.initialize();
+
 		this.statistics = new StatisticsService(this.storage);
 		await seedBuiltInPresets(this.storage);
 
@@ -505,7 +590,7 @@ export default class MediaVaultPlugin extends Plugin {
 			const errorCount = pullResult.errors.length + pushResult.errors.length;
 			new Notice(
 				`MediaVault: Trakt sync complete — pulled ${pullResult.moviesAdded} movie(s) + ${pullResult.episodesMarked} episode(s), pushed ${pushResult.pushed}` +
-					(errorCount > 0 ? ` · ${errorCount} error(s), see console` : ".")
+				(errorCount > 0 ? ` · ${errorCount} error(s), see console` : ".")
 			);
 			if (errorCount > 0) {
 				console.warn("MediaVault Trakt sync errors:", [...pullResult.errors, ...pushResult.errors]);
