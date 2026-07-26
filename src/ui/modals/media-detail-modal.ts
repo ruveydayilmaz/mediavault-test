@@ -36,6 +36,7 @@ import { ActorDetailsModal } from "./actor-details-modal";
 import { addMediaFromTMDB } from "../../services/media-import";
 import { resumeSeries } from "../../services/drop-series-service";
 import { DropSeriesModal } from "./drop-series-modal";
+import { addDestructiveMenuItem } from "../components/destructive-menu-item";
 
 type DetailTab = "history" | "episodes" | "comments" | "cast" | "episode-detail";
 
@@ -378,7 +379,7 @@ export class MediaDetailModal extends Modal {
 		}).open();
 	}
 
-	private openHeroMenu(evt: MouseEvent): void {
+	private openHeroMenu(evt: MouseEvent, confirmingDelete = false): void {
 		const menu = new Menu();
 
 		menu.addItem((item) =>
@@ -442,12 +443,12 @@ export class MediaDetailModal extends Modal {
 		if (this.plugin) {
 			menu.addSeparator();
 
-			menu.addItem((item) =>
-				item
-					.setTitle("Delete")
-					.setIcon("trash")
-					.onClick(() => void this.confirmAndDelete())
-			);
+			addDestructiveMenuItem(menu, evt, {
+				label: "Delete",
+				confirming: confirmingDelete,
+				rebuild: (_m, confirming) => this.openHeroMenu(evt, confirming),
+				onConfirm: () => void this.confirmAndDelete(true),
+			});
 		}
 
 		if (this.media.type === MediaType.Movie) {
@@ -671,7 +672,7 @@ export class MediaDetailModal extends Modal {
 		setIcon(menuBtn, "more-vertical");
 		menuBtn.setAttr("aria-label", "Watch entry options");
 
-		menuBtn.addEventListener("click", (evt) => {
+		const openEntryMenu = (evt: MouseEvent, confirmingDelete = false) => {
 			evt.stopPropagation();
 
 			const menu = new Menu();
@@ -692,26 +693,23 @@ export class MediaDetailModal extends Modal {
 
 			menu.addSeparator();
 
-			menu.addItem((item) =>
-				item
-					.setTitle("Delete")
-					.setIcon("trash")
-					.onClick(async () => {
-						const confirmed = confirm(
-							`Delete this ${session.rewatchNumber === 0 ? "first watch" : "rewatch"
-							} entry? This cannot be undone.`
-						);
-
-						if (!confirmed) return;
-
+			addDestructiveMenuItem(menu, evt, {
+				label: "Delete",
+				confirming: confirmingDelete,
+				rebuild: (_m, confirming) => openEntryMenu(evt, confirming),
+				onConfirm: () => {
+					void (async () => {
 						await deleteWatchSession(this.storage, session.id);
 						new Notice("MediaVault: watch entry deleted.");
 						await this.refreshAndNotify();
-					})
-			);
+					})();
+				},
+			});
 
 			menu.showAtMouseEvent(evt);
-		});
+		};
+
+		menuBtn.addEventListener("click", (evt) => openEntryMenu(evt));
 	}
 
 	// ---- Comments tab (Milestone 4: Comments Integration — movies only; TV comments live per-episode) ----
@@ -1583,14 +1581,16 @@ export class MediaDetailModal extends Modal {
 	 * references, favorite status) before calling deleteMedia — per the
 	 * Universal Delete spec, this is a one-way action with no undo.
 	 */
-	private async confirmAndDelete(): Promise<void> {
-		const scope = describeDeletionScope(this.media);
-		const confirmed = confirm(
-			`Delete "${this.media.title}"?\n\nThis will permanently delete:\n${scope
-				.map((line) => `• ${line}`)
-				.join("\n")}\n\nThis action cannot be undone.`
-		);
-		if (!confirmed) return;
+	private async confirmAndDelete(alreadyConfirmed = false): Promise<void> {
+		if (!alreadyConfirmed) {
+			const scope = describeDeletionScope(this.media);
+			const confirmed = confirm(
+				`Delete "${this.media.title}"?\n\nThis will permanently delete:\n${scope
+					.map((line) => `• ${line}`)
+					.join("\n")}\n\nThis action cannot be undone.`
+			);
+			if (!confirmed) return;
+		}
 
 		const summary = await deleteMedia(this.app, this.storage, this.media.id);
 		if (!summary) {

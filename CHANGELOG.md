@@ -2,7 +2,13 @@
 
 All notable changes to MediaVault are documented in this file.
 
-## [4.23.0] — Favorites Navigation Fix & Browse Grid Layout
+## [4.24.0] — Browse Grid Fix & Safer Delete Actions
+
+- Explore Browse/Search grid: removed the parallel `.mediavault-explore-grid` CSS/class entirely — now renders directly into the literal `.mediavault-grid` container (same class as Library), with cards using `.mediavault-card`/`.mediavault-card-poster` (grid layout mode in the shared `renderDiscoverCard`), so there's truly one grid implementation, not two kept in sync.
+- List item removal (list detail's ✕ button, Add-to-List modal's uncheck) now shows a native confirm dialog clarifying only list membership is affected, not the library item itself.
+- New reusable `addDestructiveMenuItem` helper (`ui/components/destructive-menu-item.ts`): hamburger-menu Delete actions now require a second click (label/icon flip to a red "Confirm ..." state) instead of a separate `confirm()` dialog. Since Obsidian's Menu closes on any item click, the confirming state is achieved by immediately reopening an identical menu via a `rebuild` callback. Applied to: media detail hero menu Delete, watch-entry menu Delete, list detail hamburger Delete list.
+
+
 
 - Favorites arrow now opens the corresponding built-in Favorite Movies/TV Series list detail directly (new `onArrowClick` callback, separate from the desktop View All button), skipping the Favorite Lists picker page entirely.
 - Explore Browse/Search grid: root cause was `.mediavault-explore-card`'s hardcoded `width: 140px` fighting the CSS grid's own column-track sizing. Added a `layout: "grid"` mode to the shared `renderDiscoverCard` that reuses the Library's width-less `.mediavault-card`/`.mediavault-card-poster` classes instead, so the grid tracks — not a hardcoded width — control sizing. Rows (Discover/Recommendations) keep the fixed-width row layout unchanged.

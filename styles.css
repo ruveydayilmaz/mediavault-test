@@ -3129,13 +3129,6 @@
 	padding-bottom: 8px;
 }
 
-/* Matches .mediavault-grid (Library) sizing exactly — Milestone 1: Consistent Grid Sizes */
-.mediavault-explore-grid {
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-	gap: 8px;
-}
-
 .mediavault-explore-card {
 	position: relative;
 	flex: 0 0 auto;
@@ -3647,26 +3640,6 @@
 	width: 100%;
 }
 
-.is-phone .mediavault-explore-grid {
-	grid-template-columns: repeat(4, 1fr);
-	gap: 6px;
-}
-
-@media (max-width: 380px) {
-	.is-phone .mediavault-explore-grid {
-		grid-template-columns: repeat(3, 1fr);
-	}
-}
-
-/* Only the grid contexts (Browse/Search results) should stretch cards to
-   fill their grid cell — rows (Trending/Popular/Recommended) are a
-   horizontally-scrolling carousel and must keep their fixed card width,
-   matching the Favorites carousel's behavior, or every card stretches to
-   the full row width and only one is visible at a time. */
-.is-phone .mediavault-explore-grid .mediavault-explore-card {
-	width: 100%;
-}
-
 .is-phone .mediavault-explore-filter-more.is-collapsed {
 	display: none;
 }
@@ -3775,4 +3748,13 @@
 	.is-phone .mediavault-grid {
 		grid-template-columns: repeat(3, 1fr);
 	}
+}
+
+/* Two-step inline destructive menu-item confirmation (hamburger menus) */
+.menu-item.mediavault-menu-item-destructive.is-confirming {
+	color: var(--text-error, #e5534b);
+}
+
+.menu-item.mediavault-menu-item-destructive.is-confirming .menu-item-icon {
+	color: var(--text-error, #e5534b);
 }

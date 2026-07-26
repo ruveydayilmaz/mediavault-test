@@ -358,7 +358,7 @@ export class ExploreView extends ItemView {
 	}
 
 	private renderGrid(container: HTMLElement, cards: ExploreCardData[]): void {
-		const grid = container.createDiv({ cls: "mediavault-explore-grid" });
+		const grid = container.createDiv({ cls: "mediavault-grid" });
 		cards.forEach((card) =>
 			renderDiscoverCard(
 				grid,

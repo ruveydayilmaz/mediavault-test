@@ -7,6 +7,7 @@ import { MediaItem } from "../../models/media";
 import { sortListMedia, formatRelativeDate, getSystemFavoriteLists, SYSTEM_FAVORITE_MOVIES_ID } from "../../services/list-service";
 import { renderPoster, getMediaPercentWatched, renderProgressOverlay } from "../components/media-render";
 import { SelectMediaModal } from "./select-media-modal";
+import { addDestructiveMenuItem } from "../components/destructive-menu-item";
 
 const SORT_MODE_OPTIONS: { value: ListSortMode; label: string }[] = [
 	{ value: "recent", label: "Recent" },
@@ -106,37 +107,7 @@ export class ListDetailModal extends Modal {
 				attr: { "aria-label": "List actions" },
 			});
 			menuBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>`;
-			menuBtn.addEventListener("click", (evt) => {
-				const menu = new Menu();
-
-				menu.addItem((item) => {
-					item.setTitle("Edit title & description")
-						.setIcon("pencil")
-						.onClick(() => this.enterEditMode(titleEl, descEl));
-				});
-
-				menu.addItem((item) => {
-					item.setTitle("Add media")
-						.setIcon("plus")
-						.onClick(() => this.addMedia());
-				});
-
-				menu.addItem((item) => {
-					item.setTitle("Duplicate list")
-						.setIcon("copy")
-						.onClick(() => this.duplicateList());
-				});
-
-				menu.addSeparator();
-
-				menu.addItem((item) => {
-					item.setTitle("Delete list")
-						.setIcon("trash")
-						.onClick(() => this.deleteList());
-				});
-
-				menu.showAtMouseEvent(evt);
-			});
+			menuBtn.addEventListener("click", (evt) => this.openListMenu(evt, titleEl, descEl));
 		}
 
 		// Meta pills
@@ -225,6 +196,39 @@ export class ListDetailModal extends Modal {
 		renderBatch();
 	}
 
+	private openListMenu(evt: MouseEvent, titleEl: HTMLElement, descEl: HTMLElement, confirmingDelete = false): void {
+		const menu = new Menu();
+
+		menu.addItem((item) => {
+			item.setTitle("Edit title & description")
+				.setIcon("pencil")
+				.onClick(() => this.enterEditMode(titleEl, descEl));
+		});
+
+		menu.addItem((item) => {
+			item.setTitle("Add media")
+				.setIcon("plus")
+				.onClick(() => this.addMedia());
+		});
+
+		menu.addItem((item) => {
+			item.setTitle("Duplicate list")
+				.setIcon("copy")
+				.onClick(() => this.duplicateList());
+		});
+
+		menu.addSeparator();
+
+		addDestructiveMenuItem(menu, evt, {
+			label: "Delete list",
+			confirming: confirmingDelete,
+			rebuild: (_m, confirming) => this.openListMenu(evt, titleEl, descEl, confirming),
+			onConfirm: () => void this.deleteList(),
+		});
+
+		menu.showAtMouseEvent(evt);
+	}
+
 	// --- Actions (invoked from hamburger menu) ---
 
 	private enterEditMode(titleEl: HTMLElement, descEl: HTMLElement): void {
@@ -290,10 +294,6 @@ export class ListDetailModal extends Modal {
 	}
 
 	private async deleteList(): Promise<void> {
-		const confirmed = confirm(
-			`Delete "${this.list.title}"?\n\nThis will permanently delete this list.\nMedia, watch history, and favorites are not affected.\n\nThis action cannot be undone.`
-		);
-		if (!confirmed) return;
 		await this.storage.customLists.delete(this.list.id);
 		new Notice(`MediaVault: "${this.list.title}" deleted.`);
 		this.notifyChanged();
@@ -347,6 +347,10 @@ export class ListDetailModal extends Modal {
 			removeBtn.setAttr("aria-label", "Remove from list");
 			removeBtn.addEventListener("click", async (evt) => {
 				evt.stopPropagation();
+				const confirmed = confirm(
+					`Remove "${media.title}" from "${this.list.title}"?\n\nThis only removes it from this list — the item stays in your library, and your watch history/favorites are not affected.`
+				);
+				if (!confirmed) return;
 				const updated = await this.storage.customLists.removeMedia(this.list.id, media.id);
 				if (updated) this.list = updated;
 				this.notifyChanged();

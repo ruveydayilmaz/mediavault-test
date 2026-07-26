@@ -47,6 +47,13 @@ export class AddToListModal extends Modal {
 				if (checkbox.checked) {
 					await this.storage.customLists.addMedia(list.id, this.media.id);
 				} else {
+					const confirmed = confirm(
+						`Remove "${this.media.title}" from "${list.title}"?\n\nThis only removes it from this list — the item stays in your library, and your watch history/favorites are not affected.`
+					);
+					if (!confirmed) {
+						checkbox.checked = true;
+						return;
+					}
 					await this.storage.customLists.removeMedia(list.id, this.media.id);
 				}
 				this.onChanged?.();
