@@ -45,59 +45,23 @@ function formatEpisodeRuntime(minutes: number | null): string {
 	return `${minutes}m`;
 }
 
-/**
- * The media detail page: header (poster, actions) plus a tab bar for TV
- * shows switching between "Watch History" and "Episodes" (Milestone 4 —
- * this replaces the standalone EpisodeTrackerModal entirely; episode
- * tracking now lives here instead of behind a separate modal). Movies have
- * no Episodes tab and just show the Watch History content directly.
- *
- * Only the active tab's content is ever built — switching tabs re-renders
- * from scratch rather than toggling visibility, so there's never any
- * off-screen, still-mounted content from the inactive tab.
- */
 export class MediaDetailModal extends Modal {
 	private storage: StorageService;
 	private tmdb: TMDBService;
 	private trakt?: TraktService;
 	private media: MediaItem;
 	private onChanged?: () => void;
-	/**
-	 * Optional — when provided, a successful delete triggers a full
-	 * cross-view refresh (statistics, Watch Next, favorites, filters,
-	 * dashboard) via the plugin's refresh helpers, in addition to
-	 * `onChanged`. Callers that don't care about deletion (e.g. the
-	 * read-only preview from Recommendations/Comfort Finder) can omit it —
-	 * the Delete action simply won't be offered there.
-	 */
+
 	private plugin?: MediaVaultPlugin;
 
-	/**
-	 * Preview mode (Milestone 2: Filmography Preview Instead of
-	 * Auto-Import) — `this.media` is a synthetic, unpersisted `MediaItem`
-	 * built straight from TMDB data, so the modal can be opened for browsing
-	 * (overview, cast, comments) without ever writing anything to storage.
-	 * Favoriting, logging watches, episode import, and the delete menu are
-	 * all gated off in this mode; the header instead shows an "Add to
-	 * Library" action. Pressing it swaps `this.media` for the real,
-	 * persisted item and flips `isPreview` off in place — the same modal
-	 * instance just starts behaving normally, per spec ("Import should
-	 * preserve the current Details modal").
-	 */
 	private isPreview: boolean;
-	/** TMDB's own public rating, shown only in preview mode since there's no local averageRating yet. */
 	private previewTmdbRating: number | null = null;
-	/** Set right before a re-render triggered by posting a comment, so the new comment gets a brief highlight once rendered (Milestone 1: Trakt Public Comments). */
 	private pendingHighlightCommentId: number | null = null;
 
-	private activeTab: DetailTab = "episodes"; // default for TV shows; movies have no Episodes tab so this is never used
-	/** Which season numbers are expanded in the Episodes tab's accordion — kept across re-renders within the same modal session. */
+	private activeTab: DetailTab = "episodes";
 	private expandedSeasons = new Set<number>();
-	/** Whether the long-description "Show more" toggle is expanded — kept across re-renders within the same modal session. */
 	private descriptionExpanded = false;
-	/** The episode currently shown by the "episode-detail" tab (Milestone 4: Comments Integration). */
 	private selectedEpisode: Episode | null = null;
-	/** Tab to return to when the user backs out of Episode Details — always "episodes" in practice, but kept explicit rather than assumed. */
 	private tabBeforeEpisodeDetail: DetailTab = "episodes";
 
 	constructor(
@@ -145,16 +109,6 @@ export class MediaDetailModal extends Modal {
 		await this.render();
 	}
 
-	/**
-	 * Milestone 9 (Automatic TMDB Episode Synchronization): runs on every
-	 * open of a TV show's details, before the first render, so newly-added
-	 * shows get their episodes imported without the user ever pressing
-	 * "Import episodes from TMDB" manually, and actively-watched shows stay
-	 * fresh without needing "Refresh from TMDB" either. Silent by design —
-	 * a background sync check shouldn't interrupt opening the modal with
-	 * an error notice if TMDB is briefly unreachable; the manual refresh
-	 * options (Episodes tab button, three-dot menu) remain for that case.
-	 */
 	private async maybeAutoSyncEpisodes(): Promise<void> {
 		const episodes = await this.storage.episodes.findByMediaId(this.media.id);
 		const intervalHours = this.storage.settings.get().episodeSyncIntervalHours;
@@ -167,7 +121,7 @@ export class MediaDetailModal extends Modal {
 			if (refreshed) this.media = refreshed;
 			this.onChanged?.();
 		} catch {
-			// Swallowed intentionally — see docblock above.
+			// The user can manually refresh episodes from the hero menu if they want to retry.
 		}
 	}
 
@@ -177,7 +131,6 @@ export class MediaDetailModal extends Modal {
 		contentEl.addClass("mediavault-detail-modal");
 		renderMobileBackButton(this, contentEl);
 
-		// Re-fetch the media item in case aggregates changed since opening.
 		const fresh = await this.storage.media.findById(this.media.id);
 		if (fresh) this.media = fresh;
 
@@ -235,11 +188,6 @@ export class MediaDetailModal extends Modal {
 		}
 		hero.createDiv({ cls: "mediavault-detail-banner-overlay" });
 
-		// Rendered as a sibling of the hero (not a child) so it isn't inside the
-		// hero's `transform` — a transform on an ancestor creates a new
-		// containing block for position:fixed descendants, which would make
-		// this button track the hero's (sticky, moving) box instead of the
-		// viewport. This is the same positioning strategy as the back button.
 		const menuBtn = contentEl.createEl("button", { cls: "clickable-icon mediavault-detail-menu-btn" });
 		setIcon(menuBtn, "more-vertical");
 		menuBtn.setAttr("aria-label", "More options");
@@ -537,12 +485,6 @@ export class MediaDetailModal extends Modal {
 		).open();
 	}
 
-	/**
-	 * Long synopses render truncated with a "Show more" toggle; short ones
-	 * render in full with no toggle at all. `descriptionExpanded` persists
-	 * across re-renders in this modal session so an unrelated action (e.g.
-	 * favoriting) doesn't silently re-collapse an expanded description.
-	 */
 	private renderDescription(container: HTMLElement, synopsis: string): void {
 		const SHORT_LENGTH = 220;
 
@@ -603,8 +545,6 @@ export class MediaDetailModal extends Modal {
 		});
 	}
 
-	// ---- Watch History tab ----
-
 	private async renderWatchHistoryTab(contentEl: HTMLElement): Promise<void> {
 		if (this.media.status === MediaStatus.Dropped && this.media.droppedReason) {
 			const droppedSection = contentEl.createDiv({ cls: "mediavault-detail-section mediavault-dropped-banner" });
@@ -635,7 +575,7 @@ export class MediaDetailModal extends Modal {
 			});
 		} else {
 			const timeline = timelineSection.createDiv({ cls: "mediavault-timeline" });
-			const chronological = sortSessionsChronological(sessions).reverse(); // newest first for reading
+			const chronological = sortSessionsChronological(sessions).reverse();
 			chronological.forEach((session) => {
 				this.renderTimelineEntry(timeline, session);
 			});
@@ -712,8 +652,6 @@ export class MediaDetailModal extends Modal {
 		menuBtn.addEventListener("click", (evt) => openEntryMenu(evt));
 	}
 
-	// ---- Comments tab (Milestone 4: Comments Integration — movies only; TV comments live per-episode) ----
-
 	private async renderCommentsTab(contentEl: HTMLElement): Promise<void> {
 		const section = contentEl.createDiv({ cls: "mediavault-detail-section" });
 		const heading = section.createDiv({ cls: "mediavault-comments-heading" });
@@ -774,12 +712,6 @@ export class MediaDetailModal extends Modal {
 		await this.renderCommentList(listWrap, comments, target, highlightId);
 	}
 
-	/**
-	 * Cast tab (Milestone 4: Cast & Filmography System) — principal cast
-	 * for this movie/show, shared by Movie and TV Series Details. Reuses
-	 * the existing `getCredits` call (already cached alongside
-	 * getMovie/getTV's own append_to_response) rather than a new fetch.
-	 */
 	private async renderCastTab(contentEl: HTMLElement): Promise<void> {
 		const section = contentEl.createDiv({ cls: "mediavault-detail-section" });
 		section.createEl("h3", { text: "Cast" });
@@ -968,10 +900,6 @@ export class MediaDetailModal extends Modal {
 			counter.toggleClass("is-over-limit", textarea.value.length > TRAKT_COMMENT_LIMIT);
 		});
 
-		// Obsidian's mobile webview doesn't expose a way to attach a native
-		// "Done" accessory above the keyboard, so this in-composer button is
-		// the fallback: it dismisses the keyboard (via blur) without
-		// cancelling or posting the in-progress comment.
 		const doneBtn = composer.createEl("button", {
 			cls: "clickable-icon mediavault-comment-compose-done",
 			attr: { "aria-label": "Dismiss keyboard" },
@@ -1030,7 +958,6 @@ export class MediaDetailModal extends Modal {
 		return composer;
 	}
 
-	/** Runs the post-submit list refresh, re-enabling the button either way and offering a Retry on failure. */
 	private async refreshCommentsAfterPost(warningEl: HTMLElement, postBtn: HTMLButtonElement, onPosted: () => Promise<void>): Promise<void> {
 		try {
 			await onPosted();
@@ -1082,7 +1009,6 @@ export class MediaDetailModal extends Modal {
 
 		const seasonsContainer = contentEl.createDiv({ cls: "mediavault-seasons" });
 
-		// Only initialize the default expanded season once per modal session.
 		if (this.expandedSeasons.size === 0 && activeSeason !== undefined) {
 			this.expandedSeasons.add(activeSeason);
 		}
@@ -1102,12 +1028,12 @@ export class MediaDetailModal extends Modal {
 		fill.style.width = `${Math.min(100, Math.max(0, percent))}%`;
 	}
 
-	private renderSeason(
+	private async renderSeason(
 		container: HTMLElement,
 		seasonNumber: number,
 		episodes: Episode[],
 		progressByEpisodeId: Map<string, EpisodeProgress>
-	): void {
+	): Promise<void> {
 		const watchedCount = episodes.filter((e) => progressByEpisodeId.get(e.id)?.watched).length;
 		const total = episodes.length;
 		const percent = total > 0 ? (watchedCount / total) * 100 : 0;
@@ -1126,7 +1052,6 @@ export class MediaDetailModal extends Modal {
 		episodesEl.style.display = isExpanded ? "block" : "none";
 
 		header.addEventListener("click", (evt) => {
-			// Don't toggle when clicking the batch-action buttons inside the header.
 			if ((evt.target as HTMLElement).closest("button")) return;
 			if (this.expandedSeasons.has(seasonNumber)) {
 				this.expandedSeasons.delete(seasonNumber);
@@ -1192,10 +1117,10 @@ export class MediaDetailModal extends Modal {
 			menu.showAtMouseEvent(evt);
 		});
 
-		episodes.forEach((ep) => this.renderEpisodeRow(episodesEl, ep, progressByEpisodeId.get(ep.id) ?? null));
+		await Promise.all(episodes.map((ep) => this.renderEpisodeRow(episodesEl, ep, progressByEpisodeId.get(ep.id) ?? null)));
 	}
 
-	private renderEpisodeRow(container: HTMLElement, episode: Episode, progress: EpisodeProgress | null): void {
+	private async renderEpisodeRow(container: HTMLElement, episode: Episode, progress: EpisodeProgress | null): Promise<void> {
 		const row = container.createDiv({ cls: "mediavault-episode-row is-clickable" });
 		row.addEventListener("click", (evt) => {
 			if ((evt.target as HTMLElement).closest("input, button")) return;
@@ -1230,6 +1155,18 @@ export class MediaDetailModal extends Modal {
 			text: [episode.airDate, formatEpisodeRuntime(episode.runtime)].filter(Boolean).join(" · "),
 		});
 
+		const watches = sortEpisodeWatchesChronological(await this.storage.episodeWatches.findByEpisodeId(episode.id));
+
+		const addBtn = row.createEl("button", {
+			cls: "mediavault-detail-log-btn mod-cta",
+			text: `×${watches.length}`,
+		});
+		addBtn.addEventListener("click", async () => {
+			await addEpisodeWatch(this.storage, episode);
+			this.plugin?.refreshLibraryViews();
+			this.plugin?.refreshListViews();
+			await this.render();
+		});
 	}
 
 	private async markEpisodeWatchedWithSmartCompletion(episode: Episode): Promise<void> {
@@ -1313,7 +1250,6 @@ export class MediaDetailModal extends Modal {
 		}
 	}
 
-	/** Hero banner: episode still, falling back to the series backdrop, then poster. */
 	private renderEpisodeHero(contentEl: HTMLElement, episode: Episode): void {
 		const hero = contentEl.createDiv({ cls: "mediavault-detail-hero mediavault-episode-hero" });
 
@@ -1340,7 +1276,6 @@ export class MediaDetailModal extends Modal {
 			if (current) {
 				await this.storage.episodeProgress.update(current.id, { isFavorite: !current.isFavorite });
 			} else {
-				// Favoriting an unwatched episode still needs a progress record to hang the flag on.
 				const created = await markEpisodeWatched(this.storage, episode, false);
 				await this.storage.episodeProgress.update(created.id, { isFavorite: true });
 			}
@@ -1358,7 +1293,6 @@ export class MediaDetailModal extends Modal {
 		});
 	}
 
-	/** Unwatched: an information page — overview, air date, runtime, guest cast/crew, "Mark as Watched". */
 	private async renderUnwatchedEpisodeBody(contentEl: HTMLElement, episode: Episode): Promise<void> {
 		const infoSection = contentEl.createDiv({ cls: "mediavault-detail-section" });
 		if (episode.synopsis) {
@@ -1379,13 +1313,6 @@ export class MediaDetailModal extends Modal {
 		await this.renderEpisodeCastCrew(contentEl, episode);
 	}
 
-	/**
-	 * Watched: an unlimited rewatch timeline (Milestone 2: Episode Rewatch
-	 * System) — one card per `EpisodeWatch`, each with its own editable
-	 * star rating / emotion / notes and a delete action — a rating-evolution
-	 * chart once there's more than one rated watch, an "Add another episode
-	 * watch" action, then Trakt comments.
-	 */
 	private async renderWatchedEpisodeBody(contentEl: HTMLElement, episode: Episode, watches: EpisodeWatch[]): Promise<void> {
 		const reviewSection = contentEl.createDiv({ cls: "mediavault-detail-section" });
 		reviewSection.createEl("h3", { text: "Episode watch history" });
@@ -1408,7 +1335,7 @@ export class MediaDetailModal extends Modal {
 
 		const addBtn = reviewSection.createEl("button", {
 			cls: "mediavault-add-watch-btn",
-			text: `+1 Rewatch  ·  Watched ×${watches.length}`,
+			text: "Log Rewatch",
 		});
 		addBtn.addEventListener("click", async () => {
 			await addEpisodeWatch(this.storage, episode);
@@ -1417,7 +1344,6 @@ export class MediaDetailModal extends Modal {
 			await this.render();
 		});
 
-		// Trakt comments — only ever shown once the episode has been watched.
 		const commentsSection = contentEl.createDiv({ cls: "mediavault-detail-section" });
 		const commentsHeading = commentsSection.createDiv({ cls: "mediavault-comments-heading" });
 		commentsHeading.createEl("h3", { text: "Comments" });
@@ -1448,13 +1374,10 @@ export class MediaDetailModal extends Modal {
 					composer.querySelector<HTMLTextAreaElement>(".mediavault-comment-compose-input")?.focus();
 				}
 			});
-			// Public Comment Composer (Milestone 2): reorder so the composer
-			// sits immediately beneath the heading rather than at the bottom
-			// of the list (same fix as the movie/show Comments tab above).
+
 			if (composer) commentsSection.insertBefore(composer, listWrap);
 			await this.refreshCommentList(listWrap, target, fetchComments);
 		} else {
-			// No per-episode TMDB id on record (older import) — can still read/edit/delete via the season+episode number cache key, just can't post against this exact episode (no id to send Trakt).
 			const fallbackTarget: TraktCommentTarget = {
 				kind: "episode",
 				showTmdbId: this.media.tmdbId,
@@ -1469,7 +1392,6 @@ export class MediaDetailModal extends Modal {
 		}
 	}
 
-	/** One rewatch card — watch date, editable stars, editable emotion, editable notes, delete. */
 	private renderEpisodeWatchCard(container: HTMLElement, episode: Episode, watch: EpisodeWatch, watchNumber: number): void {
 		const card = container.createDiv({ cls: "mediavault-episode-review-card" });
 
@@ -1500,7 +1422,6 @@ export class MediaDetailModal extends Modal {
 		});
 	}
 
-	/** Five interactive stars — add or edit this specific watch's rating (1-5). */
 	private renderEpisodeStarRating(container: HTMLElement, watch: EpisodeWatch): void {
 		const wrap = container.createDiv({ cls: "mediavault-episode-star-rating" });
 		const current = watch.rating ?? 0;
@@ -1519,7 +1440,6 @@ export class MediaDetailModal extends Modal {
 
 	private static readonly EMOTIONS = ["😀", "😄", "😐", "😢", "😭", "😱", "❤️", "🤯"];
 
-	/** One selectable emoji reaction for this watch, editable, with the selected state shown. */
 	private renderEpisodeEmotionPicker(container: HTMLElement, watch: EpisodeWatch): void {
 		const wrap = container.createDiv({ cls: "mediavault-episode-emotion-picker" });
 		wrap.createDiv({ cls: "mediavault-detail-meta", text: "How was it?" });
@@ -1529,14 +1449,13 @@ export class MediaDetailModal extends Modal {
 			const btn = row.createEl("button", { cls: "mediavault-emotion-btn", text: emoji });
 			btn.toggleClass("is-selected", watch.emotion === emoji);
 			btn.addEventListener("click", async () => {
-				const next = watch.emotion === emoji ? null : emoji; // click again to clear
+				const next = watch.emotion === emoji ? null : emoji;
 				await updateEpisodeWatch(this.storage, watch.id, { emotion: next });
 				await this.render();
 			});
 		});
 	}
 
-	/** Crew (director/writer) only — Guest Cast moved to the Cast tab (Milestone 4: Cast & Filmography System), so Episode Details stays focused on the episode itself. */
 	private async renderEpisodeCastCrew(contentEl: HTMLElement, episode: Episode): Promise<void> {
 		const section = contentEl.createDiv({ cls: "mediavault-detail-section" });
 		const loading = section.createDiv({ cls: "mediavault-modal-hint", text: "Loading crew..." });
@@ -1558,7 +1477,6 @@ export class MediaDetailModal extends Modal {
 				section.remove();
 			}
 		} catch {
-			// Cast/crew is supplementary — fail silently rather than blocking the info page.
 			loading.remove();
 		}
 	}
@@ -1576,19 +1494,11 @@ export class MediaDetailModal extends Modal {
 		}
 	}
 
-	// ---- Shared ----
-
 	private async refreshAndNotify(): Promise<void> {
 		await this.render();
 		this.onChanged?.();
 	}
 
-	/**
-	 * Confirmation dialog names exactly what will be permanently removed
-	 * (watch history, reviews, ratings, episode progress, notes, list
-	 * references, favorite status) before calling deleteMedia — per the
-	 * Universal Delete spec, this is a one-way action with no undo.
-	 */
 	private async confirmAndDelete(alreadyConfirmed = false): Promise<void> {
 		if (!alreadyConfirmed) {
 			const scope = describeDeletionScope(this.media);
@@ -1610,13 +1520,6 @@ export class MediaDetailModal extends Modal {
 		new Notice(`MediaVault: "${summary.mediaTitle}" deleted.`);
 		this.close();
 
-		// Deliberately call only the plugin-level refresh here, not
-		// `onChanged` too. The `onChanged` callbacks passed in by callers
-		// (e.g. LibraryView.openDetail, MediaVaultPlugin.openMediaDetail)
-		// already call plugin.refreshLibraryViews()/refreshListViews()
-		// themselves, so calling both fires two overlapping async refreshes
-		// on the same views — the root cause of the duplicated statistics
-		// cards (see Milestone 1: Statistics Refresh & Delete Bug).
 		if (this.plugin) {
 			this.plugin.refreshLibraryViews();
 			this.plugin.refreshListViews();

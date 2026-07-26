@@ -1,19 +1,12 @@
 import { setIcon } from "obsidian";
 import { MediaItem } from "../../models/media";
 import { StorageService } from "../../services/storage";
-import { renderPoster, progressFillClasses, getMediaPercentWatched } from "./media-render";
+import { renderPoster } from "./media-render";
 import { createCarousel } from "./carousel";
 import { getSystemFavoriteLists, sortListMedia } from "../../services/list-service";
 
 export interface FavoritesResponsiveOptions {
-	/** How many posters should be visible at once without scrolling. */
 	visibleCount: number;
-	/**
-	 * Fill unused slots with placeholder cards so the carousel's width
-	 * stays stable instead of collapsing/stretching (Milestone 2: mobile
-	 * requirement — the Favorites row must mirror the Library grid's
-	 * width even when there are fewer favorites than grid slots).
-	 */
 	fillPlaceholders: boolean;
 }
 
@@ -72,10 +65,6 @@ export async function renderFavoritesSection(
 
 	viewAll.onclick = onViewAll;
 
-	// Mobile: an arrow-style nav icon at the right of the header replaces the
-	// desktop "View All" button as the way to open the full page. Both are
-	// always rendered; CSS shows exactly one depending on screen tier, so
-	// there's one code path for the click handler on both platforms.
 	const mobileArrow = header.createEl("button", {
 		cls: "clickable-icon mediavault-section-nav-arrow",
 	});
@@ -93,8 +82,7 @@ export async function renderFavoritesSection(
 	const cardWidth = `calc((100% - ${(visibleCount - 1) * 12}px) / ${visibleCount})`;
 
 	for (const item of items) {
-		const progress = await getMediaPercentWatched(storage, item);
-		const card = buildFavoriteCard(item, progress, onOpen);
+		const card = buildFavoriteCard(item, onOpen);
 		card.style.width = cardWidth;
 		track.appendChild(card);
 	}
@@ -115,7 +103,7 @@ function buildPlaceholderCard(): HTMLElement {
 	return card;
 }
 
-function buildFavoriteCard(item: MediaItem, percentWatched: number | null, onOpen: (item: MediaItem) => void): HTMLElement {
+function buildFavoriteCard(item: MediaItem, onOpen: (item: MediaItem) => void): HTMLElement {
 	const card = document.createElement("div");
 	card.addClass("mediavault-favorite-card");
 
@@ -126,19 +114,6 @@ function buildFavoriteCard(item: MediaItem, percentWatched: number | null, onOpe
 	});
 
 	renderPoster(poster, item, "w200");
-
-	if (percentWatched !== null) {
-		const progress = poster.createDiv({
-			cls: "mediavault-favorite-progress",
-		});
-
-		progress.createDiv({
-			cls: progressFillClasses("mediavault-favorite-progress-fill", item.status),
-			attr: {
-				style: `width:${Math.round(percentWatched)}%`,
-			},
-		});
-	}
 
 	return card;
 }

@@ -166,8 +166,8 @@
 /* Grid view */
 .mediavault-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-	gap: 8px;
+	grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+	gap: 12px;
 }
 
 .mediavault-card {
@@ -3662,9 +3662,8 @@
 	padding-bottom: max(16px, env(safe-area-inset-bottom));
 }
 
-/* mobile */
 .is-phone .mediavault-grid {
-	grid-template-columns: repeat(4, 1fr);
+	grid-template-columns: repeat(4, minmax(0, 1fr));
 	gap: 6px;
 }
 

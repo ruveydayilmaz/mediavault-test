@@ -11,7 +11,6 @@ import { ListDetailModal } from "../modals/list-detail-modal";
 export class ListsView extends ItemView {
 	private plugin: MediaVaultPlugin;
 	private gridEl!: HTMLElement;
-	/** Generation counter guarding against overlapping refresh() calls (defense in depth — see notifyChanged() in list-detail-modal.ts for the root cause this protects against). A refresh whose token goes stale mid-await discards its render instead of appending alongside a newer one. */
 	private refreshToken = 0;
 
 	constructor(leaf: WorkspaceLeaf, plugin: MediaVaultPlugin) {
@@ -49,7 +48,7 @@ export class ListsView extends ItemView {
 	}
 
 	async onClose(): Promise<void> {
-		// Nothing to tear down — repositories are owned by the plugin.
+		// Nothing to clean up
 	}
 
 	async refresh(): Promise<void> {
@@ -57,8 +56,6 @@ export class ListsView extends ItemView {
 
 		const [lists, allMedia] = await Promise.all([this.plugin.storage.customLists.getAll(), this.plugin.storage.media.getAll()]);
 
-		// A newer refresh() started while we were awaiting — let it own the
-		// DOM instead of both of us rendering into the same grid.
 		if (token !== this.refreshToken) return;
 
 		this.gridEl.empty();
@@ -74,14 +71,6 @@ export class ListsView extends ItemView {
 		lists.forEach((list) => this.renderListCard(list, allMedia));
 	}
 
-	/**
-	 * TV Time-style card (roadmap Milestone 7): the four-poster banner
-	 * fills the whole card as a wide strip, with title, description, and
-	 * meta (item count · last updated · owner) overlaid at the bottom
-	 * behind a gradient scrim, rather than sitting in a separate info
-	 * block below the banner. Reference image used for the overlay
-	 * treatment only — markup/CSS here is original, not copied.
-	 */
 	private renderListCard(list: CustomList, allMedia: MediaItem[]): void {
 		const card = this.gridEl.createDiv({ cls: "mediavault-list-card" });
 

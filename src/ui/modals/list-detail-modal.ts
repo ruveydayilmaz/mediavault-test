@@ -38,19 +38,6 @@ export class ListDetailModal extends Modal {
 		void this.render();
 	}
 
-	/**
-	 * Single fan-out for "this list changed": drives every view that can
-	 * show list data (Lists page + the Home dashboard's Lists carousel)
-	 * through the plugin's own leaf-iterating refresh methods. Callers
-	 * used to *also* pass their own view's `refresh()` as `onChanged` —
-	 * since `refreshListViews()`/`refreshLibraryViews()` already find and
-	 * refresh that exact same leaf, that fired two overlapping, unguarded
-	 * `refresh()` calls on one view. Each does `empty()` then an async
-	 * re-render; interleaved, the second call's `empty()` could run after
-	 * the first had already started appending cards, leaving both sets of
-	 * cards in the DOM. That race — not anything in list creation or
-	 * storage — was the source of "lists appear twice."
-	 */
 	private notifyChanged(): void {
 		this.plugin.refreshLibraryViews();
 		this.plugin.refreshListViews();
@@ -79,7 +66,6 @@ export class ListDetailModal extends Modal {
 		}
 		const allMedia = await this.storage.media.getAll();
 
-		// --- Header: read-only title + hamburger menu ---
 		const header = contentEl.createDiv({ cls: "mediavault-list-detail-header" });
 
 		const titleRow = header.createDiv({ cls: "mediavault-list-detail-title-row" });
@@ -91,16 +77,13 @@ export class ListDetailModal extends Modal {
 		if (this.list.isImported) {
 			titleRow.createDiv({
 				cls: "mediavault-list-imported-badge",
-				text: `Imported${this.list.importSource ? ` — ${this.list.importSource}` : ""}`,
+				text: "Imported",
 			});
 		}
 		if (this.list.isSystem) {
 			titleRow.createDiv({ cls: "mediavault-list-imported-badge", text: "Built-in" });
 		}
 
-		// Hamburger menu button — system lists (Favorite Movies/TV Series)
-		// have no menu: they can't be renamed, added to manually, duplicated,
-		// or deleted, since they're computed live from favorite status.
 		if (!this.list.isSystem) {
 			const menuBtn = titleRow.createEl("button", {
 				cls: "mediavault-list-detail-menu-btn clickable-icon",
@@ -110,14 +93,12 @@ export class ListDetailModal extends Modal {
 			menuBtn.addEventListener("click", (evt) => this.openListMenu(evt, titleEl, descEl));
 		}
 
-		// Meta pills
 		const metaRow = header.createDiv({ cls: "mediavault-list-detail-meta" });
 		const addMetaPill = (text: string) => metaRow.createSpan({ cls: "mediavault-list-detail-meta-pill", text });
 		addMetaPill(`${this.list.mediaIds.length} item${this.list.mediaIds.length === 1 ? "" : "s"}`);
 		addMetaPill(`Updated ${formatRelativeDate(this.list.updatedAt)}`);
 		addMetaPill(this.list.owner ?? "You");
 
-		// Description (read-only)
 		const descEl = header.createDiv({ cls: "mediavault-list-detail-description" });
 		if (this.list.description) {
 			descEl.setText(this.list.description);
@@ -126,7 +107,6 @@ export class ListDetailModal extends Modal {
 			descEl.setText("No description");
 		}
 
-		// --- Sort row (system lists always sort by Recent, no picker) ---
 		{
 			const sortRow = contentEl.createDiv({ cls: "mediavault-list-sort-row" });
 			sortRow.createSpan({ cls: "mediavault-list-sort-label", text: "Sort by" });
@@ -149,7 +129,6 @@ export class ListDetailModal extends Modal {
 			});
 		}
 
-		// --- Contents grid ---
 		const orderedMedia = sortListMedia(this.list, allMedia);
 
 		if (orderedMedia.length === 0) {
@@ -167,14 +146,6 @@ export class ListDetailModal extends Modal {
 
 		const isManual = this.list.sortMode === "manual";
 
-		/**
-		 * Renders in batches instead of all at once (Milestone 7: List
-		 * Details Layout) — a list with hundreds/thousands of items would
-		 * otherwise mount that many poster cards in one go. Each "Load
-		 * more" click only appends the next batch; nothing already
-		 * rendered is touched, so scroll position and drag state are
-		 * preserved.
-		 */
 		const PAGE_SIZE = 60;
 		let renderedCount = 0;
 
@@ -229,10 +200,7 @@ export class ListDetailModal extends Modal {
 		menu.showAtMouseEvent(evt);
 	}
 
-	// --- Actions (invoked from hamburger menu) ---
-
 	private enterEditMode(titleEl: HTMLElement, descEl: HTMLElement): void {
-		// Replace title text with input
 		const titleInput = document.createElement("input");
 		titleInput.type = "text";
 		titleInput.value = this.list.title;
@@ -253,7 +221,6 @@ export class ListDetailModal extends Modal {
 		titleInput.addEventListener("blur", saveTitle);
 		titleInput.addEventListener("keydown", (e) => { if (e.key === "Enter") titleInput.blur(); });
 
-		// Replace description text with textarea
 		const descInput = document.createElement("textarea");
 		descInput.className = "mediavault-list-description-input";
 		descInput.value = this.list.description ?? "";
@@ -366,7 +333,6 @@ export class ListDetailModal extends Modal {
 	}
 }
 
-/** Small helper so callers (e.g. the Lists view) don't have to reach into MediaItem[] filtering themselves. */
 export function excludeMediaAlreadyInList(list: CustomList, allMedia: MediaItem[]): MediaItem[] {
 	return allMedia.filter((m) => !list.mediaIds.includes(m.id));
 }

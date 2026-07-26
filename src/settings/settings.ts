@@ -4,65 +4,37 @@ import { ListSortMode } from "../models/list";
 export type { RatingScale };
 
 export interface MediaVaultSettings {
-	/** Schema/data version for migrations */
 	dataVersion: number;
 
-	/** TMDB API key, set by the user */
 	tmdbApiKey: string;
 
-	/** Trakt OAuth client id/secret + tokens (populated after auth flow) */
 	traktClientId: string;
 	traktClientSecret: string;
 	traktAccessToken: string | null;
 	traktRefreshToken: string | null;
-	/** Unix ms timestamp when traktAccessToken expires; null if never authorized. */
 	traktTokenExpiresAt: number | null;
 
-	/** How (if at all) Trakt sync should run automatically. */
 	traktAutoSync: "manual" | "on_startup" | "interval";
-	/** Only used when traktAutoSync === "interval". */
 	traktSyncIntervalMinutes: number;
-	/** ISO timestamp of the last successful sync, shown in settings. */
 	traktLastSyncedAt: string | null;
-	/** Folder (relative to vault root) where "Trakt Rating History.md" is written. */
 	traktHistoryNotePath: string;
 
-	/** Where generated media notes are stored */
 	mediaFolderPath: string;
 	autoCreateNotes: boolean;
 
-	/** Display preferences */
 	defaultView: "grid" | "list" | "table";
-	posterDisplay: boolean;
-	/**
-	 * Persists the user's last-chosen library sort so it's remembered
-	 * across sessions (roadmap Milestone 5: Default "Recent" Sorting).
-	 * "recent" is the shipped default — latest watch date if the item has
-	 * watch history, otherwise date added, newest first.
-	 */
+
 	defaultSort: "recent" | "title" | "rating" | "watchCount" | "year" | "runtime";
 	defaultSortDirection: "asc" | "desc";
 
-	/** Rating scale used across the UI */
 	ratingScale: RatingScale;
 
-	/** Cache duration for TMDB responses, in minutes */
 	cacheDurationMinutes: number;
-
-	/**
-	 * How often (in hours) a Currently Watching show's episode metadata is
-	 * allowed to auto-refresh from TMDB (Milestone 9: Automatic TMDB
-	 * Episode Synchronization). Shows with no episodes imported yet always
-	 * sync regardless of this interval; Finished/Dropped/Plan to Watch
-	 * shows never auto-refresh at all.
-	 */
 	episodeSyncIntervalHours: number;
 
-	/** Remembered collapsed/expanded state of the Watch Next sidebar's sections (roadmap Milestone 6). */
 	watchNextSidebarCollapsed: boolean;
 	watchNextUpcomingTab: "episodes" | "movies";
 
-	/** Notifications (roadmap Milestone 8). Per-type enable flags plus delivery preferences. */
 	notificationsEnabled: {
 		newEpisode: boolean;
 		newSeason: boolean;
@@ -79,40 +51,11 @@ export interface MediaVaultSettings {
 	notificationTimezone: string;
 	/** ISO calendar date (YYYY-MM-DD) the daily check last ran, so it fires at most once per day. */
 	notificationLastCheckedDate: string | null;
-
-	/**
-	 * Comments Languages (Milestone 2: Localized Trakt Comments). Trakt
-	 * comments are filtered to only these languages, in priority order —
-	 * primary first, then each additional language.
-	 */
 	commentsPrimaryLanguage: string;
 	commentsAdditionalLanguages: string[];
-
-	/**
-	 * "Show Adult (+18) Content" (Mobile Milestone 4). Off by default —
-	 * when off, adult movies/TV are excluded from Search, Explore,
-	 * Recommendations, Similar, Discovery, and any other TMDB-backed
-	 * result list, using TMDB's own `adult` flag rather than a local
-	 * title-based heuristic.
-	 */
 	showAdultContent: boolean;
-
-	/**
-	 * Persisted sort mode + manual order for the built-in Favorite Movies /
-	 * Favorite TV Series smart lists, since they're never stored in
-	 * CustomListRepository. Reuses the same ListSortMode type as regular
-	 * lists — no second sorting system.
-	 */
 	favoriteListSortModes: { movies: ListSortMode; tv: ListSortMode };
 	favoriteListManualOrder: { movies: string[]; tv: string[] };
-
-	/**
-	 * Cached genre-card background image URLs for the visual genre filter
-	 * (genre name -> TMDB image URL). Populated lazily, once per genre,
-	 * from the first locally-owned title in that genre — never
-	 * re-resolved once cached, per spec, so genre art stays stable even if
-	 * that title is later removed from the library.
-	 */
 	genreImageCache: Record<string, string>;
 }
 
@@ -131,7 +74,6 @@ export const DEFAULT_SETTINGS: MediaVaultSettings = {
 	mediaFolderPath: "MediaVault",
 	autoCreateNotes: false,
 	defaultView: "grid",
-	posterDisplay: true,
 	defaultSort: "recent",
 	defaultSortDirection: "desc",
 	ratingScale: RatingScale.TenPoint,

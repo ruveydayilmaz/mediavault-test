@@ -10,7 +10,6 @@ import { renderDiscoverCard } from "../components/discover-card";
 
 type ExploreTab = "discover" | "browse" | "search";
 
-/** Common shape every card renderer in this view normalizes to, whether the source was a TMDBSearchResult, a Recommendation, or a discover/search result. */
 interface ExploreCardData {
 	tmdbId: number;
 	mediaKind: "movie" | "tv";
@@ -26,12 +25,10 @@ export class ExploreView extends ItemView {
 	private activeTab: ExploreTab = "discover";
 	private ownedKeys: Set<string> = new Set();
 
-	// Browse state
 	private browseKind: "movie" | "tv" = "movie";
 	private browseFilters: DiscoverFilters = {};
 	private browseGenres: { id: number; name: string }[] = [];
 
-	// Search state
 	private searchQuery = "";
 	private searchDebounce: ReturnType<typeof setTimeout> | null = null;
 
@@ -61,7 +58,7 @@ export class ExploreView extends ItemView {
 	}
 
 	async onClose(): Promise<void> {
-		// Nothing to tear down — repositories are owned by the plugin.
+		// Nothing to clean up for now
 	}
 
 	async refresh(): Promise<void> {
@@ -100,8 +97,6 @@ export class ExploreView extends ItemView {
 		});
 	}
 
-	// ---- Discover: Trending / Popular / Recommended ----
-
 	private async renderDiscoverTab(body: HTMLElement): Promise<void> {
 		const loading = body.createEl("p", { cls: "mediavault-empty-state", text: "Loading..." });
 
@@ -138,8 +133,6 @@ export class ExploreView extends ItemView {
 			return;
 		}
 
-		// Genres/actors/ratings/watch history/comfort tags/favorites, per the roadmap — exactly the
-		// factors buildRecommendations already scores on, so this reuses it rather than a second pass.
 		const combined: Recommendation[] = [...recs.similarToFavorites, ...recs.hiddenGems];
 		rowLoading.remove();
 
@@ -165,8 +158,6 @@ export class ExploreView extends ItemView {
 		this.renderRow(body, null, cards);
 	}
 
-	// ---- Browse ----
-
 	private async renderBrowseTab(body: HTMLElement): Promise<void> {
 		if (this.browseGenres.length === 0) {
 			this.browseGenres = await this.plugin.tmdb.getGenres(this.browseKind);
@@ -174,10 +165,6 @@ export class ExploreView extends ItemView {
 
 		const filterBar = body.createDiv({ cls: "mediavault-explore-filter-bar" });
 
-		// Primary row — always visible. Kind + genre are the filters people
-		// reach for first; everything else lives behind "More filters"
-		// (Mobile Milestone 3: Browse Filters) so a phone screen isn't
-		// immediately filled with six stacked desktop-style form rows.
 		const primaryRow = filterBar.createDiv({ cls: "mediavault-explore-filter-primary" });
 
 		const kindSelect = primaryRow.createEl("select");
@@ -286,8 +273,6 @@ export class ExploreView extends ItemView {
 		}
 	}
 
-	// ---- Search ----
-
 	private async renderSearchTab(body: HTMLElement): Promise<void> {
 		const input = body.createEl("input", {
 			type: "text",
@@ -332,8 +317,6 @@ export class ExploreView extends ItemView {
 			loading.setText(`Search failed — ${(err as Error).message}`);
 		}
 	}
-
-	// ---- Shared card rendering ----
 
 	private renderRow(container: HTMLElement, heading: string | null, cards: ExploreCardData[]): void {
 		if (cards.length === 0) return;
