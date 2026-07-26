@@ -2,7 +2,13 @@
 
 All notable changes to MediaVault are documented in this file.
 
-## [4.24.0] — Browse Grid Fix & Safer Delete Actions
+## [4.25.0] — TV Series Import Watch Logs & Episode Rewatch UX
+
+- GDPR import: root cause was `applyWatch` writing episode progress directly (`storage.episodeProgress.markWatched`) for performance on 10k+ record archives, bypassing the `markSeasonWatched`/`markEpisodeWatched` funnel that normally auto-logs series completion. Added a pre-import "was already complete" snapshot per series (mirroring `markSeasonWatched`'s own guard) and a post-batch pass reusing the now-exported `isSeriesFullyWatched` + `addWatchSession` — a finished imported show now gets exactly one series-level Watch History entry, using the latest imported watched date when available. Idempotent re-imports and already-finished shows create nothing new.
+- Episode favorite toggle moved from the episode list row into Episode Details' hero (reuses the same `.mediavault-fav-btn` class/behavior as Movie/TV Details).
+- Episode list row no longer has a favorite star; Episode Details' "+ Add another episode watch" button is now "+1 Rewatch · Watched ×N", showing the live watch count (updates via the same re-render as before). Still only ever calls `addEpisodeWatch` (EpisodeWatch only — no WatchSession/series-completion impact on repeat watches, since `markEpisodeWatched`'s completion check is a no-op when the series was already complete).
+
+
 
 - Explore Browse/Search grid: removed the parallel `.mediavault-explore-grid` CSS/class entirely — now renders directly into the literal `.mediavault-grid` container (same class as Library), with cards using `.mediavault-card`/`.mediavault-card-poster` (grid layout mode in the shared `renderDiscoverCard`), so there's truly one grid implementation, not two kept in sync.
 - List item removal (list detail's ✕ button, Add-to-List modal's uncheck) now shows a native confirm dialog clarifying only list membership is affected, not the library item itself.

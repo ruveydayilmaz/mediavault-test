@@ -182,7 +182,7 @@ export async function markSeasonWatched(
  * an already-complete show, or a show with zero imported episodes, never
  * creates one.
  */
-async function isSeriesFullyWatched(storage: StorageService, mediaId: MediaVaultId): Promise<boolean> {
+export async function isSeriesFullyWatched(storage: StorageService, mediaId: MediaVaultId): Promise<boolean> {
 	const [allEpisodes, progress] = await Promise.all([
 		storage.episodes.findByMediaId(mediaId),
 		storage.episodeProgress.findByMediaId(mediaId),

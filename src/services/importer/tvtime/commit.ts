@@ -9,6 +9,7 @@ import { importEpisodesForShow } from "../../episode-import";
 import { findBestMatch, MatchTier } from "../tmdb-match";
 import { NormalizedImportBundle, WatchImport, ReviewImport, LikeImport, RatingImport, ListImport, ExternalIds, ImportMediaKind, MatchMetadata } from "./types";
 import { recalculateAndPersistStatus } from "../../status-service";
+import { isSeriesFullyWatched } from "../../episode-status-sync";
 import { ImportTimer } from "../import-timer";
 import { mapWithConcurrency } from "../concurrency";
 
@@ -310,7 +311,9 @@ async function applyWatch(
 	media: MediaItem,
 	report: ImportReport,
 	episodeIndexes: Map<string, Map<string, Episode>>,
-	affectedSeries: Set<string>
+	affectedSeries: Set<string>,
+	seriesLatestWatchedDate: Map<string, string>,
+	wasSeriesCompleteBeforeImport: Map<string, boolean>
 ): Promise<void> {
 	if (watch.kind === "movie") {
 		await addWatchSession(storage, {
@@ -355,6 +358,14 @@ async function applyWatch(
 	// event, which makes a 10k+ archive needlessly quadratic. Progress and the
 	// event timeline are updated now; statuses are recalculated once per show
 	// after the batch below.
+	// Snapshot "was this series already fully watched?" the first time we
+	// see it in this import — mirrors markSeasonWatched's own guard so a
+	// show that's already complete (or a re-import of the same archive)
+	// never creates a second series-level Watch History entry.
+	if (!wasSeriesCompleteBeforeImport.has(media.id)) {
+		wasSeriesCompleteBeforeImport.set(media.id, await isSeriesFullyWatched(storage, media.id));
+	}
+
 	await storage.episodeWatches.create({
 		mediaId: episode.mediaId,
 		episodeId: episode.id,
@@ -366,6 +377,17 @@ async function applyWatch(
 	});
 	await storage.episodeProgress.markWatched(episode, true, watch.watchedAt ?? undefined);
 	affectedSeries.add(media.id);
+
+	// Track the latest known watched date for this series across all its
+	// imported episode events, so that if this import is the one that
+	// completes the show, the series-level Watch History entry can use a
+	// real imported date instead of always falling back to "today".
+	const watchedDate = watch.watchedAt;
+	if (watchedDate) {
+		const current = seriesLatestWatchedDate.get(media.id);
+		if (!current || watchedDate > current) seriesLatestWatchedDate.set(media.id, watchedDate);
+	}
+
 	report.episodesUpdated++;
 	report.episodeWatchesImported++;
 	report.matchedEpisodes++;
@@ -676,6 +698,8 @@ export async function commitBundle(
 	const resolver = new MediaResolver(storage, tmdb, report, timer);
 	const episodeIndexes = new Map<string, Map<string, Episode>>();
 	const affectedSeries = new Set<string>();
+	const seriesLatestWatchedDate = new Map<string, string>();
+	const wasSeriesCompleteBeforeImport = new Map<string, boolean>();
 
 	const total =
 		bundle.watches.length +
@@ -744,7 +768,7 @@ export async function commitBundle(
 				report.skipped++;
 				trackSkip(report, "No media match — watch not imported");
 			} else {
-				await applyWatch(storage, tmdb, watch, media, report, episodeIndexes, affectedSeries);
+				await applyWatch(storage, tmdb, watch, media, report, episodeIndexes, affectedSeries, seriesLatestWatchedDate, wasSeriesCompleteBeforeImport);
 			}
 			tick("Watch history");
 		}
@@ -823,6 +847,22 @@ export async function commitBundle(
 			await recalculateAndPersistStatus(storage, mediaId);
 		}
 	});
+
+	// Finished TV series should create a Watch History entry exactly like
+	// finishing a show manually does (markSeasonWatched) — reusing the same
+	// isSeriesFullyWatched/addWatchSession pair, guarded by the pre-import
+	// snapshot so an already-finished show, or re-importing the same
+	// archive, never creates a duplicate entry.
+	for (const mediaId of affectedSeries) {
+		const wasComplete = wasSeriesCompleteBeforeImport.get(mediaId) ?? false;
+		if (wasComplete) continue;
+		const isCompleteNow = await isSeriesFullyWatched(storage, mediaId);
+		if (!isCompleteNow) continue;
+		await addWatchSession(storage, {
+			mediaId,
+			watchDate: seriesLatestWatchedDate.get(mediaId) ?? new Date().toISOString().slice(0, 10),
+		});
+	}
 
 	for (const warning of bundle.warnings) {
 		report.skipped++;

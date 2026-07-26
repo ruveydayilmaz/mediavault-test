@@ -1230,23 +1230,6 @@ export class MediaDetailModal extends Modal {
 			text: [episode.airDate, formatEpisodeRuntime(episode.runtime)].filter(Boolean).join(" · "),
 		});
 
-		const favBtn = row.createEl("button", {
-			cls: `clickable-icon mediavault-fav-btn ${progress?.isFavorite ? "is-favorite" : ""}`,
-			text: progress?.isFavorite ? "★" : "☆",
-		});
-		favBtn.setAttr("aria-label", "Toggle favorite episode");
-		favBtn.addEventListener("click", async () => {
-			const current = await this.storage.episodeProgress.findByEpisodeId(episode.id);
-			if (current) {
-				await this.storage.episodeProgress.update(current.id, { isFavorite: !current.isFavorite });
-			} else {
-				// Favoriting an unwatched episode still needs a progress record to hang the flag on.
-				const created = await markEpisodeWatched(this.storage, episode, false);
-				await this.storage.episodeProgress.update(created.id, { isFavorite: true });
-			}
-			await this.render();
-			this.onChanged?.();
-		});
 	}
 
 	private async markEpisodeWatchedWithSmartCompletion(episode: Episode): Promise<void> {
@@ -1342,7 +1325,29 @@ export class MediaDetailModal extends Modal {
 		hero.createDiv({ cls: "mediavault-detail-banner-overlay" });
 
 		const heroContent = hero.createDiv({ cls: "mediavault-detail-hero-content" });
-		heroContent.createEl("h2", { cls: "mediavault-episode-hero-title", text: episode.title });
+		const titleRow = heroContent.createDiv({ cls: "mediavault-detail-title-row" });
+		titleRow.createEl("h2", { cls: "mediavault-episode-hero-title", text: episode.title });
+
+		const favBtn = titleRow.createEl("button", { cls: "clickable-icon mediavault-fav-btn" });
+		favBtn.setAttr("aria-label", "Toggle favorite episode");
+		void this.storage.episodeProgress.findByEpisodeId(episode.id).then((progress) => {
+			favBtn.toggleClass("is-favorite", !!progress?.isFavorite);
+			favBtn.setText(progress?.isFavorite ? "★" : "☆");
+		});
+		favBtn.addEventListener("click", async (evt) => {
+			evt.stopPropagation();
+			const current = await this.storage.episodeProgress.findByEpisodeId(episode.id);
+			if (current) {
+				await this.storage.episodeProgress.update(current.id, { isFavorite: !current.isFavorite });
+			} else {
+				// Favoriting an unwatched episode still needs a progress record to hang the flag on.
+				const created = await markEpisodeWatched(this.storage, episode, false);
+				await this.storage.episodeProgress.update(created.id, { isFavorite: true });
+			}
+			this.onChanged?.();
+			await this.render();
+		});
+
 		heroContent.createDiv({
 			cls: "mediavault-detail-meta",
 			text: `Season ${episode.seasonNumber} • Episode ${episode.episodeNumber}`,
@@ -1401,7 +1406,10 @@ export class MediaDetailModal extends Modal {
 
 		watches.forEach((watch, i) => this.renderEpisodeWatchCard(reviewSection, episode, watch, i + 1));
 
-		const addBtn = reviewSection.createEl("button", { cls: "mediavault-add-watch-btn", text: "+ Add another episode watch" });
+		const addBtn = reviewSection.createEl("button", {
+			cls: "mediavault-add-watch-btn",
+			text: `+1 Rewatch  ·  Watched ×${watches.length}`,
+		});
 		addBtn.addEventListener("click", async () => {
 			await addEpisodeWatch(this.storage, episode);
 			this.plugin?.refreshLibraryViews();
