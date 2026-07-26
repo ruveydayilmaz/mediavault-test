@@ -3165,6 +3165,10 @@
 	object-fit: cover;
 }
 
+.mediavault-explore-poster-interactive {
+	cursor: pointer;
+}
+
 .mediavault-explore-info {
 	display: flex;
 	flex-direction: column;

@@ -25,7 +25,8 @@ export async function renderFavoritesSection(
 	onTabChange: (tab: "movies" | "shows") => void,
 	onViewAll: () => void,
 	onOpen: (item: MediaItem) => void,
-	responsive: FavoritesResponsiveOptions
+	responsive: FavoritesResponsiveOptions,
+	onArrowClick?: (tab: "movies" | "shows") => void
 ): Promise<void> {
 	container.empty();
 
@@ -80,7 +81,7 @@ export async function renderFavoritesSection(
 	});
 	setIcon(mobileArrow, "chevron-right");
 	mobileArrow.setAttr("aria-label", "View all favorites");
-	mobileArrow.onclick = onViewAll;
+	mobileArrow.onclick = () => (onArrowClick ? onArrowClick(activeTab) : onViewAll());
 
 	const items = activeTab === "movies" ? movies : shows;
 

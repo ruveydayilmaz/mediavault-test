@@ -19,6 +19,7 @@ import { renderFavoritesSection } from "../components/favorites-carousel";
 import { renderCustomListsCarousel } from "../components/custom-lists-carousel";
 import { ListDetailModal } from "../modals/list-detail-modal";
 import { tmdbImageUrl } from "../../api/tmdb-normalize";
+import { getSystemFavoriteLists } from "../../services/list-service";
 import {
 	FilterCriteria,
 	DEFAULT_FILTER_CRITERIA,
@@ -233,7 +234,12 @@ export class LibraryView extends ItemView {
 				})();
 			},
 			(item) => this.openDetail(item),
-			{ visibleCount: this.favoritesVisibleCount, fillPlaceholders: Platform.isMobile }
+			{ visibleCount: this.favoritesVisibleCount, fillPlaceholders: Platform.isMobile },
+			async (tab) => {
+				const allForLists = await this.plugin.storage.media.getAll();
+				const [movieList, tvList] = getSystemFavoriteLists(allForLists, this.plugin.storage.settings.get());
+				new ListDetailModal(this.app, this.plugin, tab === "movies" ? movieList : tvList).open();
+			}
 		);
 	}
 

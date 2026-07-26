@@ -2,7 +2,12 @@
 
 All notable changes to MediaVault are documented in this file.
 
-## [4.22.0] — Library UX Improvements & Genre Filter Redesign
+## [4.23.0] — Favorites Navigation Fix & Browse Grid Layout
+
+- Favorites arrow now opens the corresponding built-in Favorite Movies/TV Series list detail directly (new `onArrowClick` callback, separate from the desktop View All button), skipping the Favorite Lists picker page entirely.
+- Explore Browse/Search grid: root cause was `.mediavault-explore-card`'s hardcoded `width: 140px` fighting the CSS grid's own column-track sizing. Added a `layout: "grid"` mode to the shared `renderDiscoverCard` that reuses the Library's width-less `.mediavault-card`/`.mediavault-card-poster` classes instead, so the grid tracks — not a hardcoded width — control sizing. Rows (Discover/Recommendations) keep the fixed-width row layout unchanged.
+
+
 
 - Favorites arrow now opens the "View All" filtered library page (Movies or TV, based on active tab), matching the desktop button instead of the built-in Favorite Lists picker.
 - Library tab strip: preserved horizontal scrollLeft across re-renders (was reset to 0 each time the bar was rebuilt).

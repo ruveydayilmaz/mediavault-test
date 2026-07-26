@@ -29,16 +29,19 @@ export interface DiscoverCardDeps {
 	app: App;
 	storage: StorageService;
 	tmdb: TMDBService;
+	/** "row" (default): fixed-width card for horizontal-scrolling rows (Explore Discover, Recommendations). "grid": reuses the Library's own width-less card/poster classes so a CSS grid's column tracks — not a hardcoded width — control sizing (Explore Browse/Search). */
+	layout?: "row" | "grid";
 	/** Whether this card's title is already in the library — shows "In library" instead of the add button. Omit to always show the add button. */
 	isOwned?: (card: DiscoverCardData) => boolean;
 	onAdded?: (card: DiscoverCardData) => void;
 }
 
-/** Renders one poster card into `container` using the shared Explore card classes/sizing. */
+/** Renders one poster card into `container` using the shared Explore/Library card classes/sizing. */
 export function renderDiscoverCard(container: HTMLElement, deps: DiscoverCardDeps, card: DiscoverCardData): void {
-	const el = container.createDiv({ cls: "mediavault-explore-card" });
+	const isGrid = deps.layout === "grid";
+	const el = container.createDiv({ cls: isGrid ? "mediavault-card" : "mediavault-explore-card" });
 
-	const poster = el.createDiv({ cls: "mediavault-explore-poster" });
+	const poster = el.createDiv({ cls: isGrid ? "mediavault-card-poster mediavault-explore-poster-interactive" : "mediavault-explore-poster" });
 	const posterUrl = tmdbImageUrl(card.posterPath, "w200");
 	if (posterUrl) poster.createEl("img", { attr: { src: posterUrl, alt: card.title, loading: "lazy" } });
 	else poster.setText("🎬");
