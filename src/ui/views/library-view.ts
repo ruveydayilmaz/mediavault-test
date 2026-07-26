@@ -18,7 +18,7 @@ import { StatsBar } from "../components/stats-bar";
 import { renderFavoritesSection } from "../components/favorites-carousel";
 import { renderCustomListsCarousel } from "../components/custom-lists-carousel";
 import { ListDetailModal } from "../modals/list-detail-modal";
-import { FavoriteListsModal } from "../modals/favorite-lists-modal";
+import { tmdbImageUrl } from "../../api/tmdb-normalize";
 import {
 	FilterCriteria,
 	DEFAULT_FILTER_CRITERIA,
@@ -224,7 +224,13 @@ export class LibraryView extends ItemView {
 				this.refreshFavorites(all);
 			},
 			() => {
-				new FavoriteListsModal(this.app, this.plugin).open();
+				this.query.filter = this.favoritesTab === "movies" ? "movies" : "shows";
+				this.filterCriteria.favoritesOnly = true;
+				this.query.page = 1;
+				void (async () => {
+					await this.refresh();
+					this.contentEl2.scrollIntoView({ behavior: "smooth", block: "start" });
+				})();
 			},
 			(item) => this.openDetail(item),
 			{ visibleCount: this.favoritesVisibleCount, fillPlaceholders: Platform.isMobile }
@@ -261,6 +267,7 @@ export class LibraryView extends ItemView {
 	 * never recomputes status itself.
 	 */
 	private renderTabs(all: MediaItem[]): void {
+		const prevScrollLeft = this.tabsEl.querySelector(".mediavault-progress-tabs")?.scrollLeft ?? 0;
 		this.tabsEl.empty();
 		const bar = this.tabsEl.createDiv({ cls: "mediavault-progress-tabs" });
 
@@ -277,6 +284,8 @@ export class LibraryView extends ItemView {
 				void this.refresh();
 			});
 		});
+
+		bar.scrollLeft = prevScrollLeft;
 	}
 
 	private renderFilterPanel(all: MediaItem[]): void {
@@ -301,7 +310,7 @@ export class LibraryView extends ItemView {
 		};
 
 		// Genre / Tags — multi-select checkboxes
-		this.renderMultiCheckGroup(panel, "Genre", options.genres, this.filterCriteria.genres, applyAndRefresh);
+		this.renderGenreSelector(panel, options.genres, all, applyAndRefresh);
 		this.renderMultiCheckGroup(panel, "Tags", options.tags, this.filterCriteria.tags, applyAndRefresh);
 
 		// Actor / Director / Studio — searchable multi-select via datalist-backed text input
@@ -403,6 +412,73 @@ export class LibraryView extends ItemView {
 		resetBtn.addEventListener("click", () => {
 			this.filterCriteria = { ...DEFAULT_FILTER_CRITERIA };
 			applyAndRefresh();
+		});
+	}
+
+	/**
+	 * Visual genre filter (replaces the old checkbox list): a 3-row
+	 * horizontal-scrolling grid of cards, each with a background image
+	 * (cached permanently in settings, resolved once from the first
+	 * locally-owned title in that genre) and a dark overlay with the
+	 * genre name. Clicking toggles selection — reuses the exact same
+	 * `filterCriteria.genres` array and `onChange` refresh callback as
+	 * every other filter, so the actual filtering logic is unchanged.
+	 */
+	private renderGenreSelector(panel: HTMLElement, genres: string[], all: MediaItem[], onChange: () => void): void {
+		if (genres.length === 0) return;
+		const row = panel.createDiv({ cls: "mediavault-filter-row" });
+		row.createSpan({ cls: "mediavault-filter-label", text: "Genre" });
+
+		const grid = row.createDiv({ cls: "mediavault-genre-grid" });
+		const settings = this.plugin.storage.settings.get();
+		const cache = settings.genreImageCache;
+		const toResolve: string[] = [];
+
+		genres.forEach((genre) => {
+			const card = grid.createDiv({ cls: "mediavault-genre-card" });
+			card.toggleClass("is-selected", this.filterCriteria.genres.includes(genre));
+
+			const cachedUrl = cache[genre];
+			if (cachedUrl) {
+				card.style.backgroundImage = `url(${cachedUrl})`;
+			} else {
+				toResolve.push(genre);
+			}
+			card.createDiv({ cls: "mediavault-genre-card-overlay" });
+			card.createDiv({ cls: "mediavault-genre-card-name", text: genre });
+
+			card.addEventListener("click", () => {
+				const idx = this.filterCriteria.genres.indexOf(genre);
+				if (idx >= 0) this.filterCriteria.genres.splice(idx, 1);
+				else this.filterCriteria.genres.push(genre);
+				card.toggleClass("is-selected", this.filterCriteria.genres.includes(genre));
+				onChange();
+			});
+		});
+
+		if (toResolve.length > 0) {
+			void this.resolveGenreImages(toResolve, all, grid);
+		}
+	}
+
+	/** Resolves and permanently caches a background image for each genre that doesn't have one yet — never re-resolved once cached, even if the source title is later removed. */
+	private async resolveGenreImages(genresNeeded: string[], all: MediaItem[], grid: HTMLElement): Promise<void> {
+		const updates: Record<string, string> = {};
+		for (const genre of genresNeeded) {
+			const source = all.find((m) => m.genres.includes(genre) && (m.backdropPath || m.posterPath));
+			if (!source) continue;
+			const url = tmdbImageUrl(source.backdropPath ?? source.posterPath, "w500");
+			if (url) updates[genre] = url;
+		}
+		if (Object.keys(updates).length === 0) return;
+
+		const current = this.plugin.storage.settings.get().genreImageCache;
+		await this.plugin.storage.settings.update({ genreImageCache: { ...current, ...updates } });
+
+		const cards = Array.from(grid.querySelectorAll<HTMLElement>(".mediavault-genre-card"));
+		cards.forEach((card) => {
+			const name = card.querySelector(".mediavault-genre-card-name")?.textContent;
+			if (name && updates[name]) card.style.backgroundImage = `url(${updates[name]})`;
 		});
 	}
 
@@ -750,7 +826,10 @@ export class LibraryView extends ItemView {
 		prevBtn.disabled = page <= 1;
 		prevBtn.addEventListener("click", () => {
 			this.query.page = page - 1;
-			void this.refresh();
+			void (async () => {
+				await this.refresh();
+				this.contentEl2.scrollIntoView({ behavior: "smooth", block: "start" });
+			})();
 		});
 
 		pagination.createSpan({ cls: "mediavault-pagination-info", text: `Page ${page} of ${totalPages} (${total} items)` });
@@ -761,7 +840,10 @@ export class LibraryView extends ItemView {
 		nextBtn.disabled = page >= totalPages;
 		nextBtn.addEventListener("click", () => {
 			this.query.page = page + 1;
-			void this.refresh();
+			void (async () => {
+				await this.refresh();
+				this.contentEl2.scrollIntoView({ behavior: "smooth", block: "start" });
+			})();
 		});
 	}
 }

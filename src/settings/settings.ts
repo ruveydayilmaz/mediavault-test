@@ -105,6 +105,15 @@ export interface MediaVaultSettings {
 	 */
 	favoriteListSortModes: { movies: ListSortMode; tv: ListSortMode };
 	favoriteListManualOrder: { movies: string[]; tv: string[] };
+
+	/**
+	 * Cached genre-card background image URLs for the visual genre filter
+	 * (genre name -> TMDB image URL). Populated lazily, once per genre,
+	 * from the first locally-owned title in that genre — never
+	 * re-resolved once cached, per spec, so genre art stays stable even if
+	 * that title is later removed from the library.
+	 */
+	genreImageCache: Record<string, string>;
 }
 
 export const DEFAULT_SETTINGS: MediaVaultSettings = {
@@ -147,4 +156,5 @@ export const DEFAULT_SETTINGS: MediaVaultSettings = {
 	showAdultContent: false,
 	favoriteListSortModes: { movies: "recent", tv: "recent" },
 	favoriteListManualOrder: { movies: [], tv: [] },
+	genreImageCache: {},
 };

@@ -2,7 +2,16 @@
 
 All notable changes to MediaVault are documented in this file.
 
-## [4.21.1] — Regression Fix: Favorites Carousel Disappeared
+## [4.22.0] — Library UX Improvements & Genre Filter Redesign
+
+- Favorites arrow now opens the "View All" filtered library page (Movies or TV, based on active tab), matching the desktop button instead of the built-in Favorite Lists picker.
+- Library tab strip: preserved horizontal scrollLeft across re-renders (was reset to 0 each time the bar was rebuilt).
+- Pagination: smooth-scrolls the grid into view after changing pages.
+- Genre filter redesigned as a 3-row horizontal-scrolling visual grid (background image + dark overlay + centered name) — reuses the exact same `filterCriteria.genres` array/refresh callback as the old checkboxes. Images resolved once per genre from the first locally-owned title and cached permanently in a new `genreImageCache` setting; never re-resolved once cached.
+- Added a global delegated "Done" keyboard handler (`enterkeyhint="done"` + Enter-blurs) for single-line `<input>` elements across the plugin.
+- Added a base input-visibility rule (background/border via Obsidian's own `--background-modifier-form-field`) scoped to `[class*="mediavault-"]`, placed early in the cascade so any more specific existing input styling still wins.
+
+
 
 - Root cause: `SettingsRepository.get()` only ever returned settings.json as-stored; new optional fields (`favoriteListSortModes`/`favoriteListManualOrder`) are only backfilled during a schema-version-bump migration, which doesn't run for vaults already on the current version. `getSystemFavoriteLists()` read `settings.favoriteListSortModes.movies` on an object missing that key entirely, throwing and silently killing the whole Favorites section render. `get()`/`update()` now always merge against `DEFAULT_SETTINGS` first, fixing this for every settings field added this way (not just the new ones).
 

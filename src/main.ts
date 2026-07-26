@@ -60,6 +60,7 @@ export default class MediaVaultPlugin extends Plugin {
 
 		this.setupTraktAutoSync();
 		this.setupNotificationSchedule();
+		this.setupInputKeyboardUX();
 
 		this.registerView(VIEW_TYPE_LIBRARY, (leaf) => new LibraryView(leaf, this));
 		this.registerView(VIEW_TYPE_ANALYTICS, (leaf) => new AnalyticsView(leaf, this));
@@ -513,6 +514,33 @@ export default class MediaVaultPlugin extends Plugin {
 		} catch (err) {
 			new Notice(`MediaVault: Trakt sync failed — ${(err as Error).message}`);
 		}
+	}
+
+	private setupInputKeyboardUX(): void {
+		const isOurs = (el: Element): boolean => !!el.closest('[class*="mediavault-"]');
+
+		this.registerDomEvent(document, "focusin", (evt) => {
+			const target = evt.target;
+			if (!(target instanceof HTMLInputElement)) return;
+			if (!isOurs(target)) return;
+			const textLike = ["text", "search", "number", "email", "url", "tel"];
+			if (textLike.includes(target.type) && !target.hasAttribute("enterkeyhint")) {
+				target.setAttribute("enterkeyhint", "done");
+			}
+		});
+
+		// Single-line <input> elements: Enter (including the mobile "Done" key,
+		// which dispatches a normal Enter keydown) blurs the field, dismissing
+		// the keyboard. Textareas are excluded — Enter there is content
+		// (newline), not "finish typing"; the comment composer has its own
+		// dedicated Done button for that case.
+		this.registerDomEvent(document, "keydown", (evt) => {
+			if (evt.key !== "Enter") return;
+			const target = evt.target;
+			if (!(target instanceof HTMLInputElement)) return;
+			if (!isOurs(target)) return;
+			target.blur();
+		});
 	}
 
 	private setupTraktAutoSync(): void {

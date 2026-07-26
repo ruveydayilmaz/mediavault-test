@@ -1,7 +1,7 @@
 import { setIcon } from "obsidian";
 import { MediaItem } from "../../models/media";
 import { StorageService } from "../../services/storage";
-import { renderPoster } from "./media-render";
+import { renderPoster, progressFillClasses, getMediaPercentWatched } from "./media-render";
 import { createCarousel } from "./carousel";
 import { getSystemFavoriteLists, sortListMedia } from "../../services/list-service";
 
@@ -92,7 +92,8 @@ export async function renderFavoritesSection(
 	const cardWidth = `calc((100% - ${(visibleCount - 1) * 12}px) / ${visibleCount})`;
 
 	for (const item of items) {
-		const card = buildFavoriteCard(item, onOpen);
+		const progress = await getMediaPercentWatched(storage, item);
+		const card = buildFavoriteCard(item, progress, onOpen);
 		card.style.width = cardWidth;
 		track.appendChild(card);
 	}
@@ -113,7 +114,7 @@ function buildPlaceholderCard(): HTMLElement {
 	return card;
 }
 
-function buildFavoriteCard(item: MediaItem, onOpen: (item: MediaItem) => void): HTMLElement {
+function buildFavoriteCard(item: MediaItem, percentWatched: number | null, onOpen: (item: MediaItem) => void): HTMLElement {
 	const card = document.createElement("div");
 	card.addClass("mediavault-favorite-card");
 
@@ -124,6 +125,19 @@ function buildFavoriteCard(item: MediaItem, onOpen: (item: MediaItem) => void): 
 	});
 
 	renderPoster(poster, item, "w200");
+
+	if (percentWatched !== null) {
+		const progress = poster.createDiv({
+			cls: "mediavault-favorite-progress",
+		});
+
+		progress.createDiv({
+			cls: progressFillClasses("mediavault-favorite-progress-fill", item.status),
+			attr: {
+				style: `width:${Math.round(percentWatched)}%`,
+			},
+		});
+	}
 
 	return card;
 }
