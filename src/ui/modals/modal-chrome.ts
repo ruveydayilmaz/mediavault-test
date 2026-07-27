@@ -19,14 +19,18 @@ import { Modal, setIcon } from "obsidian";
  * closing the modal", which is the spec'd fallback — no separate
  * previous-screen bookkeeping needed.
  */
-export function renderMobileBackButton(modal: Modal, container: HTMLElement): void {
+export function renderMobileBackButton(modal: Modal, container: HTMLElement, onBack?: () => void): void {
 	const btn = container.createDiv({ cls: "mediavault-modal-back" });
 	setIcon(btn, "arrow-left");
 	btn.setAttribute("aria-label", "Back");
 	btn.setAttribute("role", "button");
 	btn.addEventListener("click", (evt) => {
 		evt.stopPropagation();
-		modal.close();
+		if (onBack) {
+			onBack();
+		} else {
+			modal.close();
+		}
 	});
 }
 

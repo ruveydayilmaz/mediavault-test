@@ -29,6 +29,7 @@ import { runNotificationCheck, shouldRunDailyCheck } from "./services/notificati
 import type { MediaItem } from "./models/media";
 import type { Episode } from "./models/episode";
 import { MediaType } from "./types/enums";
+import { applyAndroidBodyClass } from "./utils/platform";
 
 export default class MediaVaultPlugin extends Plugin {
 	storage!: StorageService;
@@ -40,6 +41,8 @@ export default class MediaVaultPlugin extends Plugin {
 
 	async onload() {
 		console.log(`Loading ${PLUGIN_NAME}`);
+
+		applyAndroidBodyClass();
 
 		this.storage = new StorageService(this);
 		await this.storage.initialize();

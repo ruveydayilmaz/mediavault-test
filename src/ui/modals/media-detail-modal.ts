@@ -63,6 +63,7 @@ export class MediaDetailModal extends Modal {
 	private descriptionExpanded = false;
 	private selectedEpisode: Episode | null = null;
 	private tabBeforeEpisodeDetail: DetailTab = "episodes";
+	private episodesScrollTop = 0;
 
 	constructor(
 		app: App,
@@ -129,7 +130,7 @@ export class MediaDetailModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.addClass("mediavault-detail-modal");
-		renderMobileBackButton(this, contentEl);
+		renderMobileBackButton(this, contentEl, () => this.handleBack());
 
 		const fresh = await this.storage.media.findById(this.media.id);
 		if (fresh) this.media = fresh;
@@ -145,6 +146,13 @@ export class MediaDetailModal extends Modal {
 
 		if (this.activeTab === "episodes" && this.media.type === MediaType.TVShow) {
 			await this.renderEpisodesTab(contentEl);
+			if (this.episodesScrollTop > 0) {
+				const restoreTarget = this.episodesScrollTop;
+				this.episodesScrollTop = 0;
+				requestAnimationFrame(() => {
+					contentEl.scrollTop = restoreTarget;
+				});
+			}
 		} else if (this.activeTab === "comments") {
 			await this.renderCommentsTab(contentEl);
 		} else if (this.activeTab === "cast") {
@@ -152,6 +160,27 @@ export class MediaDetailModal extends Modal {
 		} else {
 			await this.renderWatchHistoryTab(contentEl);
 		}
+	}
+
+	/**
+	 * Back-button handler for the modal's top-left back affordance. When
+	 * viewing Episode Detail this returns to the parent tab (Episodes, in
+	 * the normal flow) instead of closing the whole modal — the previous
+	 * regression was that this always called `modal.close()`, which popped
+	 * all the way back to the Library. Season/accordion expansion state
+	 * lives in `expandedSeasons` already and survives re-render untouched;
+	 * scroll position is captured in `openEpisodeDetail` and reapplied once
+	 * the Episodes tab content is back in the DOM. Everywhere else, Back
+	 * still just closes the modal (unchanged behavior).
+	 */
+	private handleBack(): void {
+		if (this.activeTab === "episode-detail") {
+			this.activeTab = this.tabBeforeEpisodeDetail;
+			this.selectedEpisode = null;
+			void this.render();
+			return;
+		}
+		this.close();
 	}
 
 	private async renderHeader(contentEl: HTMLElement): Promise<void> {
@@ -1193,7 +1222,10 @@ export class MediaDetailModal extends Modal {
 	}
 
 	private openEpisodeDetail(episode: Episode): void {
-		this.tabBeforeEpisodeDetail = this.activeTab === "episode-detail" ? this.tabBeforeEpisodeDetail : this.activeTab;
+		if (this.activeTab !== "episode-detail") {
+			this.tabBeforeEpisodeDetail = this.activeTab;
+			this.episodesScrollTop = this.contentEl.scrollTop;
+		}
 		this.selectedEpisode = episode;
 		this.activeTab = "episode-detail";
 		void this.render();

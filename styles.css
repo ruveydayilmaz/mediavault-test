@@ -309,6 +309,7 @@
 	flex-shrink: 0;
 	min-height: 220px;
 	display: flex;
+	flex-wrap: wrap;
 	align-items: flex-end;
 	background: var(--background-modifier-border);
 }
@@ -1068,6 +1069,7 @@
 
 /* Partial-watch resume UI (Milestone 3: Partially Watched Movies) */
 .mediavault-movie-progress-wrap {
+	flex: 1 0 100%;
 	width: 100%;
 	padding-top: 6px;
 }
@@ -1488,6 +1490,15 @@
 .mediavault-comfort-flags {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+/* Android-only: toggling one comfort switch was repainting every switch
+   below it because the grid had no containment boundary, so Android's
+   compositor treated the whole grid as one paint region. Scoping each
+   setting-item's layout/paint to itself stops that cascade without
+   touching iOS or desktop rendering. */
+body.mediavault-android .mediavault-comfort-flags .setting-item {
+	contain: layout paint style;
 }
 
 .mediavault-comfort-multitoggle {
@@ -2358,6 +2369,23 @@
 	align-items: center;
 	gap: 8px;
 	flex-wrap: wrap;
+}
+
+.mediavault-filter-panel select {
+	height: 34px;
+	min-height: 34px;
+	padding: 0 6px;
+	line-height: 1;
+}
+
+.mediavault-filter-runtime-input {
+	width: 72px;
+	height: 34px;
+}
+
+.mediavault-filter-runtime-unit {
+	color: var(--text-muted);
+	font-size: 0.85em;
 }
 
 .mediavault-filter-label {
@@ -3562,6 +3590,26 @@
 
 .is-phone .mediavault-library-toolbar {
 	flex-wrap: wrap;
+}
+
+/* Android-only (Milestone: Android Bottom Safe Area): on devices showing
+   the 3-button/pill system navigation bar, Obsidian's floating mobile
+   toolbar plus that nav bar can cover the pagination controls. On
+   gesture-navigation Android devices env(safe-area-inset-bottom) resolves
+   to ~0, so this naturally adds nothing there — no separate gesture-nav
+   detection needed. iOS already gets its own safe-area handling above and
+   is untouched here. */
+body.mediavault-android .mediavault-pagination {
+	padding-bottom: max(0px, env(safe-area-inset-bottom));
+}
+
+body.mediavault-android .modal:has(> .modal-content[class*="mediavault-"]):not(.mediavault-detail-modal) > .modal-content {
+	padding-top: max(24px, env(safe-area-inset-top));
+}
+
+body.mediavault-android .mediavault-modal-back,
+body.mediavault-android .mediavault-detail-menu-btn {
+	top: max(24px, env(safe-area-inset-top));
 }
 
 .is-phone .mediavault-list-tile-banner {

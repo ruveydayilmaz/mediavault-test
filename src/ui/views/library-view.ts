@@ -78,6 +78,8 @@ export class LibraryView extends ItemView {
 	private filterPanelOpen = false;
 
 	private contentEl2!: HTMLElement;
+	private viewRoot!: HTMLElement;
+	private collapseMinHeightHandler: (() => void) | null = null;
 	private statsEl!: HTMLElement;
 	private statsBar = new StatsBar();
 	private parentEl!: HTMLElement;
@@ -122,6 +124,7 @@ export class LibraryView extends ItemView {
 		const root = this.containerEl.children[1] as HTMLElement;
 		root.empty();
 		root.addClass("mediavault-library-root");
+		this.viewRoot = root;
 
 		this.statsEl = root.createDiv({ cls: "mediavault-stats-container" });
 		this.parentEl = root.createDiv({ cls: "mediavault-parent-container" });
@@ -172,6 +175,7 @@ export class LibraryView extends ItemView {
 
 	async onClose(): Promise<void> {
 		this.resizeObserver?.disconnect();
+		this.clearPendingMinHeightCollapse();
 	}
 
 	private defaultViewModeForTier(tier: ScreenTier): ViewMode {
@@ -357,31 +361,31 @@ export class LibraryView extends ItemView {
 			applyAndRefresh();
 		});
 		const runtimeMin = runtimeRow.createEl("input", {
-			type: "range",
-			attr: { min: "0", max: "3000", step: "5" },
+			cls: "mediavault-filter-runtime-input",
+			type: "number",
+			attr: { min: "0", step: "5", placeholder: "Min" },
 		});
-		runtimeMin.value = String(this.filterCriteria.runtimeMin ?? 0);
-		const runtimeMinLabel = runtimeRow.createSpan({ text: `${this.filterCriteria.runtimeMin ?? 0} min` });
-		runtimeMin.addEventListener("input", () => {
-			runtimeMinLabel.setText(`${runtimeMin.value} min`);
-		});
+		runtimeMin.value = this.filterCriteria.runtimeMin?.toString() ?? "";
+		runtimeRow.createSpan({ cls: "mediavault-filter-runtime-unit", text: "min" });
 		runtimeMin.addEventListener("change", () => {
-			const v = parseInt(runtimeMin.value, 10);
-			this.filterCriteria.runtimeMin = v > 0 ? v : undefined;
+			const parsed = parseInt(runtimeMin.value, 10);
+			const v = Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+			this.filterCriteria.runtimeMin = v;
+			runtimeMin.value = v?.toString() ?? "";
 			applyAndRefresh();
 		});
 		const runtimeMax = runtimeRow.createEl("input", {
-			type: "range",
-			attr: { min: "0", max: "3000", step: "5" },
+			cls: "mediavault-filter-runtime-input",
+			type: "number",
+			attr: { min: "0", step: "5", placeholder: "Max" },
 		});
-		runtimeMax.value = String(this.filterCriteria.runtimeMax ?? 3000);
-		const runtimeMaxLabel = runtimeRow.createSpan({ text: `${this.filterCriteria.runtimeMax ?? 3000} min` });
-		runtimeMax.addEventListener("input", () => {
-			runtimeMaxLabel.setText(`${runtimeMax.value} min`);
-		});
+		runtimeMax.value = this.filterCriteria.runtimeMax?.toString() ?? "";
+		runtimeRow.createSpan({ cls: "mediavault-filter-runtime-unit", text: "min" });
 		runtimeMax.addEventListener("change", () => {
-			const v = parseInt(runtimeMax.value, 10);
-			this.filterCriteria.runtimeMax = v < 3000 ? v : undefined;
+			const parsed = parseInt(runtimeMax.value, 10);
+			const v = Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+			this.filterCriteria.runtimeMax = v;
+			runtimeMax.value = v?.toString() ?? "";
 			applyAndRefresh();
 		});
 
@@ -689,6 +693,14 @@ export class LibraryView extends ItemView {
 	// ---- Content rendering ----
 
 	private renderContent(items: MediaItem[], total: number, page: number, totalPages: number): void {
+		// Milestone 5 (Library Tab Layout Stability): switching to a tab with
+		// fewer items shrinks the grid, which yanks the viewport upward if the
+		// user was scrolled down. Reserve the previous content height as a
+		// min-height across the re-render so the page doesn't jump, then drop
+		// it the moment the user scrolls so empty space doesn't linger forever.
+		const prevHeight = this.contentEl2.getBoundingClientRect().height;
+		this.clearPendingMinHeightCollapse();
+
 		this.contentEl2.empty();
 
 		if (total === 0) {
@@ -696,6 +708,7 @@ export class LibraryView extends ItemView {
 				cls: "mediavault-library-empty",
 				text: "No media matches your current filters.",
 			});
+			this.applyMinHeightReservation(prevHeight);
 			return;
 		}
 
@@ -708,6 +721,24 @@ export class LibraryView extends ItemView {
 		}
 
 		this.renderPagination(page, totalPages, total);
+		this.applyMinHeightReservation(prevHeight);
+	}
+
+	private applyMinHeightReservation(prevHeight: number): void {
+		if (prevHeight <= 0) return;
+		this.contentEl2.style.minHeight = `${prevHeight}px`;
+
+		const collapse = () => this.clearPendingMinHeightCollapse();
+		this.collapseMinHeightHandler = collapse;
+		this.viewRoot?.addEventListener("scroll", collapse, { passive: true });
+	}
+
+	private clearPendingMinHeightCollapse(): void {
+		this.contentEl2.style.minHeight = "";
+		if (this.collapseMinHeightHandler) {
+			this.viewRoot?.removeEventListener("scroll", this.collapseMinHeightHandler);
+			this.collapseMinHeightHandler = null;
+		}
 	}
 
 	private renderGrid(items: MediaItem[]): void {
