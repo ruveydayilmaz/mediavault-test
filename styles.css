@@ -85,6 +85,29 @@
 	align-items: center;
 }
 
+.mediavault-library-toolbar-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	flex: 0 0 auto;
+}
+
+.mediavault-library-toolbar-filter-group {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+/* Milestone: Library Toolbar Responsive Layout — extra bottom spacing is
+   only added once the toolbar has actually wrapped onto two rows (detected
+   in JS by comparing rendered positions, not a fixed breakpoint), so
+   pagination doesn't end up under Obsidian's floating nav bar when the
+   toolbar takes up more vertical space than usual. */
+.mediavault-library-root.mediavault-toolbar-wrapped .mediavault-library-content {
+	padding-bottom: 24px;
+}
+
 .mediavault-library-search {
 	flex: 1 1 200px;
 	min-width: 160px;
@@ -373,6 +396,15 @@
 	color: #fff;
 	margin: 0;
 	text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+	min-width: 0;
+	flex: 1 1 auto;
+	overflow-wrap: break-word;
+	word-break: break-word;
+}
+
+.mediavault-detail-hero-content .mediavault-detail-title-row {
+	min-width: 0;
+	align-items: flex-start;
 }
 
 .mediavault-detail-hero-content .mediavault-detail-meta {
@@ -1184,6 +1216,7 @@
 	cursor: pointer;
 	font-size: 1.5em;
 	color: var(--text-muted);
+	flex-shrink: 0;
 }
 
 .mediavault-fav-btn.is-favorite {
@@ -1492,13 +1525,26 @@
 	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
 }
 
-/* Android-only: toggling one comfort switch was repainting every switch
-   below it because the grid had no containment boundary, so Android's
-   compositor treated the whole grid as one paint region. Scoping each
-   setting-item's layout/paint to itself stops that cascade without
-   touching iOS or desktop rendering. */
+/* Android-only: CSS Grid's auto-fill recomputes column tracks for the
+   *entire* grid whenever any item's box changes size even fractionally —
+   Android's toggle-thumb transition and focus outline are enough to
+   trigger this. That forced every switch in the grid to reflow/repaint,
+   which is what looked like "the switches below flicker". Per-item
+   `contain` alone doesn't stop the grid's own track recalculation, so the
+   real fix is removing the shared-track dependency: flex-wrap with a fixed
+   basis lays each row out independently of its siblings' box changes.
+   Scoped to Android only; desktop/iOS keep the grid, which never showed
+   this symptom. */
+body.mediavault-android .mediavault-comfort-flags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0 12px;
+}
+
 body.mediavault-android .mediavault-comfort-flags .setting-item {
-	contain: layout paint style;
+	flex: 0 0 auto;
+	width: 220px;
+	contain: layout style;
 }
 
 .mediavault-comfort-multitoggle {
@@ -2376,6 +2422,33 @@ body.mediavault-android .mediavault-comfort-flags .setting-item {
 	min-height: 34px;
 	padding: 0 6px;
 	line-height: 1;
+}
+
+/* Android-only: the rule above alone did not shrink Android's <select>
+   because -webkit-appearance:menulist makes the browser render its own
+   native control chrome, which ignores the box's height/padding and sizes
+   itself from font-size/line-height plus OS-controlled internal padding.
+   Resetting appearance removes that native chrome so our explicit height
+   actually governs the rendered size; the native dropdown arrow disappears
+   with it, so a small CSS arrow is drawn back in. iOS's <select> (an
+   overlay wheel/menu) already respects the box height set above, so this
+   is scoped to Android only and leaves iOS/desktop untouched. */
+body.mediavault-android .mediavault-filter-panel select {
+	appearance: none;
+	-webkit-appearance: none;
+	height: 28px;
+	min-height: 28px;
+	line-height: 28px;
+	padding: 0 20px 0 6px;
+	font-size: 0.85em;
+	background-image:
+		linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+		linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+	background-position:
+		right 11px top 52%,
+		right 6px top 52%;
+	background-size: 5px 5px, 5px 5px;
+	background-repeat: no-repeat;
 }
 
 .mediavault-filter-runtime-input {

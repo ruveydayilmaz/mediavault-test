@@ -80,6 +80,9 @@ export class LibraryView extends ItemView {
 	private contentEl2!: HTMLElement;
 	private viewRoot!: HTMLElement;
 	private collapseMinHeightHandler: (() => void) | null = null;
+	private toolbarEl!: HTMLElement;
+	private toolbarSearchEl!: HTMLElement;
+	private toolbarActionsEl!: HTMLElement;
 	private statsEl!: HTMLElement;
 	private statsBar = new StatsBar();
 	private parentEl!: HTMLElement;
@@ -146,6 +149,8 @@ export class LibraryView extends ItemView {
 
 		this.resizeObserver = new ResizeObserver((entries) => {
 			const width = entries[0]?.contentRect.width ?? root.clientWidth;
+
+			this.updateToolbarWrapState();
 
 			const nextFavoritesCount = Platform.isMobile
 				? mobileGridColumnCount()
@@ -277,25 +282,34 @@ export class LibraryView extends ItemView {
 	 * never recomputes status itself.
 	 */
 	private renderTabs(all: MediaItem[]): void {
-		const prevScrollLeft = this.tabsEl.querySelector(".mediavault-progress-tabs")?.scrollLeft ?? 0;
-		this.tabsEl.empty();
-		const bar = this.tabsEl.createDiv({ cls: "mediavault-progress-tabs" });
+		const barEl: HTMLElement =
+			this.tabsEl.querySelector<HTMLElement>(".mediavault-progress-tabs") ??
+			this.tabsEl.createDiv({ cls: "mediavault-progress-tabs" });
 
-		PROGRESS_TABS.forEach((tab) => {
+		const existingButtons = Array.from(barEl.querySelectorAll<HTMLButtonElement>(".mediavault-progress-tab"));
+
+		PROGRESS_TABS.forEach((tab, i) => {
 			const count = tab.value === "all" ? all.length : applyProgressTab(all, tab.value).length;
-			const btn = bar.createEl("button", {
-				cls: "mediavault-progress-tab" + (this.query.progressTab === tab.value ? " is-active" : ""),
-				text: `${tab.label} (${count})`,
-			});
-			btn.addEventListener("click", () => {
-				if (this.query.progressTab === tab.value) return;
-				this.query.progressTab = tab.value;
-				this.query.page = 1;
-				void this.refresh();
-			});
+			const isActive = this.query.progressTab === tab.value;
+
+			let btn = existingButtons[i];
+			if (!btn) {
+				btn = barEl.createEl("button", { cls: "mediavault-progress-tab" });
+				btn.addEventListener("click", () => {
+					if (this.query.progressTab === tab.value) return;
+					this.query.progressTab = tab.value;
+					this.query.page = 1;
+					void this.refresh();
+				});
+			}
+			btn.setText(`${tab.label} (${count})`);
+			btn.toggleClass("is-active", isActive);
 		});
 
-		bar.scrollLeft = prevScrollLeft;
+		// Defensive cleanup if PROGRESS_TABS ever shrinks at runtime.
+		for (let i = PROGRESS_TABS.length; i < existingButtons.length; i++) {
+			existingButtons[i].remove();
+		}
 	}
 
 	private renderFilterPanel(all: MediaItem[]): void {
@@ -578,6 +592,7 @@ export class LibraryView extends ItemView {
 
 	private renderToolbar(root: HTMLElement): void {
 		const toolbar = root.createDiv({ cls: "mediavault-library-toolbar" });
+		this.toolbarEl = toolbar;
 
 		// Search
 		const searchInput = toolbar.createEl("input", {
@@ -585,6 +600,7 @@ export class LibraryView extends ItemView {
 			placeholder: "Search your library...",
 			cls: "mediavault-library-search",
 		});
+		this.toolbarSearchEl = searchInput;
 		searchInput.addEventListener("input", () => {
 			if (this.searchDebounce) clearTimeout(this.searchDebounce);
 			this.searchDebounce = setTimeout(() => {
@@ -594,8 +610,22 @@ export class LibraryView extends ItemView {
 			}, 250);
 		});
 
-		// Filter dropdown
-		const filterSelect = toolbar.createEl("select", { cls: "mediavault-library-filter" });
+		// Sort + Filter (+ page size, view toggle) are grouped into a single
+		// flex item so they wrap onto their own row together — "Search | Sort
+		// | Filter" on wide screens, "Search" then "Sort | Filter" once the
+		// row can no longer fit everything — driven purely by flex-wrap, not
+		// a hardcoded device-width check. Sort used to be skipped entirely on
+		// the "mobile" screenTier; that was the actual bug behind the
+		// non-responsive layout, since hiding it in JS meant no width could
+		// ever bring it back. It's now always rendered and CSS decides where
+		// it lands.
+		const actions = toolbar.createDiv({ cls: "mediavault-library-toolbar-actions" });
+		this.toolbarActionsEl = actions;
+
+		this.renderSortControls(actions);
+
+		const filterGroup = actions.createDiv({ cls: "mediavault-library-toolbar-filter-group" });
+		const filterSelect = filterGroup.createEl("select", { cls: "mediavault-library-filter" });
 		FILTER_OPTIONS.forEach((opt) => {
 			filterSelect.createEl("option", { value: opt.value, text: opt.label });
 		});
@@ -606,7 +636,7 @@ export class LibraryView extends ItemView {
 			void this.refresh();
 		});
 
-		this.filterToggleBtn = toolbar.createEl("button", { cls: "clickable-icon mediavault-filters-toggle" });
+		this.filterToggleBtn = filterGroup.createEl("button", { cls: "clickable-icon mediavault-filters-toggle" });
 		setIcon(this.filterToggleBtn, "sliders-horizontal");
 		this.filterToggleBtn.setAttr("aria-label", "Filters");
 		this.filterToggleBtn.addEventListener("click", () => {
@@ -615,12 +645,29 @@ export class LibraryView extends ItemView {
 		});
 
 		if (this.screenTier !== "mobile") {
-			this.renderSortControls(toolbar);
-			this.renderPageSizeControl(toolbar);
+			this.renderPageSizeControl(actions);
 		}
 
-		this.viewToggleEl = toolbar.createDiv({ cls: "mediavault-library-view-toggle" });
+		this.viewToggleEl = actions.createDiv({ cls: "mediavault-library-view-toggle" });
 		this.renderViewToggle();
+
+		requestAnimationFrame(() => this.updateToolbarWrapState());
+	}
+
+	/**
+	 * Detects whether the toolbar actually wrapped to a second row — by
+	 * comparing rendered positions rather than checking width against a
+	 * fixed breakpoint, since wrapping depends on real content (search
+	 * placeholder length, locale, font) not just viewport size. Toggles a
+	 * class the CSS uses to reserve extra bottom spacing only when needed,
+	 * so pagination doesn't end up under Obsidian's floating nav bar.
+	 */
+	private updateToolbarWrapState(): void {
+		if (!this.toolbarSearchEl || !this.toolbarActionsEl || !this.viewRoot) return;
+		const searchTop = this.toolbarSearchEl.getBoundingClientRect().top;
+		const actionsTop = this.toolbarActionsEl.getBoundingClientRect().top;
+		const wrapped = Math.round(actionsTop) > Math.round(searchTop) + 1;
+		this.viewRoot.toggleClass("mediavault-toolbar-wrapped", wrapped);
 	}
 
 	private renderSortControls(container: HTMLElement): void {
