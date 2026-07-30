@@ -1156,18 +1156,6 @@ export class MediaDetailModal extends Modal {
 			this.openEpisodeDetail(episode);
 		});
 
-		const checkbox = row.createEl("input", { type: "checkbox" });
-		checkbox.checked = progress?.watched ?? false;
-		checkbox.addEventListener("change", async () => {
-			if (checkbox.checked) {
-				await this.markEpisodeWatchedWithSmartCompletion(episode);
-			} else {
-				await markEpisodeWatched(this.storage, episode, false);
-			}
-			this.onChanged?.();
-			await this.render();
-		});
-
 		const thumb = row.createDiv({ cls: "mediavault-episode-thumb" });
 		const thumbUrl = tmdbImageUrl(episode.thumbnailPath, "w200");
 		if (thumbUrl) {
@@ -1186,14 +1174,24 @@ export class MediaDetailModal extends Modal {
 
 		const watches = sortEpisodeWatchesChronological(await this.storage.episodeWatches.findByEpisodeId(episode.id));
 
-		const addBtn = row.createEl("button", {
-			cls: "mediavault-detail-log-btn mod-cta",
-			text: `×${watches.length}`,
-		});
-		addBtn.addEventListener("click", async () => {
-			await addEpisodeWatch(this.storage, episode);
-			this.plugin?.refreshLibraryViews();
-			this.plugin?.refreshListViews();
+		const watchBtn = row.createEl("button", { cls: "mediavault-detail-log-btn mod-cta mediavault-episode-watch-btn" });
+		if (watches.length === 0) {
+			setIcon(watchBtn, "check");
+			watchBtn.setAttr("aria-label", "Mark watched");
+		} else {
+			watchBtn.setText(`×${watches.length}`);
+			watchBtn.setAttr("aria-label", `Watched ${watches.length} time${watches.length === 1 ? "" : "s"} — add rewatch`);
+		}
+		watchBtn.addEventListener("click", async (evt) => {
+			evt.stopPropagation();
+			if (watches.length === 0) {
+				await this.markEpisodeWatchedWithSmartCompletion(episode);
+			} else {
+				await addEpisodeWatch(this.storage, episode);
+				this.plugin?.refreshLibraryViews();
+				this.plugin?.refreshListViews();
+			}
+			this.onChanged?.();
 			await this.render();
 		});
 	}

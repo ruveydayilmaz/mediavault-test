@@ -324,7 +324,6 @@ export class LibraryView extends ItemView {
 
 		if (this.screenTier === "mobile") {
 			const mobileControlsRow = panel.createDiv({ cls: "mediavault-filter-row mediavault-filter-mobile-controls" });
-			this.renderSortControls(mobileControlsRow);
 			this.renderPageSizeControl(mobileControlsRow);
 		}
 
@@ -345,13 +344,23 @@ export class LibraryView extends ItemView {
 		// Release Year range
 		const yearRow = panel.createDiv({ cls: "mediavault-filter-row" });
 		yearRow.createSpan({ cls: "mediavault-filter-label", text: "Release Year" });
-		const yearMin = yearRow.createEl("input", { type: "number", attr: { placeholder: "Min" } });
+		const yearGroup = yearRow.createDiv({ cls: "mediavault-filter-controls-group" });
+		const yearMin = yearGroup.createEl("input", {
+			cls: "mediavault-filter-number-input",
+			type: "number",
+			attr: { placeholder: "Min" },
+		});
 		yearMin.value = this.filterCriteria.yearMin?.toString() ?? "";
 		yearMin.addEventListener("change", () => {
 			this.filterCriteria.yearMin = yearMin.value ? parseInt(yearMin.value, 10) : undefined;
 			applyAndRefresh();
 		});
-		const yearMax = yearRow.createEl("input", { type: "number", attr: { placeholder: "Max" } });
+		yearGroup.createSpan({ cls: "mediavault-filter-range-sep", text: "–" });
+		const yearMax = yearGroup.createEl("input", {
+			cls: "mediavault-filter-number-input",
+			type: "number",
+			attr: { placeholder: "Max" },
+		});
 		yearMax.value = this.filterCriteria.yearMax?.toString() ?? "";
 		yearMax.addEventListener("change", () => {
 			this.filterCriteria.yearMax = yearMax.value ? parseInt(yearMax.value, 10) : undefined;
@@ -374,13 +383,14 @@ export class LibraryView extends ItemView {
 			this.filterCriteria.runtimeMode = runtimeModeSelect.value as RuntimeMode;
 			applyAndRefresh();
 		});
-		const runtimeMin = runtimeRow.createEl("input", {
-			cls: "mediavault-filter-runtime-input",
+		const runtimeGroup = runtimeRow.createDiv({ cls: "mediavault-filter-controls-group" });
+		const runtimeMin = runtimeGroup.createEl("input", {
+			cls: "mediavault-filter-number-input mediavault-filter-runtime-input",
 			type: "number",
 			attr: { min: "0", step: "5", placeholder: "Min" },
 		});
 		runtimeMin.value = this.filterCriteria.runtimeMin?.toString() ?? "";
-		runtimeRow.createSpan({ cls: "mediavault-filter-runtime-unit", text: "min" });
+		runtimeGroup.createSpan({ cls: "mediavault-filter-runtime-unit", text: "min" });
 		runtimeMin.addEventListener("change", () => {
 			const parsed = parseInt(runtimeMin.value, 10);
 			const v = Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
@@ -388,13 +398,14 @@ export class LibraryView extends ItemView {
 			runtimeMin.value = v?.toString() ?? "";
 			applyAndRefresh();
 		});
-		const runtimeMax = runtimeRow.createEl("input", {
-			cls: "mediavault-filter-runtime-input",
+		runtimeGroup.createSpan({ cls: "mediavault-filter-range-sep", text: "–" });
+		const runtimeMax = runtimeGroup.createEl("input", {
+			cls: "mediavault-filter-number-input mediavault-filter-runtime-input",
 			type: "number",
 			attr: { min: "0", step: "5", placeholder: "Max" },
 		});
 		runtimeMax.value = this.filterCriteria.runtimeMax?.toString() ?? "";
-		runtimeRow.createSpan({ cls: "mediavault-filter-runtime-unit", text: "min" });
+		runtimeGroup.createSpan({ cls: "mediavault-filter-runtime-unit", text: "min" });
 		runtimeMax.addEventListener("change", () => {
 			const parsed = parseInt(runtimeMax.value, 10);
 			const v = Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
@@ -411,6 +422,7 @@ export class LibraryView extends ItemView {
 
 		// Favorite
 		const favRow = panel.createDiv({ cls: "mediavault-filter-row" });
+		favRow.createSpan({ cls: "mediavault-filter-label", text: "Favorite" });
 		const favCheckbox = favRow.createEl("input", { type: "checkbox" });
 		favCheckbox.checked = this.filterCriteria.favoritesOnly;
 		favRow.createSpan({ text: "Favorite only" });
@@ -578,9 +590,13 @@ export class LibraryView extends ItemView {
 	): void {
 		const row = panel.createDiv({ cls: "mediavault-filter-row" });
 		row.createSpan({ cls: "mediavault-filter-label", text: `${label} (min)` });
-		const slider = row.createEl("input", { type: "range", attr: { min: String(min), max: String(max), step: String(step) } });
+		const slider = row.createEl("input", {
+			cls: "mediavault-filter-slider",
+			type: "range",
+			attr: { min: String(min), max: String(max), step: String(step) },
+		});
 		slider.value = String(value ?? min);
-		const valueLabel = row.createSpan({ text: String(value ?? min) });
+		const valueLabel = row.createSpan({ cls: "mediavault-filter-slider-value", text: String(value ?? min) });
 		slider.addEventListener("input", () => valueLabel.setText(slider.value));
 		slider.addEventListener("change", () => {
 			const v = parseFloat(slider.value);

@@ -109,8 +109,9 @@
 }
 
 .mediavault-library-search {
-	flex: 1 1 200px;
-	min-width: 160px;
+	flex: 1 1 160px;
+	min-width: 120px;
+	max-width: 240px;
 }
 
 .mediavault-library-view-toggle {
@@ -2402,8 +2403,8 @@ body.mediavault-android .mediavault-comfort-flags .setting-item {
 .mediavault-filter-panel {
 	display: flex;
 	flex-direction: column;
-	gap: 10px;
-	padding: 10px 12px;
+	gap: 12px;
+	padding: 12px 14px;
 	margin-bottom: 8px;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 8px;
@@ -2415,6 +2416,45 @@ body.mediavault-android .mediavault-comfort-flags .setting-item {
 	align-items: center;
 	gap: 8px;
 	flex-wrap: wrap;
+	padding-bottom: 12px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+/* Milestone: Filter Panel UI Redesign — the last section shouldn't have a
+   trailing divider (nothing to separate it from), and Reset Filters lives
+   outside .mediavault-filter-row entirely so this naturally excludes it. */
+.mediavault-filter-row:last-of-type {
+	padding-bottom: 0;
+	border-bottom: none;
+}
+
+.mediavault-filter-controls-group {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.mediavault-filter-number-input {
+	width: 72px;
+	height: 34px;
+	padding: 0 8px;
+}
+
+.mediavault-filter-range-sep {
+	color: var(--text-muted);
+}
+
+.mediavault-filter-slider {
+	flex: 1 1 140px;
+	min-width: 100px;
+}
+
+.mediavault-filter-slider-value {
+	min-width: 28px;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-muted);
+	font-size: 0.85em;
 }
 
 .mediavault-filter-panel select {
@@ -2449,11 +2489,6 @@ body.mediavault-android .mediavault-filter-panel select {
 		right 6px top 52%;
 	background-size: 5px 5px, 5px 5px;
 	background-repeat: no-repeat;
-}
-
-.mediavault-filter-runtime-input {
-	width: 72px;
-	height: 34px;
 }
 
 .mediavault-filter-runtime-unit {
