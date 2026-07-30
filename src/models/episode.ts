@@ -1,110 +1,78 @@
 import { MediaVaultId, ISODateString } from "../types/common";
 
-/**
- * Static episode metadata, typically imported from TMDB and cached locally.
- * Separate from EpisodeProgress so re-fetching metadata never touches the
- * user's watched state.
- */
 export interface Episode {
-	id: MediaVaultId;
-	mediaId: MediaVaultId; // parent TV show
+  id: MediaVaultId;
+  mediaId: MediaVaultId;
 
-	tmdbEpisodeId: number | null;
-	seasonNumber: number;
-	episodeNumber: number;
+  tmdbEpisodeId: number | null;
+  seasonNumber: number;
+  episodeNumber: number;
 
-	title: string;
-	runtime: number | null;
-	airDate: ISODateString | null;
-	synopsis: string | null;
-	thumbnailPath: string | null;
+  title: string;
+  runtime: number | null;
+  airDate: ISODateString | null;
+  synopsis: string | null;
+  thumbnailPath: string | null;
 
-	/** TMDB community rating, distinct from the user's own rating below */
-	tmdbRating: number | null;
+  tmdbRating: number | null;
 }
 
-/**
- * The user's per-episode watched state and rating/review. Kept separate
- * from Episode (static metadata) so watched-state persists cleanly across
- * metadata refreshes.
- */
 export interface EpisodeProgress {
-	id: MediaVaultId;
-	mediaId: MediaVaultId;
-	episodeId: MediaVaultId;
+  id: MediaVaultId;
+  mediaId: MediaVaultId;
+  episodeId: MediaVaultId;
 
-	seasonNumber: number;
-	episodeNumber: number;
+  seasonNumber: number;
+  episodeNumber: number;
 
-	watched: boolean;
-	watchedDate: ISODateString | null;
+  watched: boolean;
+  watchedDate: ISODateString | null;
 
-	rating: number | null;
-	review: string | null;
+  rating: number | null;
+  review: string | null;
 
-	/**
-	 * One selected reaction emoji for this watch (Milestone 1: Episode
-	 * Details Experience). Additive-optional — null for every pre-existing
-	 * record and for anything imported/synced, since neither TV Time nor
-	 * Trakt has an equivalent concept.
-	 */
-	emotion: string | null;
+  emotion: string | null;
 
-	/** Marked via the Comfort Finder / favorite-episode workflow */
-	isFavorite: boolean;
+  isFavorite: boolean;
 
-	/** TV Time's separate "liked" concept, imported as lightweight preserved metadata. */
-	liked: boolean;
-	likedAt: string | null;
+  liked: boolean;
+  likedAt: string | null;
 
-	/** e.g. "low stress", "high energy", "emotional but uplifting" */
-	comfortNote: string | null;
+  comfortNote: string | null;
 
-	updatedAt: ISODateString;
+  updatedAt: ISODateString;
 }
 
-/** Aggregate progress for a season, computed from EpisodeProgress records. */
 export interface SeasonProgress {
-	seasonNumber: number;
-	totalEpisodes: number;
-	watchedEpisodes: number;
-	percentWatched: number; // 0-100
-	totalRuntimeWatched: number; // minutes
+  seasonNumber: number;
+  totalEpisodes: number;
+  watchedEpisodes: number;
+  percentWatched: number; // 0-100
+  totalRuntimeWatched: number; // minutes
 }
 
-/** Aggregate progress for an entire show. */
 export interface ShowProgress {
-	mediaId: MediaVaultId;
-	seasons: SeasonProgress[];
-	totalEpisodes: number;
-	watchedEpisodes: number;
-	remainingEpisodes: number;
-	percentWatched: number;
-	totalRuntimeWatched: number;
+  mediaId: MediaVaultId;
+  seasons: SeasonProgress[];
+  totalEpisodes: number;
+  watchedEpisodes: number;
+  remainingEpisodes: number;
+  percentWatched: number;
+  totalRuntimeWatched: number;
 }
 
-/**
- * A single watch of a single episode (Milestone 2: Episode Rewatch System).
- * Deliberately separate from `WatchSession` — episode watches are never
- * part of the global Watch History, Rating Evolution, Statistics, or
- * Recent-activity feed. They exist only to power the Episode Details page,
- * where a user can rewatch an individual episode as many times as they
- * like, each with its own rating/emotion/review. Season completion still
- * produces exactly one `WatchSession` via the existing logic — these
- * per-episode records don't replace that, they sit alongside it.
- */
 export interface EpisodeWatch {
-	id: MediaVaultId;
-	mediaId: MediaVaultId;
-	episodeId: MediaVaultId;
+  id: MediaVaultId;
+  mediaId: MediaVaultId;
+  episodeId: MediaVaultId;
 
-	watchedAt: ISODateString;
+  watchedAt: ISODateString;
 
-	rating: number | null;
-	emotion: string | null;
-	review: string | null;
-	notes: string | null;
+  rating: number | null;
+  emotion: string | null;
+  review: string | null;
+  notes: string | null;
 
-	createdAt: ISODateString;
-	updatedAt: ISODateString;
+  createdAt: ISODateString;
+  updatedAt: ISODateString;
 }

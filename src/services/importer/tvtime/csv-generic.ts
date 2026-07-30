@@ -1,289 +1,336 @@
 import {
-	TVTimeImporter,
-	emptyBundle,
-	WatchImport,
-	ReviewImport,
-	LikeImport,
-	RatingImport,
-	FavoriteImport,
-	ImportMediaKind,
+  TVTimeImporter,
+  emptyBundle,
+  WatchImport,
+  ReviewImport,
+  LikeImport,
+  RatingImport,
+  FavoriteImport,
+  ImportMediaKind,
 } from "./types";
 import { RawImportRow } from "../parse";
 import { parseFlexibleDate } from "../normalize";
 import { parseSeasonEpisodeFromTitle } from "../season-episode-parse";
 
-const TITLE_ALIASES = ["title", "show", "show_name", "tv_show_name", "movie", "movie_name", "series", "series_name"];
+const TITLE_ALIASES = [
+  "title",
+  "show",
+  "show_name",
+  "tv_show_name",
+  "movie",
+  "movie_name",
+  "series",
+  "series_name",
+];
 const SEASON_ALIASES = ["season_number", "season", "episode_season_number"];
 const EPISODE_ALIASES = ["episode_number", "episode"];
 const EPISODE_TITLE_ALIASES = ["episode_name", "episode_title"];
-const COMMENT_ALIASES = ["comment", "comment_text", "text", "review", "review_text"];
+const COMMENT_ALIASES = [
+  "comment",
+  "comment_text",
+  "text",
+  "review",
+  "review_text",
+];
 const CREATED_ALIASES = ["created_at", "commented_at", "date"];
 const EDITED_ALIASES = ["edited_at", "updated_at"];
 const LIKED_ALIASES = ["liked_at", "like_date"];
 const RATING_ALIASES = ["rating", "score", "my_rating"];
 const RATED_ALIASES = ["rated_at", "rating_date"];
-const WATCHED_DATE_ALIASES = ["watched_at", "watch_date", "watched_date", "date"];
+const WATCHED_DATE_ALIASES = [
+  "watched_at",
+  "watch_date",
+  "watched_date",
+  "date",
+];
 const REWATCH_ALIASES = ["rewatch_count", "cpt"];
 
 function findField(row: RawImportRow, aliases: string[]): string | null {
-	const lower: Record<string, string> = {};
-	for (const k of Object.keys(row)) lower[k.toLowerCase().trim()] = row[k];
-	for (const alias of aliases) {
-		const v = lower[alias];
-		if (v !== undefined && v.trim() !== "") return v.trim();
-	}
-	return null;
+  const lower: Record<string, string> = {};
+  for (const k of Object.keys(row)) lower[k.toLowerCase().trim()] = row[k];
+  for (const alias of aliases) {
+    const v = lower[alias];
+    if (v !== undefined && v.trim() !== "") return v.trim();
+  }
+  return null;
 }
 
 function hasAnyColumn(rows: RawImportRow[], aliases: string[]): boolean {
-	if (rows.length === 0) return false;
-	const headers = Object.keys(rows[0]).map((h) => h.toLowerCase().trim());
-	return aliases.some((a) => headers.includes(a));
+  if (rows.length === 0) return false;
+  const headers = Object.keys(rows[0]).map((h) => h.toLowerCase().trim());
+  return aliases.some((a) => headers.includes(a));
 }
 
 function kindFor(row: RawImportRow): ImportMediaKind {
-	if (findField(row, SEASON_ALIASES) !== null || findField(row, EPISODE_ALIASES) !== null) return "series";
+  if (
+    findField(row, SEASON_ALIASES) !== null ||
+    findField(row, EPISODE_ALIASES) !== null
+  )
+    return "series";
 
-	// Dedicated columns don't say — some exports fold season/episode straight
-	// into the title string instead ("Breaking Bad S01E05").
-	const title = findField(row, TITLE_ALIASES);
-	if (title && parseSeasonEpisodeFromTitle(title) !== null) return "series";
+  const title = findField(row, TITLE_ALIASES);
+  if (title && parseSeasonEpisodeFromTitle(title) !== null) return "series";
 
-	return "movie";
+  return "movie";
 }
 
 function baseFields(row: RawImportRow) {
-	const rawTitle = findField(row, TITLE_ALIASES);
-	const seasonRaw = findField(row, SEASON_ALIASES);
-	const episodeRaw = findField(row, EPISODE_ALIASES);
+  const rawTitle = findField(row, TITLE_ALIASES);
+  const seasonRaw = findField(row, SEASON_ALIASES);
+  const episodeRaw = findField(row, EPISODE_ALIASES);
 
-	// Dedicated season/episode columns take priority; only fall back to
-	// parsing them out of the title string itself when those columns are
-	// absent (roadmap: Robust GDPR ZIP Import & Intelligent Media Matching
-	// — episode-based matching). Either way the title handed to the matcher
-	// is the clean base title, never "Show S01E05" verbatim.
-	const embedded = rawTitle ? parseSeasonEpisodeFromTitle(rawTitle) : null;
-	const usingEmbedded = embedded !== null && seasonRaw === null && episodeRaw === null;
+  const embedded = rawTitle ? parseSeasonEpisodeFromTitle(rawTitle) : null;
+  const usingEmbedded =
+    embedded !== null && seasonRaw === null && episodeRaw === null;
 
-	return {
-		title: usingEmbedded ? embedded!.baseTitle : rawTitle,
-		seasonNumber: seasonRaw !== null ? parseInt(seasonRaw, 10) : usingEmbedded ? embedded!.season ?? undefined : undefined,
-		episodeNumber: episodeRaw !== null ? parseInt(episodeRaw, 10) : usingEmbedded ? embedded!.episode ?? undefined : undefined,
-		episodeTitle: findField(row, EPISODE_TITLE_ALIASES) ?? undefined,
-	};
+  return {
+    title: usingEmbedded ? embedded!.baseTitle : rawTitle,
+    seasonNumber:
+      seasonRaw !== null
+        ? parseInt(seasonRaw, 10)
+        : usingEmbedded
+          ? (embedded!.season ?? undefined)
+          : undefined,
+    episodeNumber:
+      episodeRaw !== null
+        ? parseInt(episodeRaw, 10)
+        : usingEmbedded
+          ? (embedded!.episode ?? undefined)
+          : undefined,
+    episodeTitle: findField(row, EPISODE_TITLE_ALIASES) ?? undefined,
+  };
 }
 
-/** Comments/reviews — checked first since a comment row often also has a rating column, and comment-ness is the more specific signal. */
 export const CsvCommentsImporter: TVTimeImporter = {
-	category: "csv_comments",
-	label: "Comments",
+  category: "csv_comments",
+  label: "Comments",
 
-	detect(parsed, format) {
-		if (format !== "csv") return false;
-		return hasAnyColumn(parsed as RawImportRow[], COMMENT_ALIASES);
-	},
+  detect(parsed, format) {
+    if (format !== "csv") return false;
+    return hasAnyColumn(parsed as RawImportRow[], COMMENT_ALIASES);
+  },
 
-	parse(parsed) {
-		const bundle = emptyBundle();
-		(parsed as RawImportRow[]).forEach((row, i) => {
-			const { title, seasonNumber, episodeNumber } = baseFields(row);
-			const commentText = findField(row, COMMENT_ALIASES);
-			if (!title || !commentText) {
-				bundle.warnings.push({ row: i, reason: "Comment row missing a title or comment text." });
-				return;
-			}
-			const review: ReviewImport = {
-				kind: kindFor(row),
-				ids: {},
-				title,
-				year: null,
-				seasonNumber,
-				episodeNumber,
-				commentText,
-				createdAt: parseFlexibleDate(findField(row, CREATED_ALIASES)),
-				editedAt: parseFlexibleDate(findField(row, EDITED_ALIASES)),
-			};
-			bundle.reviews.push(review);
-		});
-		return bundle;
-	},
+  parse(parsed) {
+    const bundle = emptyBundle();
+    (parsed as RawImportRow[]).forEach((row, i) => {
+      const { title, seasonNumber, episodeNumber } = baseFields(row);
+      const commentText = findField(row, COMMENT_ALIASES);
+      if (!title || !commentText) {
+        bundle.warnings.push({
+          row: i,
+          reason: "Comment row missing a title or comment text.",
+        });
+        return;
+      }
+      const review: ReviewImport = {
+        kind: kindFor(row),
+        ids: {},
+        title,
+        year: null,
+        seasonNumber,
+        episodeNumber,
+        commentText,
+        createdAt: parseFlexibleDate(findField(row, CREATED_ALIASES)),
+        editedAt: parseFlexibleDate(findField(row, EDITED_ALIASES)),
+      };
+      bundle.reviews.push(review);
+    });
+    return bundle;
+  },
 };
 
 export const CsvLikesImporter: TVTimeImporter = {
-	category: "csv_likes",
-	label: "Likes",
+  category: "csv_likes",
+  label: "Likes",
 
-	detect(parsed, format) {
-		if (format !== "csv") return false;
-		const rows = parsed as RawImportRow[];
-		if (rows.length === 0) return false;
-		const headers = Object.keys(rows[0]).map((h) => h.toLowerCase());
-		return headers.some((h) => h === "liked" || h === "is_liked");
-	},
+  detect(parsed, format) {
+    if (format !== "csv") return false;
+    const rows = parsed as RawImportRow[];
+    if (rows.length === 0) return false;
+    const headers = Object.keys(rows[0]).map((h) => h.toLowerCase());
+    return headers.some((h) => h === "liked" || h === "is_liked");
+  },
 
-	parse(parsed) {
-		const bundle = emptyBundle();
-		(parsed as RawImportRow[]).forEach((row, i) => {
-			const { title, seasonNumber, episodeNumber } = baseFields(row);
-			if (!title) {
-				bundle.warnings.push({ row: i, reason: "Like row missing a title." });
-				return;
-			}
-			const like: LikeImport = {
-				kind: kindFor(row),
-				ids: {},
-				title,
-				year: null,
-				seasonNumber,
-				episodeNumber,
-				likedAt: parseFlexibleDate(findField(row, LIKED_ALIASES)),
-			};
-			bundle.likes.push(like);
-		});
-		return bundle;
-	},
+  parse(parsed) {
+    const bundle = emptyBundle();
+    (parsed as RawImportRow[]).forEach((row, i) => {
+      const { title, seasonNumber, episodeNumber } = baseFields(row);
+      if (!title) {
+        bundle.warnings.push({ row: i, reason: "Like row missing a title." });
+        return;
+      }
+      const like: LikeImport = {
+        kind: kindFor(row),
+        ids: {},
+        title,
+        year: null,
+        seasonNumber,
+        episodeNumber,
+        likedAt: parseFlexibleDate(findField(row, LIKED_ALIASES)),
+      };
+      bundle.likes.push(like);
+    });
+    return bundle;
+  },
 };
 
 export const CsvRatingsImporter: TVTimeImporter = {
-	category: "csv_ratings",
-	label: "Ratings",
+  category: "csv_ratings",
+  label: "Ratings",
 
-	detect(parsed, format) {
-		if (format !== "csv") return false;
-		const rows = parsed as RawImportRow[];
-		// Ratings-specific: has a rating column but NOT a comment column (comments importer already claims those).
-		return hasAnyColumn(rows, RATING_ALIASES) && !hasAnyColumn(rows, COMMENT_ALIASES);
-	},
+  detect(parsed, format) {
+    if (format !== "csv") return false;
+    const rows = parsed as RawImportRow[];
+    return (
+      hasAnyColumn(rows, RATING_ALIASES) && !hasAnyColumn(rows, COMMENT_ALIASES)
+    );
+  },
 
-	parse(parsed) {
-		const bundle = emptyBundle();
-		(parsed as RawImportRow[]).forEach((row, i) => {
-			const { title, seasonNumber, episodeNumber } = baseFields(row);
-			const ratingRaw = findField(row, RATING_ALIASES);
-			const rating = ratingRaw !== null ? parseFloat(ratingRaw) : NaN;
-			if (!title || isNaN(rating)) {
-				bundle.warnings.push({ row: i, reason: "Rating row missing a title or a valid rating." });
-				return;
-			}
-			const ratingImport: RatingImport = {
-				kind: kindFor(row),
-				ids: {},
-				title,
-				year: null,
-				seasonNumber,
-				episodeNumber,
-				rating,
-				ratedAt: parseFlexibleDate(findField(row, RATED_ALIASES)),
-			};
-			bundle.ratings.push(ratingImport);
-		});
-		return bundle;
-	},
+  parse(parsed) {
+    const bundle = emptyBundle();
+    (parsed as RawImportRow[]).forEach((row, i) => {
+      const { title, seasonNumber, episodeNumber } = baseFields(row);
+      const ratingRaw = findField(row, RATING_ALIASES);
+      const rating = ratingRaw !== null ? parseFloat(ratingRaw) : NaN;
+      if (!title || isNaN(rating)) {
+        bundle.warnings.push({
+          row: i,
+          reason: "Rating row missing a title or a valid rating.",
+        });
+        return;
+      }
+      const ratingImport: RatingImport = {
+        kind: kindFor(row),
+        ids: {},
+        title,
+        year: null,
+        seasonNumber,
+        episodeNumber,
+        rating,
+        ratedAt: parseFlexibleDate(findField(row, RATED_ALIASES)),
+      };
+      bundle.ratings.push(ratingImport);
+    });
+    return bundle;
+  },
 };
 
 export const CsvFavoritesImporter: TVTimeImporter = {
-	category: "csv_favorites",
-	label: "Favorites",
+  category: "csv_favorites",
+  label: "Favorites",
 
-	detect(parsed, format) {
-		if (format !== "csv") return false;
-		const rows = parsed as RawImportRow[];
-		if (rows.length === 0) return false;
-		const headers = Object.keys(rows[0]).map((h) => h.toLowerCase());
-		// Generic favorites export: has an is_favorite-style column but isn't the specific followed-shows shape
-		// (that one is claimed first by CsvFollowedShowsImporter, which also has nb_episodes_seen/user_id).
-		return headers.some((h) => h === "is_favorite" || h === "favorite" || h === "favorited");
-	},
+  detect(parsed, format) {
+    if (format !== "csv") return false;
+    const rows = parsed as RawImportRow[];
+    if (rows.length === 0) return false;
+    const headers = Object.keys(rows[0]).map((h) => h.toLowerCase());
+    return headers.some(
+      (h) => h === "is_favorite" || h === "favorite" || h === "favorited",
+    );
+  },
 
-	parse(parsed) {
-		const bundle = emptyBundle();
-		(parsed as RawImportRow[]).forEach((row, i) => {
-			const { title } = baseFields(row);
-			if (!title) {
-				bundle.warnings.push({ row: i, reason: "Favorite row missing a title." });
-				return;
-			}
-			const fav: FavoriteImport = { kind: kindFor(row), ids: {}, title, year: null };
-			bundle.favorites.push(fav);
-		});
-		return bundle;
-	},
+  parse(parsed) {
+    const bundle = emptyBundle();
+    (parsed as RawImportRow[]).forEach((row, i) => {
+      const { title } = baseFields(row);
+      if (!title) {
+        bundle.warnings.push({
+          row: i,
+          reason: "Favorite row missing a title.",
+        });
+        return;
+      }
+      const fav: FavoriteImport = {
+        kind: kindFor(row),
+        ids: {},
+        title,
+        year: null,
+      };
+      bundle.favorites.push(fav);
+    });
+    return bundle;
+  },
 };
 
-/** Per-episode watch history — has season/episode columns plus a watched date. */
 export const CsvWatchedEpisodesImporter: TVTimeImporter = {
-	category: "csv_watched_episodes",
-	label: "Watched Episodes",
+  category: "csv_watched_episodes",
+  label: "Watched Episodes",
 
-	detect(parsed, format) {
-		if (format !== "csv") return false;
-		const rows = parsed as RawImportRow[];
-		return (
-			hasAnyColumn(rows, SEASON_ALIASES) &&
-			hasAnyColumn(rows, EPISODE_ALIASES) &&
-			hasAnyColumn(rows, WATCHED_DATE_ALIASES)
-		);
-	},
+  detect(parsed, format) {
+    if (format !== "csv") return false;
+    const rows = parsed as RawImportRow[];
+    return (
+      hasAnyColumn(rows, SEASON_ALIASES) &&
+      hasAnyColumn(rows, EPISODE_ALIASES) &&
+      hasAnyColumn(rows, WATCHED_DATE_ALIASES)
+    );
+  },
 
-	parse(parsed) {
-		const bundle = emptyBundle();
-		(parsed as RawImportRow[]).forEach((row, i) => {
-			const { title, seasonNumber, episodeNumber, episodeTitle } = baseFields(row);
-			if (!title || seasonNumber === undefined || episodeNumber === undefined) {
-				bundle.warnings.push({ row: i, reason: "Watched-episode row missing title/season/episode." });
-				return;
-			}
-			const watch: WatchImport = {
-				kind: "series",
-				ids: {},
-				title,
-				year: null,
-				seasonNumber,
-				episodeNumber,
-				episodeTitle,
-				watchedAt: parseFlexibleDate(findField(row, WATCHED_DATE_ALIASES)),
-				rewatchCount: parseInt(findField(row, REWATCH_ALIASES) ?? "0", 10) || 0,
-			};
-			bundle.watches.push(watch);
-		});
-		return bundle;
-	},
+  parse(parsed) {
+    const bundle = emptyBundle();
+    (parsed as RawImportRow[]).forEach((row, i) => {
+      const { title, seasonNumber, episodeNumber, episodeTitle } =
+        baseFields(row);
+      if (!title || seasonNumber === undefined || episodeNumber === undefined) {
+        bundle.warnings.push({
+          row: i,
+          reason: "Watched-episode row missing title/season/episode.",
+        });
+        return;
+      }
+      const watch: WatchImport = {
+        kind: "series",
+        ids: {},
+        title,
+        year: null,
+        seasonNumber,
+        episodeNumber,
+        episodeTitle,
+        watchedAt: parseFlexibleDate(findField(row, WATCHED_DATE_ALIASES)),
+        rewatchCount: parseInt(findField(row, REWATCH_ALIASES) ?? "0", 10) || 0,
+      };
+      bundle.watches.push(watch);
+    });
+    return bundle;
+  },
 };
 
-/** Movie watch history — has a title/watched-date but no season/episode columns. */
 export const CsvWatchedMoviesImporter: TVTimeImporter = {
-	category: "csv_watched_movies",
-	label: "Watched Movies",
+  category: "csv_watched_movies",
+  label: "Watched Movies",
 
-	detect(parsed, format) {
-		if (format !== "csv") return false;
-		const rows = parsed as RawImportRow[];
-		return (
-			hasAnyColumn(rows, TITLE_ALIASES) &&
-			hasAnyColumn(rows, WATCHED_DATE_ALIASES) &&
-			!hasAnyColumn(rows, SEASON_ALIASES) &&
-			!hasAnyColumn(rows, EPISODE_ALIASES)
-		);
-	},
+  detect(parsed, format) {
+    if (format !== "csv") return false;
+    const rows = parsed as RawImportRow[];
+    return (
+      hasAnyColumn(rows, TITLE_ALIASES) &&
+      hasAnyColumn(rows, WATCHED_DATE_ALIASES) &&
+      !hasAnyColumn(rows, SEASON_ALIASES) &&
+      !hasAnyColumn(rows, EPISODE_ALIASES)
+    );
+  },
 
-	parse(parsed) {
-		const bundle = emptyBundle();
-		(parsed as RawImportRow[]).forEach((row, i) => {
-			const { title } = baseFields(row);
-			if (!title) {
-				bundle.warnings.push({ row: i, reason: "Watched-movie row missing a title." });
-				return;
-			}
-			const watch: WatchImport = {
-				kind: "movie",
-				ids: {},
-				title,
-				year: null,
-				watchedAt: parseFlexibleDate(findField(row, WATCHED_DATE_ALIASES)),
-				rewatchCount: parseInt(findField(row, REWATCH_ALIASES) ?? "0", 10) || 0,
-			};
-			bundle.watches.push(watch);
-		});
-		return bundle;
-	},
+  parse(parsed) {
+    const bundle = emptyBundle();
+    (parsed as RawImportRow[]).forEach((row, i) => {
+      const { title } = baseFields(row);
+      if (!title) {
+        bundle.warnings.push({
+          row: i,
+          reason: "Watched-movie row missing a title.",
+        });
+        return;
+      }
+      const watch: WatchImport = {
+        kind: "movie",
+        ids: {},
+        title,
+        year: null,
+        watchedAt: parseFlexibleDate(findField(row, WATCHED_DATE_ALIASES)),
+        rewatchCount: parseInt(findField(row, REWATCH_ALIASES) ?? "0", 10) || 0,
+      };
+      bundle.watches.push(watch);
+    });
+    return bundle;
+  },
 };

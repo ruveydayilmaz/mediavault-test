@@ -1,280 +1,362 @@
-import { TraktHttpClient, TraktClientConfig, TraktApiError, TraktAuthError } from "./trakt-http-client";
+import {
+  TraktHttpClient,
+  TraktClientConfig,
+  TraktApiError,
+  TraktAuthError,
+} from "./trakt-http-client";
 import { TTLCache } from "./tmdb-cache";
 
 export type TraktMediaKind = "movies" | "episodes" | "shows";
 
 export interface TraktIds {
-	trakt: number;
-	tmdb: number | null;
-	imdb: string | null;
+  trakt: number;
+  tmdb: number | null;
+  imdb: string | null;
 }
 
 export interface TraktComment {
-	id: number;
-	comment: string;
-	createdAt: string;
-	spoiler: boolean;
-	review: boolean;
-	likes: number;
-	userName: string;
-	/** ISO 639-1 code as reported by Trakt (e.g. "en", "ja"), or null if Trakt didn't tag one. */
-	language: string | null;
-	/** The commenter's rating (1-10) for this title/episode, if this comment was posted alongside one. Null if Trakt didn't report one. */
-	userRating: number | null;
-	/** Full-size avatar URL, if Trakt's extended response included one. Null otherwise — callers fall back to an initial/placeholder. */
-	avatarUrl: string | null;
+  id: number;
+  comment: string;
+  createdAt: string;
+  spoiler: boolean;
+  review: boolean;
+  likes: number;
+  userName: string;
+  language: string | null;
+  userRating: number | null;
+  avatarUrl: string | null;
 }
 
-/** What a public comment is being posted about (Milestone 1: Trakt Public Comments). */
 export type TraktCommentTarget =
-	| { kind: "movie"; tmdbId: number }
-	| { kind: "show"; tmdbId: number }
-	| { kind: "episode"; showTmdbId: number; season: number; episode: number; episodeTmdbId: number };
+  | { kind: "movie"; tmdbId: number }
+  | { kind: "show"; tmdbId: number }
+  | {
+      kind: "episode";
+      showTmdbId: number;
+      season: number;
+      episode: number;
+      episodeTmdbId: number;
+    };
 
 export interface TraktHistoryItem {
-	id: number; // Trakt's history entry id — used as our externalRef for dedupe
-	watchedAt: string; // ISO
-	type: "movie" | "episode";
-	movie?: { title: string; year: number | null; ids: TraktIds };
-	show?: { title: string; year: number | null; ids: TraktIds };
-	episode?: { season: number; number: number; title: string };
+  id: number; // Trakt's history entry id
+  watchedAt: string;
+  type: "movie" | "episode";
+  movie?: { title: string; year: number | null; ids: TraktIds };
+  show?: { title: string; year: number | null; ids: TraktIds };
+  episode?: { season: number; number: number; title: string };
 }
 
 export interface TraktRatingItem {
-	ratedAt: string;
-	rating: number; // 1-10 on Trakt's scale
-	type: "movie" | "episode" | "show";
-	movie?: { title: string; year: number | null; ids: TraktIds };
-	show?: { title: string; year: number | null; ids: TraktIds };
-	episode?: { season: number; number: number; title: string };
+  ratedAt: string;
+  rating: number;
+  type: "movie" | "episode" | "show";
+  movie?: { title: string; year: number | null; ids: TraktIds };
+  show?: { title: string; year: number | null; ids: TraktIds };
+  episode?: { season: number; number: number; title: string };
 }
 
-function normalizeIds(raw: { trakt: number; tmdb?: number; imdb?: string } | undefined): TraktIds {
-	return {
-		trakt: raw?.trakt ?? 0,
-		tmdb: raw?.tmdb ?? null,
-		imdb: raw?.imdb ?? null,
-	};
+function normalizeIds(
+  raw: { trakt: number; tmdb?: number; imdb?: string } | undefined,
+): TraktIds {
+  return {
+    trakt: raw?.trakt ?? 0,
+    tmdb: raw?.tmdb ?? null,
+    imdb: raw?.imdb ?? null,
+  };
 }
 
-/**
- * High-level Trakt API surface: reading watch history/ratings (for pulling
- * into MediaVault) and writing new history/ratings entries (for pushing
- * MediaVault-originated watches back up) — the "bi-directional" part of
- * this milestone.
- */
 export function describeTraktError(err: unknown): string {
-	if (err instanceof TraktAuthError) return "your Trakt connection has expired — reconnect in Settings.";
-	if (err instanceof TraktApiError) {
-		if (err.status === 429) return "Trakt is rate-limiting requests right now — try again in a moment.";
-		if (err.status === 409) return "Trakt already has this.";
-		if (err.status === 422) return "Trakt rejected the comment (check its length and content).";
-		if (err.status !== null && err.status >= 500) return "Trakt's servers are having trouble — try again shortly.";
-		return err.message;
-	}
-	return err instanceof Error ? err.message : "an unknown error occurred.";
+  if (err instanceof TraktAuthError)
+    return "your Trakt connection has expired — reconnect in Settings.";
+  if (err instanceof TraktApiError) {
+    if (err.status === 429)
+      return "Trakt is rate-limiting requests right now — try again in a moment.";
+    if (err.status === 409) return "Trakt already has this.";
+    if (err.status === 422)
+      return "Trakt rejected the comment (check its length and content).";
+    if (err.status !== null && err.status >= 500)
+      return "Trakt's servers are having trouble — try again shortly.";
+    return err.message;
+  }
+  return err instanceof Error ? err.message : "an unknown error occurred.";
 }
 
 export class TraktService {
-	private http: TraktHttpClient;
-	/** Comments/response cache (Milestone 4: Comments Integration) — 30 min TTL, in-memory only, same rationale as TMDBService's TTLCache. */
-	private cache = new TTLCache<unknown>(() => 30 * 60 * 1000);
+  private http: TraktHttpClient;
+  private cache = new TTLCache<unknown>(() => 30 * 60 * 1000);
 
-	constructor(config: TraktClientConfig) {
-		this.http = new TraktHttpClient(config);
-	}
+  constructor(config: TraktClientConfig) {
+    this.http = new TraktHttpClient(config);
+  }
 
-	private async cached<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
-		const hit = this.cache.get(key) as T | undefined;
-		if (hit !== undefined) return hit;
-		const value = await fetcher();
-		this.cache.set(key, value);
-		return value;
-	}
+  private async cached<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+    const hit = this.cache.get(key) as T | undefined;
+    if (hit !== undefined) return hit;
+    const value = await fetcher();
+    this.cache.set(key, value);
+    return value;
+  }
 
-	async getHistory(type: "movies" | "episodes", page = 1, limit = 100): Promise<TraktHistoryItem[]> {
-		const raw = await this.http.request<any[]>(`/sync/history/${type}?page=${page}&limit=${limit}`);
-		return raw.map((r) => ({
-			id: r.id,
-			watchedAt: r.watched_at,
-			type: r.type,
-			movie: r.movie
-				? { title: r.movie.title, year: r.movie.year ?? null, ids: normalizeIds(r.movie.ids) }
-				: undefined,
-			show: r.show ? { title: r.show.title, year: r.show.year ?? null, ids: normalizeIds(r.show.ids) } : undefined,
-			episode: r.episode
-				? { season: r.episode.season, number: r.episode.number, title: r.episode.title }
-				: undefined,
-		}));
-	}
+  async getHistory(
+    type: "movies" | "episodes",
+    page = 1,
+    limit = 100,
+  ): Promise<TraktHistoryItem[]> {
+    const raw = await this.http.request<any[]>(
+      `/sync/history/${type}?page=${page}&limit=${limit}`,
+    );
+    return raw.map((r) => ({
+      id: r.id,
+      watchedAt: r.watched_at,
+      type: r.type,
+      movie: r.movie
+        ? {
+            title: r.movie.title,
+            year: r.movie.year ?? null,
+            ids: normalizeIds(r.movie.ids),
+          }
+        : undefined,
+      show: r.show
+        ? {
+            title: r.show.title,
+            year: r.show.year ?? null,
+            ids: normalizeIds(r.show.ids),
+          }
+        : undefined,
+      episode: r.episode
+        ? {
+            season: r.episode.season,
+            number: r.episode.number,
+            title: r.episode.title,
+          }
+        : undefined,
+    }));
+  }
 
-	async getRatings(type: "movies" | "episodes" | "shows"): Promise<TraktRatingItem[]> {
-		const raw = await this.http.request<any[]>(`/sync/ratings/${type}`);
-		return raw.map((r) => ({
-			ratedAt: r.rated_at,
-			rating: r.rating,
-			type: r.type,
-			movie: r.movie
-				? { title: r.movie.title, year: r.movie.year ?? null, ids: normalizeIds(r.movie.ids) }
-				: undefined,
-			show: r.show ? { title: r.show.title, year: r.show.year ?? null, ids: normalizeIds(r.show.ids) } : undefined,
-			episode: r.episode
-				? { season: r.episode.season, number: r.episode.number, title: r.episode.title }
-				: undefined,
-		}));
-	}
+  async getRatings(
+    type: "movies" | "episodes" | "shows",
+  ): Promise<TraktRatingItem[]> {
+    const raw = await this.http.request<any[]>(`/sync/ratings/${type}`);
+    return raw.map((r) => ({
+      ratedAt: r.rated_at,
+      rating: r.rating,
+      type: r.type,
+      movie: r.movie
+        ? {
+            title: r.movie.title,
+            year: r.movie.year ?? null,
+            ids: normalizeIds(r.movie.ids),
+          }
+        : undefined,
+      show: r.show
+        ? {
+            title: r.show.title,
+            year: r.show.year ?? null,
+            ids: normalizeIds(r.show.ids),
+          }
+        : undefined,
+      episode: r.episode
+        ? {
+            season: r.episode.season,
+            number: r.episode.number,
+            title: r.episode.title,
+          }
+        : undefined,
+    }));
+  }
 
-	/** Pushes a movie watch (with an optional watched-at date) to Trakt's history. */
-	async addMovieToHistory(tmdbId: number, watchedAt: string): Promise<void> {
-		await this.http.request("/sync/history", {
-			method: "POST",
-			body: { movies: [{ ids: { tmdb: tmdbId }, watched_at: watchedAt }] },
-		});
-	}
+  async addMovieToHistory(tmdbId: number, watchedAt: string): Promise<void> {
+    await this.http.request("/sync/history", {
+      method: "POST",
+      body: { movies: [{ ids: { tmdb: tmdbId }, watched_at: watchedAt }] },
+    });
+  }
 
-	/** Pushes an episode watch to Trakt's history. */
-	async addEpisodeToHistory(showTmdbId: number, season: number, episode: number, watchedAt: string): Promise<void> {
-		await this.http.request("/sync/history", {
-			method: "POST",
-			body: {
-				shows: [
-					{
-						ids: { tmdb: showTmdbId },
-						seasons: [{ number: season, episodes: [{ number: episode, watched_at: watchedAt }] }],
-					},
-				],
-			},
-		});
-	}
+  async addEpisodeToHistory(
+    showTmdbId: number,
+    season: number,
+    episode: number,
+    watchedAt: string,
+  ): Promise<void> {
+    await this.http.request("/sync/history", {
+      method: "POST",
+      body: {
+        shows: [
+          {
+            ids: { tmdb: showTmdbId },
+            seasons: [
+              {
+                number: season,
+                episodes: [{ number: episode, watched_at: watchedAt }],
+              },
+            ],
+          },
+        ],
+      },
+    });
+  }
 
-	/** Pushes a movie rating to Trakt. */
-	async addMovieRating(tmdbId: number, rating: number, ratedAt: string): Promise<void> {
-		await this.http.request("/sync/ratings", {
-			method: "POST",
-			body: { movies: [{ ids: { tmdb: tmdbId }, rating: Math.round(rating), rated_at: ratedAt }] },
-		});
-	}
+  async addMovieRating(
+    tmdbId: number,
+    rating: number,
+    ratedAt: string,
+  ): Promise<void> {
+    await this.http.request("/sync/ratings", {
+      method: "POST",
+      body: {
+        movies: [
+          {
+            ids: { tmdb: tmdbId },
+            rating: Math.round(rating),
+            rated_at: ratedAt,
+          },
+        ],
+      },
+    });
+  }
 
-	/**
-	 * Trakt's comment endpoints need a Trakt id (or slug) — they don't
-	 * accept a raw TMDB id — so every comment lookup resolves through
-	 * Trakt's `/search/tmdb/:id` first. Resolution results are cached
-	 * alongside the comments themselves, so a show's id is only looked up
-	 * once per cache window even when its comments are re-fetched (e.g.
-	 * switching between several episodes of the same show).
-	 */
-	private async resolveTraktId(tmdbId: number, kind: "movie" | "show"): Promise<number | null> {
-		return this.cached(`resolve:${kind}:${tmdbId}`, async () => {
-			const raw = await this.http.request<any[]>(`/search/tmdb/${tmdbId}?type=${kind}`, {
-				authenticated: false,
-			});
-			const match = raw[0];
-			const ids = kind === "movie" ? match?.movie?.ids : match?.show?.ids;
-			return ids?.trakt ?? null;
-		});
-	}
+  private async resolveTraktId(
+    tmdbId: number,
+    kind: "movie" | "show",
+  ): Promise<number | null> {
+    return this.cached(`resolve:${kind}:${tmdbId}`, async () => {
+      const raw = await this.http.request<any[]>(
+        `/search/tmdb/${tmdbId}?type=${kind}`,
+        {
+          authenticated: false,
+        },
+      );
+      const match = raw[0];
+      const ids = kind === "movie" ? match?.movie?.ids : match?.show?.ids;
+      return ids?.trakt ?? null;
+    });
+  }
 
-	private normalizeComments(raw: any[]): TraktComment[] {
-		return raw.map((c) => ({
-			id: c.id,
-			comment: c.comment,
-			createdAt: c.created_at,
-			spoiler: !!c.spoiler,
-			review: !!c.review,
-			likes: c.likes ?? 0,
-			userName: c.user?.username ?? "trakt user",
-			language: typeof c.language === "string" && c.language.length > 0 ? c.language : null,
-			userRating: typeof c.user_rating === "number" ? c.user_rating : null,
-			avatarUrl: typeof c.user?.images?.avatar?.full === "string" ? c.user.images.avatar.full : null,
-		}));
-	}
+  private normalizeComments(raw: any[]): TraktComment[] {
+    return raw.map((c) => ({
+      id: c.id,
+      comment: c.comment,
+      createdAt: c.created_at,
+      spoiler: !!c.spoiler,
+      review: !!c.review,
+      likes: c.likes ?? 0,
+      userName: c.user?.username ?? "trakt user",
+      language:
+        typeof c.language === "string" && c.language.length > 0
+          ? c.language
+          : null,
+      userRating: typeof c.user_rating === "number" ? c.user_rating : null,
+      avatarUrl:
+        typeof c.user?.images?.avatar?.full === "string"
+          ? c.user.images.avatar.full
+          : null,
+    }));
+  }
 
-	/** Comments for a movie, looked up by TMDB id. Doesn't require the user's Trakt account to be connected — comments are public data. */
-	async getMovieComments(tmdbId: number): Promise<TraktComment[]> {
-		return this.cached(`comments:movie:${tmdbId}`, async () => {
-			const traktId = await this.resolveTraktId(tmdbId, "movie");
-			if (traktId === null) return [];
-			const raw = await this.http.request<any[]>(`/movies/${traktId}/comments/newest?extended=full`, {
-				authenticated: false,
-			});
-			return this.normalizeComments(raw);
-		});
-	}
+  async getMovieComments(tmdbId: number): Promise<TraktComment[]> {
+    return this.cached(`comments:movie:${tmdbId}`, async () => {
+      const traktId = await this.resolveTraktId(tmdbId, "movie");
+      if (traktId === null) return [];
+      const raw = await this.http.request<any[]>(
+        `/movies/${traktId}/comments/newest?extended=full`,
+        {
+          authenticated: false,
+        },
+      );
+      return this.normalizeComments(raw);
+    });
+  }
 
-	/** Comments for a whole show, looked up by TMDB id. */
-	async getShowComments(tmdbId: number): Promise<TraktComment[]> {
-		return this.cached(`comments:show:${tmdbId}`, async () => {
-			const traktId = await this.resolveTraktId(tmdbId, "show");
-			if (traktId === null) return [];
-			const raw = await this.http.request<any[]>(`/shows/${traktId}/comments/newest?extended=full`, {
-				authenticated: false,
-			});
-			return this.normalizeComments(raw);
-		});
-	}
+  async getShowComments(tmdbId: number): Promise<TraktComment[]> {
+    return this.cached(`comments:show:${tmdbId}`, async () => {
+      const traktId = await this.resolveTraktId(tmdbId, "show");
+      if (traktId === null) return [];
+      const raw = await this.http.request<any[]>(
+        `/shows/${traktId}/comments/newest?extended=full`,
+        {
+          authenticated: false,
+        },
+      );
+      return this.normalizeComments(raw);
+    });
+  }
 
-	/** Comments for a single episode, looked up by the parent show's TMDB id plus season/episode number. */
-	async getEpisodeComments(showTmdbId: number, season: number, episode: number): Promise<TraktComment[]> {
-		return this.cached(`comments:episode:${showTmdbId}:${season}:${episode}`, async () => {
-			const traktId = await this.resolveTraktId(showTmdbId, "show");
-			if (traktId === null) return [];
-			const raw = await this.http.request<any[]>(
-				`/shows/${traktId}/seasons/${season}/episodes/${episode}/comments/newest?extended=full`,
-				{ authenticated: false }
-			);
-			return this.normalizeComments(raw);
-		});
-	}
+  async getEpisodeComments(
+    showTmdbId: number,
+    season: number,
+    episode: number,
+  ): Promise<TraktComment[]> {
+    return this.cached(
+      `comments:episode:${showTmdbId}:${season}:${episode}`,
+      async () => {
+        const traktId = await this.resolveTraktId(showTmdbId, "show");
+        if (traktId === null) return [];
+        const raw = await this.http.request<any[]>(
+          `/shows/${traktId}/seasons/${season}/episodes/${episode}/comments/newest?extended=full`,
+          { authenticated: false },
+        );
+        return this.normalizeComments(raw);
+      },
+    );
+  }
 
-	/** The connected account's own Trakt username — used to decide which comments show Edit/Delete. Cached for the session. */
-	async getCurrentUser(): Promise<{ username: string } | null> {
-		return this.cached("me:settings", async () => {
-			try {
-				const raw = await this.http.request<any>("/users/settings");
-				return raw?.user?.username ? { username: raw.user.username as string } : null;
-			} catch {
-				return null;
-			}
-		});
-	}
+  async getCurrentUser(): Promise<{ username: string } | null> {
+    return this.cached("me:settings", async () => {
+      try {
+        const raw = await this.http.request<any>("/users/settings");
+        return raw?.user?.username
+          ? { username: raw.user.username as string }
+          : null;
+      } catch {
+        return null;
+      }
+    });
+  }
 
-	/**
-	 * Publishes a public comment (Milestone 1: Trakt Public Comments) on a
-	 * movie, show, or a specific episode. Requires an authenticated Trakt
-	 * connection. Episode targets need both the episode's *own* TMDB id
-	 * (for Trakt's comment body — that's what identifies the exact
-	 * episode) and the parent show's TMDB id + season/episode number (to
-	 * invalidate the same cache key `getEpisodeComments` reads from).
-	 */
-	async postComment(target: TraktCommentTarget, text: string, spoiler = false): Promise<TraktComment> {
-		const body: Record<string, unknown> = { comment: text, spoiler };
-		if (target.kind === "movie") body.movie = { ids: { tmdb: target.tmdbId } };
-		else if (target.kind === "show") body.show = { ids: { tmdb: target.tmdbId } };
-		else body.episode = { ids: { tmdb: target.episodeTmdbId } };
+  async postComment(
+    target: TraktCommentTarget,
+    text: string,
+    spoiler = false,
+  ): Promise<TraktComment> {
+    const body: Record<string, unknown> = { comment: text, spoiler };
+    if (target.kind === "movie") body.movie = { ids: { tmdb: target.tmdbId } };
+    else if (target.kind === "show")
+      body.show = { ids: { tmdb: target.tmdbId } };
+    else body.episode = { ids: { tmdb: target.episodeTmdbId } };
 
-		const raw = await this.http.request<any>("/comments", { method: "POST", body });
-		this.invalidateCommentsCache(target);
-		return this.normalizeComments([raw])[0];
-	}
+    const raw = await this.http.request<any>("/comments", {
+      method: "POST",
+      body,
+    });
+    this.invalidateCommentsCache(target);
+    return this.normalizeComments([raw])[0];
+  }
 
-	/** Edits one of the connected account's own comments. Trakt rejects this (403) for anyone else's. */
-	async updateComment(commentId: number, text: string, spoiler = false): Promise<TraktComment> {
-		const raw = await this.http.request<any>(`/comments/${commentId}`, {
-			method: "PUT",
-			body: { comment: text, spoiler },
-		});
-		return this.normalizeComments([raw])[0];
-	}
+  async updateComment(
+    commentId: number,
+    text: string,
+    spoiler = false,
+  ): Promise<TraktComment> {
+    const raw = await this.http.request<any>(`/comments/${commentId}`, {
+      method: "PUT",
+      body: { comment: text, spoiler },
+    });
+    return this.normalizeComments([raw])[0];
+  }
 
-	/** Deletes one of the connected account's own comments. Trakt rejects this (403) for anyone else's. */
-	async deleteComment(commentId: number): Promise<void> {
-		await this.http.request(`/comments/${commentId}`, { method: "DELETE" });
-	}
+  async deleteComment(commentId: number): Promise<void> {
+    await this.http.request(`/comments/${commentId}`, { method: "DELETE" });
+  }
 
-	/** Clears the cached comment list for a target so the next fetch reflects a just-posted/edited/deleted comment. */
-	invalidateCommentsCache(target: TraktCommentTarget): void {
-		if (target.kind === "movie") this.cache.delete(`comments:movie:${target.tmdbId}`);
-		else if (target.kind === "show") this.cache.delete(`comments:show:${target.tmdbId}`);
-		else this.cache.delete(`comments:episode:${target.showTmdbId}:${target.season}:${target.episode}`);
-	}
+  invalidateCommentsCache(target: TraktCommentTarget): void {
+    if (target.kind === "movie")
+      this.cache.delete(`comments:movie:${target.tmdbId}`);
+    else if (target.kind === "show")
+      this.cache.delete(`comments:show:${target.tmdbId}`);
+    else
+      this.cache.delete(
+        `comments:episode:${target.showTmdbId}:${target.season}:${target.episode}`,
+      );
+  }
 }
