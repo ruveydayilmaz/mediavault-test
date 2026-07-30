@@ -3,6 +3,7 @@ import { generateId } from "./storage/base-repository";
 import { WatchSession, NewWatchSessionInput } from "../models/review";
 import { nextRewatchNumber, computeAverageRating } from "./review-logic";
 import { recalculateAndPersistStatus } from "./status-service";
+import { touchMediaActivity } from "./activity-service";
 
 /**
  * Creates a NEW watch session — this is how rewatches are recorded.
@@ -94,4 +95,5 @@ async function syncMediaAggregates(storage: StorageService, mediaId: string): Pr
 		watchCount: sessions.length,
 		lastWatchedDate: sessions.length > 0 ? sessions.reduce((max, s) => (s.watchDate > max ? s.watchDate : max), sessions[0].watchDate) : null,
 	});
+	await touchMediaActivity(storage, mediaId);
 }

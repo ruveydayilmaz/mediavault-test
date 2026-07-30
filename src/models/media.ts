@@ -118,6 +118,17 @@ export interface MediaItem {
 	 */
 	lastWatchedDate: ISODateString | null;
 
+	/**
+	 * Last time the user did *anything* with this media — episode watches,
+	 * rewatches, season/series completion, movie watches/rewatches, or
+	 * partial movie progress updates. Drives "Recent" library sorting.
+	 * Deliberately separate from `lastWatchedDate`, which only reflects
+	 * completed WatchSessions (Watch History) and must stay that way.
+	 * Updated via `touchMediaActivity` in activity-service.ts — never
+	 * write this field directly from elsewhere.
+	 */
+	lastActivityAt: ISODateString | null;
+
 	/** Path to the generated markdown note, if auto-create-notes is enabled */
 	notePath: string | null;
 

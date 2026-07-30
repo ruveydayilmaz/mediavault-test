@@ -8,6 +8,7 @@ import { sortListMedia, formatRelativeDate, getSystemFavoriteLists, SYSTEM_FAVOR
 import { renderPoster, getMediaPercentWatched, renderProgressOverlay } from "../components/media-render";
 import { SelectMediaModal } from "./select-media-modal";
 import { addDestructiveMenuItem } from "../components/destructive-menu-item";
+import { isAndroidDevice } from "../../utils/platform";
 
 const SORT_MODE_OPTIONS: { value: ListSortMode; label: string }[] = [
 	{ value: "recent", label: "Recent" },
@@ -267,12 +268,41 @@ export class ListDetailModal extends Modal {
 		this.close();
 	}
 
+	private async reorderListManually(orderedMedia: MediaItem[], fromId: string, toId: string): Promise<void> {
+		if (fromId === toId) return;
+		const order = orderedMedia.map((m) => m.id);
+		const fromIdx = order.indexOf(fromId);
+		const toIdx = order.indexOf(toId);
+		if (fromIdx === -1 || toIdx === -1) return;
+		order.splice(toIdx, 0, order.splice(fromIdx, 1)[0]);
+		if (this.list.isSystem) {
+			const key = this.list.id === SYSTEM_FAVORITE_MOVIES_ID ? "movies" : "tv";
+			await this.storage.settings.update({
+				favoriteListManualOrder: { ...this.storage.settings.get().favoriteListManualOrder, [key]: order },
+			});
+		} else {
+			await this.storage.customLists.reorder(this.list.id, order);
+		}
+		this.notifyChanged();
+		await this.render();
+	}
+
 	private renderListItemCard(grid: HTMLElement, media: MediaItem, orderedMedia: MediaItem[], isManual: boolean): void {
 		const card = grid.createDiv({ cls: "mediavault-list-detail-card" });
-		card.setAttr("draggable", isManual ? "true" : "false");
+		card.setAttr("data-media-id", media.id);
+
+		// Android WebView's long-press on a draggable=true element kicks off
+		// its own native HTML5 drag gesture (that's the "pressed state" the
+		// user sees) but the dragover/drop events it depends on don't fire
+		// reliably against Obsidian's own touch/scroll handling, leaving the
+		// gesture stuck and the app unresponsive. Android gets a manual
+		// Pointer Events long-press drag instead; desktop/iOS keep the
+		// existing native HTML5 DnD path untouched.
+		const useNativeDnd = isManual && !isAndroidDevice();
+		card.setAttr("draggable", useNativeDnd ? "true" : "false");
 		card.toggleClass("is-draggable", isManual);
 
-		if (isManual) {
+		if (useNativeDnd) {
 			card.addEventListener("dragstart", () => {
 				this.dragMediaId = media.id;
 				card.addClass("is-dragging");
@@ -281,24 +311,13 @@ export class ListDetailModal extends Modal {
 			card.addEventListener("dragover", (evt) => evt.preventDefault());
 			card.addEventListener("drop", async (evt) => {
 				evt.preventDefault();
-				if (!this.dragMediaId || this.dragMediaId === media.id) return;
-				const order = orderedMedia.map((m) => m.id);
-				const fromIdx = order.indexOf(this.dragMediaId);
-				const toIdx = order.indexOf(media.id);
-				if (fromIdx === -1 || toIdx === -1) return;
-				order.splice(toIdx, 0, order.splice(fromIdx, 1)[0]);
-				if (this.list.isSystem) {
-					const key = this.list.id === SYSTEM_FAVORITE_MOVIES_ID ? "movies" : "tv";
-					await this.storage.settings.update({
-						favoriteListManualOrder: { ...this.storage.settings.get().favoriteListManualOrder, [key]: order },
-					});
-				} else {
-					await this.storage.customLists.reorder(this.list.id, order);
-				}
+				if (!this.dragMediaId) return;
+				const fromId = this.dragMediaId;
 				this.dragMediaId = null;
-				this.notifyChanged();
-				await this.render();
+				await this.reorderListManually(orderedMedia, fromId, media.id);
 			});
+		} else if (isManual && isAndroidDevice()) {
+			this.setupAndroidManualDrag(card, grid, media, orderedMedia);
 		}
 
 		const poster = card.createDiv({ cls: "mediavault-list-detail-poster" });
@@ -327,9 +346,103 @@ export class ListDetailModal extends Modal {
 
 		card.addEventListener("click", (evt) => {
 			if (evt.target === removeBtn) return;
+			if (card.dataset.justDragged) {
+				delete card.dataset.justDragged;
+				return;
+			}
 			this.close();
 			this.plugin.openMediaDetail(media);
 		});
+	}
+
+	/**
+	 * Manual long-press drag reorder for Android (see renderListItemCard).
+	 * Uses Pointer Events end-to-end instead of the HTML5 DnD API: a
+	 * long-press arms drag mode, pointermove hit-tests the element under
+	 * the finger against sibling cards in the same grid to track the
+	 * current drop target, and pointerup/pointercancel finalizes exactly
+	 * once via the same `reorderListManually` the native path uses.
+	 */
+	private setupAndroidManualDrag(card: HTMLElement, grid: HTMLElement, media: MediaItem, orderedMedia: MediaItem[]): void {
+		const LONG_PRESS_MS = 350;
+		const MOVE_CANCEL_PX = 10;
+
+		let longPressTimer: number | null = null;
+		let dragging = false;
+		let startX = 0;
+		let startY = 0;
+		let activePointerId: number | null = null;
+		let dropTargetId: string | null = null;
+
+		const clearTimer = () => {
+			if (longPressTimer !== null) {
+				window.clearTimeout(longPressTimer);
+				longPressTimer = null;
+			}
+		};
+
+		const endDrag = () => {
+			clearTimer();
+			if (dragging) {
+				card.removeClass("is-dragging");
+				card.style.touchAction = "";
+				if (activePointerId !== null && card.hasPointerCapture(activePointerId)) {
+					card.releasePointerCapture(activePointerId);
+				}
+				card.dataset.justDragged = "1";
+			}
+			dragging = false;
+			activePointerId = null;
+			grid.querySelectorAll(".mediavault-list-detail-card.is-drop-target").forEach((el) => el.removeClass("is-drop-target"));
+		};
+
+		card.addEventListener("pointerdown", (evt: PointerEvent) => {
+			if (evt.pointerType === "mouse") return;
+			startX = evt.clientX;
+			startY = evt.clientY;
+			activePointerId = evt.pointerId;
+			dropTargetId = null;
+			clearTimer();
+			longPressTimer = window.setTimeout(() => {
+				dragging = true;
+				card.addClass("is-dragging");
+				card.style.touchAction = "none";
+				if (activePointerId !== null) card.setPointerCapture(activePointerId);
+			}, LONG_PRESS_MS);
+		});
+
+		card.addEventListener("pointermove", (evt: PointerEvent) => {
+			if (activePointerId === null || evt.pointerId !== activePointerId) return;
+			const dx = evt.clientX - startX;
+			const dy = evt.clientY - startY;
+			if (!dragging) {
+				if (Math.hypot(dx, dy) > MOVE_CANCEL_PX) clearTimer();
+				return;
+			}
+			evt.preventDefault();
+			const el = document.elementFromPoint(evt.clientX, evt.clientY);
+			const targetCard = el?.closest<HTMLElement>(".mediavault-list-detail-card");
+			grid.querySelectorAll(".mediavault-list-detail-card.is-drop-target").forEach((n) => n.removeClass("is-drop-target"));
+			if (targetCard && targetCard !== card && grid.contains(targetCard)) {
+				dropTargetId = targetCard.dataset.mediaId ?? null;
+				targetCard.addClass("is-drop-target");
+			} else {
+				dropTargetId = null;
+			}
+		});
+
+		const finish = async (evt: PointerEvent) => {
+			if (activePointerId === null || evt.pointerId !== activePointerId) return;
+			const wasDragging = dragging;
+			const targetId = dropTargetId;
+			endDrag();
+			if (wasDragging && targetId) {
+				await this.reorderListManually(orderedMedia, media.id, targetId);
+			}
+		};
+
+		card.addEventListener("pointerup", (evt) => void finish(evt));
+		card.addEventListener("pointercancel", () => endDrag());
 	}
 }
 

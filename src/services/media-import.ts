@@ -47,6 +47,7 @@ export function buildMediaItemFromTMDB(
 		averageRating: null,
 		watchCount: 0,
 		lastWatchedDate: null,
+		lastActivityAt: null,
 		notePath: null,
 		episodesLastSyncedAt: null,
 		createdAt: now,

@@ -72,13 +72,17 @@ export const DEFAULT_LIBRARY_QUERY: LibraryQuery = {
 };
 
 /**
- * Shared ordering key for "Recent" sorting (roadmap Milestone 5): latest
- * watch date if the item has watch history, otherwise date added. Exported
- * so `list-service.ts`'s "recent" ListSortMode can reuse the exact same
- * rule instead of re-deriving it — per the project's no-duplicated-logic
+ * Shared ordering key for "Recent" sorting: `lastActivityAt` (updated by
+ * every watch/rewatch/progress interaction — see activity-service.ts) if
+ * present, otherwise falls back to the older latest-watch/date-added
+ * behavior for items from before that field existed. Exported so
+ * `list-service.ts`'s "recent" ListSortMode can reuse the exact same rule
+ * instead of re-deriving it — per the project's no-duplicated-logic
  * convention for anything status/ordering related.
  */
 export function recentSortKey(item: MediaItem): string {
+	if (item.lastActivityAt) return item.lastActivityAt;
+
 	const raw = item.lastWatchedDate ?? item.createdAt;
 
 	// `lastWatchedDate` is a bare "YYYY-MM-DD" (from the watch-date date

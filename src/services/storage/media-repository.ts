@@ -47,6 +47,7 @@ export class MediaRepository extends BaseRepository<MediaItem> {
 			averageRating: null,
 			watchCount: 0,
 			lastWatchedDate: null,
+			lastActivityAt: null,
 			notePath: null,
 			episodesLastSyncedAt: null,
 			...input,

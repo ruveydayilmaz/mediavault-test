@@ -3,6 +3,7 @@ import { MediaItem } from "../models/media";
 import { MediaStatus } from "../types/enums";
 import { MovieProgress } from "../models/movie-progress";
 import { addWatchSession } from "./watch-session-service";
+import { touchMediaActivity } from "./activity-service";
 
 function today(): string {
 	return new Date().toISOString().slice(0, 10);
@@ -41,6 +42,7 @@ export async function setMovieProgress(
 		});
 
 	await storage.media.update(media.id, { status: MediaStatus.Dropped });
+	await touchMediaActivity(storage, media.id);
 	return result as MovieProgress;
 }
 

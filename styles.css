@@ -2887,10 +2887,17 @@ body.mediavault-android .mediavault-filter-panel select {
 
 .mediavault-list-detail-card.is-draggable {
 	cursor: grab;
+	touch-action: pan-y;
 }
 
 .mediavault-list-detail-card.is-dragging {
 	opacity: 0.4;
+}
+
+.mediavault-list-detail-card.is-drop-target {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
+	border-radius: 6px;
 }
 
 .mediavault-list-detail-poster {

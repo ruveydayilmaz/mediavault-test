@@ -324,6 +324,7 @@ export class LibraryView extends ItemView {
 
 		if (this.screenTier === "mobile") {
 			const mobileControlsRow = panel.createDiv({ cls: "mediavault-filter-row mediavault-filter-mobile-controls" });
+			this.renderSortControls(mobileControlsRow);
 			this.renderPageSizeControl(mobileControlsRow);
 		}
 
@@ -627,18 +628,16 @@ export class LibraryView extends ItemView {
 		});
 
 		// Sort + Filter (+ page size, view toggle) are grouped into a single
-		// flex item so they wrap onto their own row together — "Search | Sort
-		// | Filter" on wide screens, "Search" then "Sort | Filter" once the
-		// row can no longer fit everything — driven purely by flex-wrap, not
-		// a hardcoded device-width check. Sort used to be skipped entirely on
-		// the "mobile" screenTier; that was the actual bug behind the
-		// non-responsive layout, since hiding it in JS meant no width could
-		// ever bring it back. It's now always rendered and CSS decides where
-		// it lands.
+		// flex item so they wrap onto their own row together on tablet/desktop.
+		// On mobile, Sort moves into the filter panel instead (see
+		// renderFilterPanel) so the toolbar itself only has to fit Search |
+		// Type | Filter, which is what actually needed to stay on one row.
 		const actions = toolbar.createDiv({ cls: "mediavault-library-toolbar-actions" });
 		this.toolbarActionsEl = actions;
 
-		this.renderSortControls(actions);
+		if (this.screenTier !== "mobile") {
+			this.renderSortControls(actions);
+		}
 
 		const filterGroup = actions.createDiv({ cls: "mediavault-library-toolbar-filter-group" });
 		const filterSelect = filterGroup.createEl("select", { cls: "mediavault-library-filter" });

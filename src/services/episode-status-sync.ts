@@ -3,6 +3,7 @@ import { Episode, EpisodeProgress } from "../models/episode";
 import { MediaVaultId } from "../types/common";
 import { recalculateAndPersistStatus } from "./status-service";
 import { addWatchSession } from "./watch-session-service";
+import { touchMediaActivity } from "./activity-service";
 
 function today(): string {
 	return new Date().toISOString().slice(0, 10);
@@ -81,6 +82,7 @@ export async function markEpisodeWatched(
 	}
 
 	if (watched) {
+		await touchMediaActivity(storage, episode.mediaId);
 		const isSeriesCompleteNow = await isSeriesFullyWatched(storage, episode.mediaId);
 		if (isSeriesCompleteNow && !wasSeriesComplete) {
 			await addWatchSession(storage, {
@@ -160,6 +162,7 @@ export async function markSeasonWatched(
 	}
 
 	if (watched && episodes.length > 0) {
+		await touchMediaActivity(storage, mediaId);
 		const isSeriesCompleteNow = await isSeriesFullyWatched(storage, mediaId);
 		if (isSeriesCompleteNow && !wasSeriesComplete) {
 			await addWatchSession(storage, {
