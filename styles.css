@@ -1545,6 +1545,8 @@ body.mediavault-android .mediavault-comfort-flags {
 body.mediavault-android .mediavault-comfort-flags .setting-item {
 	flex: 0 0 auto;
 	width: 220px;
+	min-height: 62px;
+	align-items: flex-start;
 	contain: layout style;
 }
 
@@ -2591,6 +2593,41 @@ body.mediavault-android .mediavault-filter-panel select {
 
 .mediavault-filter-reset {
 	align-self: flex-start;
+}
+
+.mediavault-autocomplete-wrap {
+	position: relative;
+	flex: 1 1 160px;
+	min-width: 140px;
+}
+
+.mediavault-autocomplete-list {
+	position: absolute;
+	top: 100%;
+	left: 0;
+	right: 0;
+	z-index: 20;
+	max-height: 180px;
+	overflow-y: auto;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	box-shadow: var(--shadow-s);
+	margin-top: 2px;
+}
+
+.mediavault-autocomplete-list.is-hidden {
+	display: none;
+}
+
+.mediavault-autocomplete-item {
+	padding: 8px 10px;
+	cursor: pointer;
+	font-size: 0.9em;
+}
+
+.mediavault-autocomplete-item:hover {
+	background: var(--background-modifier-hover);
 }
 
 /* --- Custom Lists (roadmap Milestone 5) --- */

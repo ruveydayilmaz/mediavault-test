@@ -13,7 +13,7 @@ import { Episode, EpisodeProgress, EpisodeWatch } from "../../models/episode";
 import { sortSessionsChronological, getRatingEvolution } from "../../services/review-logic";
 import { deleteWatchSession } from "../../services/watch-session-service";
 import { deleteMedia, describeDeletionScope } from "../../services/media-delete-service";
-import { markEpisodeWatched, markSeasonWatched, findUnwatchedPrecedingEpisodes } from "../../services/episode-status-sync";
+import { markEpisodeWatched, markSeasonWatched, findUnwatchedPrecedingEpisodes, removeOneEpisodeWatch } from "../../services/episode-status-sync";
 import {
 	addEpisodeWatch,
 	updateEpisodeWatch,
@@ -1184,6 +1184,10 @@ export class MediaDetailModal extends Modal {
 		}
 		watchBtn.addEventListener("click", async (evt) => {
 			evt.stopPropagation();
+			if (watchBtn.dataset.longPressed) {
+				delete watchBtn.dataset.longPressed;
+				return;
+			}
 			if (watches.length === 0) {
 				await this.markEpisodeWatchedWithSmartCompletion(episode);
 			} else {
@@ -1194,6 +1198,34 @@ export class MediaDetailModal extends Modal {
 			this.onChanged?.();
 			await this.render();
 		});
+
+		if (watches.length > 0) {
+			const LONG_PRESS_MS = 550;
+			let longPressTimer: number | null = null;
+			const clearTimer = () => {
+				if (longPressTimer !== null) {
+					window.clearTimeout(longPressTimer);
+					longPressTimer = null;
+				}
+			};
+			watchBtn.addEventListener("pointerdown", (evt) => {
+				if (evt.button !== undefined && evt.button !== 0) return;
+				clearTimer();
+				longPressTimer = window.setTimeout(async () => {
+					longPressTimer = null;
+					watchBtn.dataset.longPressed = "1";
+					if (!confirm("Remove one watch from this episode?")) return;
+					await removeOneEpisodeWatch(this.storage, episode);
+					this.plugin?.refreshLibraryViews();
+					this.plugin?.refreshListViews();
+					this.onChanged?.();
+					await this.render();
+				}, LONG_PRESS_MS);
+			});
+			watchBtn.addEventListener("pointerup", clearTimer);
+			watchBtn.addEventListener("pointercancel", clearTimer);
+			watchBtn.addEventListener("pointerleave", clearTimer);
+		}
 	}
 
 	private async markEpisodeWatchedWithSmartCompletion(episode: Episode): Promise<void> {

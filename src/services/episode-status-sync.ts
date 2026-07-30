@@ -114,6 +114,27 @@ async function deleteLatestEpisodeWatch(storage: StorageService, episodeId: Medi
 }
 
 /**
+ * Removes exactly one watch from an episode (the adaptive watch button's
+ * long-press undo). Reuses the existing pipeline rather than duplicating
+ * it: if this is the episode's only remaining watch, it goes through the
+ * exact same unwatch path as `markEpisodeWatched(storage, episode, false)`
+ * — which already deletes the record, flips EpisodeProgress back to
+ * unwatched, and recalculates the parent show's status — so the episode
+ * ends up exactly as if it had never been watched, with no orphaned
+ * progress/status state. Otherwise it's a plain rewatch decrement: only
+ * the latest EpisodeWatch record is removed and the episode stays marked
+ * watched, matching the ×5 → ×4 behavior with nothing else to recalculate.
+ */
+export async function removeOneEpisodeWatch(storage: StorageService, episode: Episode): Promise<void> {
+	const watches = await storage.episodeWatches.findByEpisodeId(episode.id);
+	if (watches.length <= 1) {
+		await markEpisodeWatched(storage, episode, false);
+	} else {
+		await deleteLatestEpisodeWatch(storage, episode.id);
+	}
+}
+
+/**
  * Batch-marks every episode in a season, then recalculates status once
  * (not once per episode) — cheaper and avoids the status flapping through
  * intermediate "Watching" states mid-batch.

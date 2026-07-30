@@ -20,6 +20,7 @@ import { renderCustomListsCarousel } from "../components/custom-lists-carousel";
 import { ListDetailModal } from "../modals/list-detail-modal";
 import { tmdbImageUrl } from "../../api/tmdb-normalize";
 import { getSystemFavoriteLists } from "../../services/list-service";
+import { isAndroidDevice } from "../../utils/platform";
 import {
 	FilterCriteria,
 	DEFAULT_FILTER_CRITERIA,
@@ -565,19 +566,72 @@ export class LibraryView extends ItemView {
 			});
 		}
 
-		const datalistId = `mediavault-filter-datalist-${label.toLowerCase()}`;
-		const input = row.createEl("input", { type: "text", attr: { placeholder: `Add ${label.toLowerCase()}...`, list: datalistId } });
-		const datalist = row.createEl("datalist", { attr: { id: datalistId } });
-		options.forEach((opt) => datalist.createEl("option", { value: opt }));
-
-		input.addEventListener("change", () => {
-			const value = input.value.trim();
-			if (value && options.includes(value) && !selected.includes(value)) {
-				selected.push(value);
-				input.value = "";
+		const commitValue = (value: string) => {
+			const trimmed = value.trim();
+			if (trimmed && options.includes(trimmed) && !selected.includes(trimmed)) {
+				selected.push(trimmed);
 				onChange();
+				return true;
 			}
-		});
+			return false;
+		};
+
+		if (isAndroidDevice()) {
+			// Android's native <input list=datalist> suggestion popup competes
+			// with the on-screen keyboard for screen space — on this platform
+			// opening the list can cover or dismiss the keyboard entirely,
+			// making it impossible to type. A JS-rendered suggestion box is
+			// just an ordinary positioned element, so it never fights the
+			// keyboard the way the OS-level datalist chrome does.
+			const wrap = row.createDiv({ cls: "mediavault-autocomplete-wrap" });
+			const input = wrap.createEl("input", {
+				type: "text",
+				attr: { placeholder: `Add ${label.toLowerCase()}...` },
+			});
+			const suggestionsEl = wrap.createDiv({ cls: "mediavault-autocomplete-list is-hidden" });
+
+			const renderSuggestions = () => {
+				const query = input.value.trim().toLowerCase();
+				suggestionsEl.empty();
+				if (!query) {
+					suggestionsEl.addClass("is-hidden");
+					return;
+				}
+				const matches = options.filter((opt) => opt.toLowerCase().includes(query) && !selected.includes(opt)).slice(0, 8);
+				if (matches.length === 0) {
+					suggestionsEl.addClass("is-hidden");
+					return;
+				}
+				matches.forEach((opt) => {
+					const item = suggestionsEl.createDiv({ cls: "mediavault-autocomplete-item", text: opt });
+					// mousedown (not click) fires before the input's blur, so the
+					// suggestion is still in the DOM when the value commits.
+					item.addEventListener("mousedown", (evt) => {
+						evt.preventDefault();
+						commitValue(opt);
+						input.value = "";
+						suggestionsEl.addClass("is-hidden");
+					});
+				});
+				suggestionsEl.removeClass("is-hidden");
+			};
+
+			input.addEventListener("input", renderSuggestions);
+			input.addEventListener("focus", renderSuggestions);
+			input.addEventListener("blur", () => window.setTimeout(() => suggestionsEl.addClass("is-hidden"), 150));
+			input.addEventListener("change", () => {
+				if (commitValue(input.value)) input.value = "";
+			});
+		} else {
+			const datalistId = `mediavault-filter-datalist-${label.toLowerCase()}`;
+			const input = row.createEl("input", { type: "text", attr: { placeholder: `Add ${label.toLowerCase()}...`, list: datalistId } });
+			const datalist = row.createEl("datalist", { attr: { id: datalistId } });
+			options.forEach((opt) => datalist.createEl("option", { value: opt }));
+
+			input.addEventListener("change", () => {
+				if (commitValue(input.value)) input.value = "";
+			});
+		}
 	}
 
 	private renderMinSlider(
