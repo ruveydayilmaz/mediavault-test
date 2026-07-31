@@ -2,7 +2,12 @@ import { App, Modal, Notice, Setting } from "obsidian";
 import { renderModalHeader } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import { getComfortableMedia } from "../../services/comfort/join";
-import { filterByComfortCriteria, presetToCriteria, ComfortCriteria, ComfortableMedia } from "../../services/comfort/filter";
+import {
+  filterByComfortCriteria,
+  presetToCriteria,
+  ComfortCriteria,
+  ComfortableMedia,
+} from "../../services/comfort/filter";
 import { rankComfortMatches } from "../../services/comfort/rank";
 import { ComfortPreset, ComfortFlags } from "../../models/comfort";
 import { renderPoster } from "../components/media-render";
@@ -10,244 +15,301 @@ import { MediaDetailModal } from "./media-detail-modal";
 import type { TMDBService } from "../../api/tmdb";
 
 const FLAG_LABELS: Record<keyof ComfortFlags, string> = {
-	safeWhenAnxious: "Safe when anxious",
-	safeWhenDepressed: "Safe when depressed",
-	goodForBackgroundNoise: "Good for background noise",
-	goodWhileCleaning: "Good while cleaning",
-	goodBeforeSleep: "Good before sleep",
-	cozy: "Cozy",
-	funny: "Funny",
-	noMajorCharacterDeath: "No major character death",
-	lowConflict: "Low conflict",
-	familiarFavorite: "Familiar favorite",
+  safeWhenAnxious: "Safe when anxious",
+  safeWhenDepressed: "Safe when depressed",
+  goodForBackgroundNoise: "Good for background noise",
+  goodWhileCleaning: "Good while cleaning",
+  goodBeforeSleep: "Good before sleep",
+  cozy: "Cozy",
+  funny: "Funny",
+  noMajorCharacterDeath: "No major character death",
+  lowConflict: "Low conflict",
+  familiarFavorite: "Familiar favorite",
 };
 
 type Mode = "quick" | "advanced";
 
 export class ComfortFinderModal extends Modal {
-	private storage: StorageService;
-	private tmdb: TMDBService;
+  private storage: StorageService;
+  private tmdb: TMDBService;
 
-	private mode: Mode = "quick";
-	private allComfortable: ComfortableMedia[] = [];
-	private presets: ComfortPreset[] = [];
+  private mode: Mode = "quick";
+  private allComfortable: ComfortableMedia[] = [];
+  private presets: ComfortPreset[] = [];
 
-	private criteria: ComfortCriteria = {};
-	private resultsEl!: HTMLElement;
+  private criteria: ComfortCriteria = {};
+  private resultsEl!: HTMLElement;
 
-	constructor(app: App, storage: StorageService, tmdb: TMDBService) {
-		super(app);
-		this.storage = storage;
-		this.tmdb = tmdb;
-	}
+  constructor(app: App, storage: StorageService, tmdb: TMDBService) {
+    super(app);
+    this.storage = storage;
+    this.tmdb = tmdb;
+  }
 
-	async onOpen(): Promise<void> {
-		this.allComfortable = await getComfortableMedia(this.storage);
-		this.presets = await this.storage.comfortPresets.getAll();
-		this.render();
-	}
+  async onOpen(): Promise<void> {
+    this.allComfortable = await getComfortableMedia(this.storage);
+    this.presets = await this.storage.comfortPresets.getAll();
+    this.render();
+  }
 
-	private render(): void {
-		const { contentEl } = this;
-		contentEl.empty();
-		contentEl.addClass("mediavault-comfort-finder");
-		renderModalHeader(this, contentEl, "Comfort Finder");
+  private render(): void {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("mediavault-comfort-finder");
+    renderModalHeader(this, contentEl, "Comfort Finder");
 
-		if (this.allComfortable.length === 0) {
-			contentEl.createDiv({
-				cls: "mediavault-comfort-finder-empty",
-				text: "Nothing has a comfort profile yet — open a media item's detail view and set one up first.",
-			});
-			return;
-		}
+    if (this.allComfortable.length === 0) {
+      contentEl.createDiv({
+        cls: "mediavault-comfort-finder-empty",
+        text: "Nothing has a comfort profile yet — open a media item's detail view and set one up first.",
+      });
+      return;
+    }
 
-		const modeToggle = contentEl.createDiv({ cls: "mediavault-comfort-mode-toggle" });
-		(["quick", "advanced"] as Mode[]).forEach((m) => {
-			const btn = modeToggle.createEl("button", {
-				text: m === "quick" ? "Quick filter" : "Advanced filter",
-				cls: m === this.mode ? "is-active" : "",
-			});
-			btn.addEventListener("click", () => {
-				this.mode = m;
-				this.render();
-			});
-		});
+    const modeToggle = contentEl.createDiv({
+      cls: "mediavault-comfort-mode-toggle",
+    });
+    (["quick", "advanced"] as Mode[]).forEach((m) => {
+      const btn = modeToggle.createEl("button", {
+        text: m === "quick" ? "Quick filter" : "Advanced filter",
+        cls: m === this.mode ? "is-active" : "",
+      });
+      btn.addEventListener("click", () => {
+        this.mode = m;
+        this.render();
+      });
+    });
 
-		const filterSection = contentEl.createDiv({ cls: "mediavault-comfort-filter-section" });
-		if (this.mode === "quick") {
-			this.renderQuickFilters(filterSection);
-		} else {
-			this.renderAdvancedFilters(filterSection);
-		}
+    const filterSection = contentEl.createDiv({
+      cls: "mediavault-comfort-filter-section",
+    });
+    if (this.mode === "quick") {
+      this.renderQuickFilters(filterSection);
+    } else {
+      this.renderAdvancedFilters(filterSection);
+    }
 
-		contentEl.createEl("h3", { text: "Results" });
-		this.resultsEl = contentEl.createDiv({ cls: "mediavault-comfort-results" });
-		this.runQuery();
-	}
+    contentEl.createEl("h3", { text: "Results" });
+    this.resultsEl = contentEl.createDiv({ cls: "mediavault-comfort-results" });
+    this.runQuery();
+  }
 
-	private renderQuickFilters(container: HTMLElement): void {
-		const presetGrid = container.createDiv({ cls: "mediavault-comfort-presets" });
-		this.presets.forEach((preset) => {
-			const card = presetGrid.createDiv({ cls: "mediavault-comfort-preset-card" });
-			card.createDiv({ cls: "mediavault-comfort-preset-name", text: preset.name });
-			if (preset.description) {
-				card.createDiv({ cls: "mediavault-comfort-preset-desc", text: preset.description });
-			}
-			card.addEventListener("click", () => {
-				this.criteria = presetToCriteria(preset);
-				presetGrid.querySelectorAll(".mediavault-comfort-preset-card").forEach((el) => el.removeClass("is-active"));
-				card.addClass("is-active");
-				this.runQuery();
-			});
-		});
-	}
+  private renderQuickFilters(container: HTMLElement): void {
+    const presetGrid = container.createDiv({
+      cls: "mediavault-comfort-presets",
+    });
+    this.presets.forEach((preset) => {
+      const card = presetGrid.createDiv({
+        cls: "mediavault-comfort-preset-card",
+      });
+      card.createDiv({
+        cls: "mediavault-comfort-preset-name",
+        text: preset.name,
+      });
+      if (preset.description) {
+        card.createDiv({
+          cls: "mediavault-comfort-preset-desc",
+          text: preset.description,
+        });
+      }
+      card.addEventListener("click", () => {
+        this.criteria = presetToCriteria(preset);
+        presetGrid
+          .querySelectorAll(".mediavault-comfort-preset-card")
+          .forEach((el) => el.removeClass("is-active"));
+        card.addClass("is-active");
+        this.runQuery();
+      });
+    });
+  }
 
-	private renderAdvancedFilters(container: HTMLElement): void {
-		this.rangeSlider(container, "Energy level", "energyMin", "energyMax");
-		this.rangeSlider(container, "Attention required", "attentionMin", "attentionMax");
-		this.maxSlider(container, "Max emotional heaviness", "emotionalHeavinessMax");
-		this.minSlider(container, "Min comfort score", "comfortScoreMin");
-		this.minSlider(container, "Min rewatchability", "rewatchabilityMin");
+  private renderAdvancedFilters(container: HTMLElement): void {
+    this.rangeSlider(container, "Energy level", "energyMin", "energyMax");
+    this.rangeSlider(
+      container,
+      "Attention required",
+      "attentionMin",
+      "attentionMax",
+    );
+    this.maxSlider(
+      container,
+      "Max emotional heaviness",
+      "emotionalHeavinessMax",
+    );
+    this.minSlider(container, "Min comfort score", "comfortScoreMin");
+    this.minSlider(container, "Min rewatchability", "rewatchabilityMin");
 
-		container.createEl("h4", { text: "Required tags" });
-		const flagWrap = container.createDiv({ cls: "mediavault-comfort-multitoggle" });
-		(Object.keys(FLAG_LABELS) as (keyof ComfortFlags)[]).forEach((flag) => {
-			const required = this.criteria.requiredFlags ?? [];
-			const pill = flagWrap.createEl("button", {
-				cls: `mediavault-comfort-pill ${required.includes(flag) ? "is-active" : ""}`,
-				text: FLAG_LABELS[flag],
-			});
-			pill.addEventListener("click", () => {
-				const current = new Set(this.criteria.requiredFlags ?? []);
-				if (current.has(flag)) {
-					current.delete(flag);
-					pill.removeClass("is-active");
-				} else {
-					current.add(flag);
-					pill.addClass("is-active");
-				}
-				this.criteria = { ...this.criteria, requiredFlags: [...current] };
-				this.runQuery();
-			});
-		});
+    container.createEl("h4", { text: "Required tags" });
+    const flagWrap = container.createDiv({
+      cls: "mediavault-comfort-multitoggle",
+    });
+    (Object.keys(FLAG_LABELS) as (keyof ComfortFlags)[]).forEach((flag) => {
+      const required = this.criteria.requiredFlags ?? [];
+      const pill = flagWrap.createEl("button", {
+        cls: `mediavault-comfort-pill ${required.includes(flag) ? "is-active" : ""}`,
+        text: FLAG_LABELS[flag],
+      });
+      pill.addEventListener("click", () => {
+        const current = new Set(this.criteria.requiredFlags ?? []);
+        if (current.has(flag)) {
+          current.delete(flag);
+          pill.removeClass("is-active");
+        } else {
+          current.add(flag);
+          pill.addClass("is-active");
+        }
+        this.criteria = { ...this.criteria, requiredFlags: [...current] };
+        this.runQuery();
+      });
+    });
 
-		const saveBtn = container.createEl("button", { text: "Save as preset...", cls: "mediavault-comfort-save-preset" });
-		saveBtn.addEventListener("click", () => void this.promptSavePreset());
-	}
+    const saveBtn = container.createEl("button", {
+      text: "Save as preset...",
+      cls: "mediavault-comfort-save-preset",
+    });
+    saveBtn.addEventListener("click", () => void this.promptSavePreset());
+  }
 
-	private rangeSlider(
-		container: HTMLElement,
-		label: string,
-		minField: "energyMin" | "attentionMin",
-		maxField: "energyMax" | "attentionMax"
-	): void {
-		new Setting(container)
-			.setName(label)
-			.addSlider((slider) =>
-				slider
-					.setLimits(1, 10, 1)
-					.setValue(this.criteria[minField] ?? 1)
-					.setDynamicTooltip()
-					.onChange((v) => {
-						this.criteria = { ...this.criteria, [minField]: v };
-						this.runQuery();
-					})
-			)
-			.addSlider((slider) =>
-				slider
-					.setLimits(1, 10, 1)
-					.setValue(this.criteria[maxField] ?? 10)
-					.setDynamicTooltip()
-					.onChange((v) => {
-						this.criteria = { ...this.criteria, [maxField]: v };
-						this.runQuery();
-					})
-			);
-	}
+  private rangeSlider(
+    container: HTMLElement,
+    label: string,
+    minField: "energyMin" | "attentionMin",
+    maxField: "energyMax" | "attentionMax",
+  ): void {
+    new Setting(container)
+      .setName(label)
+      .addSlider((slider) =>
+        slider
+          .setLimits(1, 10, 1)
+          .setValue(this.criteria[minField] ?? 1)
+          .setDynamicTooltip()
+          .onChange((v) => {
+            this.criteria = { ...this.criteria, [minField]: v };
+            this.runQuery();
+          }),
+      )
+      .addSlider((slider) =>
+        slider
+          .setLimits(1, 10, 1)
+          .setValue(this.criteria[maxField] ?? 10)
+          .setDynamicTooltip()
+          .onChange((v) => {
+            this.criteria = { ...this.criteria, [maxField]: v };
+            this.runQuery();
+          }),
+      );
+  }
 
-	private maxSlider(container: HTMLElement, label: string, field: "emotionalHeavinessMax" | "plotComplexityMax"): void {
-		new Setting(container).setName(label).addSlider((slider) =>
-			slider
-				.setLimits(1, 10, 1)
-				.setValue(this.criteria[field] ?? 10)
-				.setDynamicTooltip()
-				.onChange((v) => {
-					this.criteria = { ...this.criteria, [field]: v };
-					this.runQuery();
-				})
-		);
-	}
+  private maxSlider(
+    container: HTMLElement,
+    label: string,
+    field: "emotionalHeavinessMax" | "plotComplexityMax",
+  ): void {
+    new Setting(container).setName(label).addSlider((slider) =>
+      slider
+        .setLimits(1, 10, 1)
+        .setValue(this.criteria[field] ?? 10)
+        .setDynamicTooltip()
+        .onChange((v) => {
+          this.criteria = { ...this.criteria, [field]: v };
+          this.runQuery();
+        }),
+    );
+  }
 
-	private minSlider(container: HTMLElement, label: string, field: "comfortScoreMin" | "rewatchabilityMin"): void {
-		new Setting(container).setName(label).addSlider((slider) =>
-			slider
-				.setLimits(1, 10, 1)
-				.setValue(this.criteria[field] ?? 1)
-				.setDynamicTooltip()
-				.onChange((v) => {
-					this.criteria = { ...this.criteria, [field]: v };
-					this.runQuery();
-				})
-		);
-	}
+  private minSlider(
+    container: HTMLElement,
+    label: string,
+    field: "comfortScoreMin" | "rewatchabilityMin",
+  ): void {
+    new Setting(container).setName(label).addSlider((slider) =>
+      slider
+        .setLimits(1, 10, 1)
+        .setValue(this.criteria[field] ?? 1)
+        .onChange((v) => {
+          this.criteria = { ...this.criteria, [field]: v };
+          this.runQuery();
+        }),
+    );
+  }
 
-	private runQuery(): void {
-		const filtered = filterByComfortCriteria(this.allComfortable, this.criteria);
-		const ranked = rankComfortMatches(filtered, this.criteria);
-		const byId = new Map(filtered.map((f) => [f.media.id, f]));
+  private runQuery(): void {
+    const filtered = filterByComfortCriteria(
+      this.allComfortable,
+      this.criteria,
+    );
+    const ranked = rankComfortMatches(filtered, this.criteria);
+    const byId = new Map(filtered.map((f) => [f.media.id, f]));
 
-		this.resultsEl.empty();
+    this.resultsEl.empty();
 
-		if (ranked.length === 0) {
-			this.resultsEl.createDiv({ cls: "mediavault-comfort-no-results", text: "Nothing matches yet — try loosening a filter." });
-			return;
-		}
+    if (ranked.length === 0) {
+      this.resultsEl.createDiv({
+        cls: "mediavault-comfort-no-results",
+        text: "Nothing matches yet — try loosening a filter.",
+      });
+      return;
+    }
 
-		ranked.slice(0, 30).forEach((match) => {
-			const item = byId.get(match.mediaId);
-			if (!item) return;
+    ranked.slice(0, 30).forEach((match) => {
+      const item = byId.get(match.mediaId);
+      if (!item) return;
 
-			const card = this.resultsEl.createDiv({ cls: "mediavault-comfort-result" });
-			const poster = card.createDiv({ cls: "mediavault-comfort-result-poster" });
-			renderPoster(poster, item.media, "w200");
+      const card = this.resultsEl.createDiv({
+        cls: "mediavault-comfort-result",
+      });
+      const poster = card.createDiv({
+        cls: "mediavault-comfort-result-poster",
+      });
+      renderPoster(poster, item.media, "w200");
 
-			const info = card.createDiv({ cls: "mediavault-comfort-result-info" });
-			info.createDiv({ cls: "mediavault-comfort-result-title", text: item.media.title });
-			if (match.matchedFlags.length > 0) {
-				info.createDiv({
-					cls: "mediavault-comfort-result-flags",
-					text: match.matchedFlags.map((f) => FLAG_LABELS[f]).join(" · "),
-				});
-			}
+      const info = card.createDiv({ cls: "mediavault-comfort-result-info" });
+      info.createDiv({
+        cls: "mediavault-comfort-result-title",
+        text: item.media.title,
+      });
+      if (match.matchedFlags.length > 0) {
+        info.createDiv({
+          cls: "mediavault-comfort-result-flags",
+          text: match.matchedFlags.map((f) => FLAG_LABELS[f]).join(" · "),
+        });
+      }
 
-			card.addEventListener("click", () => {
-				this.close();
-				new MediaDetailModal(this.app, this.storage, this.tmdb, item.media).open();
-			});
-		});
-	}
+      card.addEventListener("click", () => {
+        this.close();
+        new MediaDetailModal(
+          this.app,
+          this.storage,
+          this.tmdb,
+          item.media,
+        ).open();
+      });
+    });
+  }
 
-	private async promptSavePreset(): Promise<void> {
-		const name = window.prompt("Name this preset:");
-		if (!name || !name.trim()) return;
+  private async promptSavePreset(): Promise<void> {
+    const name = window.prompt("Name this preset:");
+    if (!name || !name.trim()) return;
 
-		try {
-			await this.storage.comfortPresets.create({
-				name: name.trim(),
-				description: null,
-				...this.criteria,
-				requiredFlags: this.criteria.requiredFlags ?? [],
-				excludedTriggers: this.criteria.excludedTriggers ?? [],
-				seasonalTags: this.criteria.seasonalTags ?? [],
-			});
-			new Notice(`MediaVault: saved preset "${name.trim()}".`);
-			this.presets = await this.storage.comfortPresets.getAll();
-		} catch (err) {
-			new Notice(`MediaVault: failed to save preset — ${(err as Error).message}`);
-		}
-	}
+    try {
+      await this.storage.comfortPresets.create({
+        name: name.trim(),
+        description: null,
+        ...this.criteria,
+        requiredFlags: this.criteria.requiredFlags ?? [],
+        excludedTriggers: this.criteria.excludedTriggers ?? [],
+        seasonalTags: this.criteria.seasonalTags ?? [],
+      });
+      new Notice(`MediaVault: saved preset "${name.trim()}".`);
+      this.presets = await this.storage.comfortPresets.getAll();
+    } catch (err) {
+      new Notice(
+        `MediaVault: failed to save preset — ${(err as Error).message}`,
+      );
+    }
+  }
 
-	onClose(): void {
-		this.contentEl.empty();
-	}
+  onClose(): void {
+    this.contentEl.empty();
+  }
 }

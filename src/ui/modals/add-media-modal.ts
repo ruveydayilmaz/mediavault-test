@@ -9,116 +9,122 @@ import type { MediaItem } from "../../models/media";
 const DEBOUNCE_MS = 350;
 const MIN_QUERY_LENGTH = 2;
 
-/**
- * Obsidian's SuggestModal already provides keyboard navigation (up/down to
- * move, enter to select, escape to close) and calls getSuggestions on every
- * keystroke — so debouncing the actual network request (rather than the
- * keystrokes themselves) is what keeps this from hammering TMDB while
- * someone is still typing.
- */
 export class AddMediaModal extends SuggestModal<TMDBSearchResult> {
-	private tmdb: TMDBService;
-	private storage: StorageService;
-	private onAdded?: (media: MediaItem) => void;
+  private tmdb: TMDBService;
+  private storage: StorageService;
+  private onAdded?: (media: MediaItem) => void;
 
-	private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-	private latestQuery = "";
-	private latestResults: TMDBSearchResult[] = [];
-	private pendingResolvers: ((results: TMDBSearchResult[]) => void)[] = [];
+  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private latestQuery = "";
+  private latestResults: TMDBSearchResult[] = [];
+  private pendingResolvers: ((results: TMDBSearchResult[]) => void)[] = [];
 
-	constructor(app: App, tmdb: TMDBService, storage: StorageService, onAdded?: (media: MediaItem) => void) {
-		super(app);
-		this.tmdb = tmdb;
-		this.storage = storage;
-		this.onAdded = onAdded;
-		this.setPlaceholder("Search for a movie or TV show on TMDB...");
+  constructor(
+    app: App,
+    tmdb: TMDBService,
+    storage: StorageService,
+    onAdded?: (media: MediaItem) => void,
+  ) {
+    super(app);
+    this.tmdb = tmdb;
+    this.storage = storage;
+    this.onAdded = onAdded;
+    this.setPlaceholder("Search for a movie or TV show on TMDB...");
 
-		this.emptyStateText = "No results. Keep typing, or check your TMDB API key in settings.";
-	}
+    this.emptyStateText =
+      "No results. Keep typing, or check your TMDB API key in settings.";
+  }
 
-	getSuggestions(query: string): Promise<TMDBSearchResult[]> {
-		this.latestQuery = query;
+  getSuggestions(query: string): Promise<TMDBSearchResult[]> {
+    this.latestQuery = query;
 
-		if (query.trim().length < MIN_QUERY_LENGTH) {
-			return Promise.resolve([]);
-		}
+    if (query.trim().length < MIN_QUERY_LENGTH) {
+      return Promise.resolve([]);
+    }
 
-		if (this.debounceTimer) clearTimeout(this.debounceTimer);
+    if (this.debounceTimer) clearTimeout(this.debounceTimer);
 
-		return new Promise((resolve) => {
-			this.pendingResolvers.push(resolve);
+    return new Promise((resolve) => {
+      this.pendingResolvers.push(resolve);
 
-			this.debounceTimer = setTimeout(async () => {
-				const queryAtFire = this.latestQuery;
-				try {
-					const result = await this.tmdb.searchMulti(queryAtFire);
-					// Only apply if this is still the most recent query — avoids
-					// out-of-order responses clobbering newer keystrokes' results.
-					if (queryAtFire === this.latestQuery) {
-						this.latestResults = result.items;
-					}
-				} catch (err) {
-					new Notice(`MediaVault: TMDB search failed — ${(err as Error).message}`);
-					this.latestResults = [];
-				}
+      this.debounceTimer = setTimeout(async () => {
+        const queryAtFire = this.latestQuery;
+        try {
+          const result = await this.tmdb.searchMulti(queryAtFire);
 
-				const resolvers = this.pendingResolvers;
-				this.pendingResolvers = [];
-				resolvers.forEach((r) => r(this.latestResults));
-			}, DEBOUNCE_MS);
-		});
-	}
+          if (queryAtFire === this.latestQuery) {
+            this.latestResults = result.items;
+          }
+        } catch (err) {
+          new Notice(
+            `MediaVault: TMDB search failed — ${(err as Error).message}`,
+          );
+          this.latestResults = [];
+        }
 
-	renderSuggestion(item: TMDBSearchResult, el: HTMLElement): void {
-		el.addClass("mediavault-search-suggestion");
+        const resolvers = this.pendingResolvers;
+        this.pendingResolvers = [];
+        resolvers.forEach((r) => r(this.latestResults));
+      }, DEBOUNCE_MS);
+    });
+  }
 
-		const posterUrl = tmdbImageUrl(item.posterPath, "w200");
-		const poster = el.createDiv({ cls: "mediavault-search-poster" });
-		if (posterUrl) {
-			poster.createEl("img", { attr: { src: posterUrl, alt: item.title } });
-		} else {
-			poster.setText("🎬");
-		}
+  renderSuggestion(item: TMDBSearchResult, el: HTMLElement): void {
+    el.addClass("mediavault-search-suggestion");
 
-		const info = el.createDiv({ cls: "mediavault-search-info" });
-		const titleLine = info.createDiv({ cls: "mediavault-search-title" });
-		titleLine.createSpan({ text: item.title });
-		if (item.year) {
-			titleLine.createSpan({ text: ` (${item.year})`, cls: "mediavault-search-year" });
-		}
-		titleLine.createSpan({
-			text: item.mediaKind === "movie" ? " · Movie" : " · TV",
-			cls: "mediavault-search-kind",
-		});
+    const posterUrl = tmdbImageUrl(item.posterPath, "w200");
+    const poster = el.createDiv({ cls: "mediavault-search-poster" });
+    if (posterUrl) {
+      poster.createEl("img", { attr: { src: posterUrl, alt: item.title } });
+    } else {
+      poster.setText("🎬");
+    }
 
-		if (item.overview) {
-			info.createDiv({
-				cls: "mediavault-search-overview",
-				text: item.overview.length > 160 ? item.overview.slice(0, 157) + "..." : item.overview,
-			});
-		}
-	}
+    const info = el.createDiv({ cls: "mediavault-search-info" });
+    const titleLine = info.createDiv({ cls: "mediavault-search-title" });
+    titleLine.createSpan({ text: item.title });
+    if (item.year) {
+      titleLine.createSpan({
+        text: ` (${item.year})`,
+        cls: "mediavault-search-year",
+      });
+    }
+    titleLine.createSpan({
+      text: item.mediaKind === "movie" ? " · Movie" : " · TV",
+      cls: "mediavault-search-kind",
+    });
 
-	async onChooseSuggestion(item: TMDBSearchResult): Promise<void> {
-		try {
-			const { mediaItem, alreadyExisted } = await addMediaFromTMDB(
-				this.storage,
-				this.tmdb,
-				item.tmdbId,
-				item.mediaKind
-			);
+    if (item.overview) {
+      info.createDiv({
+        cls: "mediavault-search-overview",
+        text:
+          item.overview.length > 160
+            ? item.overview.slice(0, 157) + "..."
+            : item.overview,
+      });
+    }
+  }
 
-			new Notice(
-				alreadyExisted
-					? `MediaVault: "${mediaItem.title}" is already in your library.`
-					: `MediaVault: added "${mediaItem.title}" to your library.`
-			);
+  async onChooseSuggestion(item: TMDBSearchResult): Promise<void> {
+    try {
+      const { mediaItem, alreadyExisted } = await addMediaFromTMDB(
+        this.storage,
+        this.tmdb,
+        item.tmdbId,
+        item.mediaKind,
+      );
 
-			if (!alreadyExisted) {
-				this.onAdded?.(mediaItem);
-			}
-		} catch (err) {
-			new Notice(`MediaVault: failed to add media — ${(err as Error).message}`);
-		}
-	}
+      new Notice(
+        alreadyExisted
+          ? `MediaVault: "${mediaItem.title}" is already in your library.`
+          : `MediaVault: added "${mediaItem.title}" to your library.`,
+      );
+
+      if (!alreadyExisted) {
+        this.onAdded?.(mediaItem);
+      }
+    } catch (err) {
+      new Notice(`MediaVault: failed to add media — ${(err as Error).message}`);
+    }
+  }
 }

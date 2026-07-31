@@ -51,7 +51,7 @@ export function shouldRunDailyCheck(
         10,
       );
     } catch {
-      // Invalid/unrecognized timezone string
+      // Invalid timezone string
     }
   }
 

@@ -22,7 +22,7 @@ export interface WatchImport {
   title: string;
   year: number | null;
   match?: MatchMetadata;
-  /** Episode-only. */
+
   seasonNumber?: number;
   episodeNumber?: number;
   episodeTitle?: string;
