@@ -62,6 +62,7 @@ import { addMediaFromTMDB } from "../../services/media-import";
 import { resumeSeries } from "../../services/drop-series-service";
 import { DropSeriesModal } from "./drop-series-modal";
 import { addDestructiveMenuItem } from "../components/destructive-menu-item";
+import { makeClearable } from "../components/clearable-input";
 import { t } from "../../i18n";
 
 type DetailTab =
@@ -1098,6 +1099,7 @@ export class MediaDetailModal extends Modal {
     });
     textarea.value = comment.comment;
     body.replaceWith(textarea);
+    makeClearable(textarea);
 
     const editActions = item.createDiv({ cls: "mediavault-comment-actions" });
     const saveBtn = editActions.createEl("button", {
@@ -1157,6 +1159,7 @@ export class MediaDetailModal extends Modal {
         enterkeyhint: "done",
       },
     });
+    makeClearable(textarea);
     const counter = composer.createDiv({
       cls: "mediavault-comment-char-counter",
       text: `0 / ${TRAKT_COMMENT_LIMIT}`,
@@ -1501,7 +1504,10 @@ export class MediaDetailModal extends Modal {
     );
 
     const watchBtn = row.createEl("button", {
-      cls: "mediavault-detail-log-btn mod-cta mediavault-episode-watch-btn",
+      cls:
+        watches.length === 0
+          ? "mediavault-detail-log-btn mediavault-episode-watch-btn mediavault-episode-watch-btn-unwatched"
+          : "mediavault-detail-log-btn mod-cta mediavault-episode-watch-btn",
     });
     if (watches.length === 0) {
       setIcon(watchBtn, "check");
@@ -1939,6 +1945,7 @@ export class MediaDetailModal extends Modal {
       attr: { placeholder: t("watchSession.review") },
     });
     notesInput.value = watch.review ?? "";
+    makeClearable(notesInput);
     notesInput.addEventListener("blur", async () => {
       const value = notesInput.value.trim();
       if (value === (watch.review ?? "")) return;

@@ -11,6 +11,7 @@ import { DiscoverFilters } from "../../api/tmdb";
 import { MediaType } from "../../types/enums";
 import { renderDiscoverCard } from "../components/discover-card";
 import { t } from "../../i18n";
+import { makeClearable } from "../components/clearable-input";
 
 type ExploreTab = "discover" | "browse" | "search";
 
@@ -326,6 +327,7 @@ export class ExploreView extends ItemView {
       attr: { placeholder: "Language (e.g. en)", maxlength: "2" },
     });
     langInput.value = this.browseFilters.language ?? "";
+    makeClearable(langInput);
     langInput.addEventListener("change", () => {
       this.browseFilters.language = langInput.value.trim() || undefined;
       void this.refreshBrowseResults(body);
@@ -376,6 +378,7 @@ export class ExploreView extends ItemView {
       attr: { placeholder: t("explore.searchPlaceholder") },
     });
     input.value = this.searchQuery;
+    makeClearable(input);
     const resultsEl = body.createDiv({ cls: "mediavault-explore-results" });
 
     if (this.searchQuery) {

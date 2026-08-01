@@ -1,7 +1,28 @@
-import { Modal, setIcon } from "obsidian";
+import { Modal, Platform, setIcon } from "obsidian";
+
+function removeNativeCloseButton(modal: Modal): void {
+  const find = (): HTMLElement | null =>
+    modal.modalEl.querySelector<HTMLElement>(".modal-close-button") ??
+    modal.modalEl.parentElement?.querySelector<HTMLElement>(
+      ":scope > .modal-close-button",
+    ) ??
+    null;
+
+  const existing = find();
+  if (existing) {
+    existing.remove();
+    return;
+  }
+  // On some Android builds Obsidian appends its close button to the modal
+  // shell asynchronously (after onOpen runs), so retry on the next frame.
+  requestAnimationFrame(() => find()?.remove());
+}
 
 function markMediaVaultModalShell(modal: Modal): void {
   modal.modalEl.addClass("mediavault-modal-shell");
+  if (Platform.isAndroidApp) {
+    removeNativeCloseButton(modal);
+  }
 }
 
 export function renderMobileBackButton(

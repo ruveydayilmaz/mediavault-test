@@ -7,6 +7,7 @@ import { NotificationHistoryModal } from "../ui/modals/notification-history-moda
 import { disconnectTrakt } from "../services/trakt-token";
 import { i18n, t } from "../i18n";
 import { SUPPORTED_LOCALES } from "../i18n/types";
+import { makeClearable } from "../ui/components/clearable-input";
 
 export class MediaVaultSettingTab extends PluginSettingTab {
   plugin: MediaVaultPlugin;
@@ -421,5 +422,9 @@ export class MediaVaultSettingTab extends PluginSettingTab {
           new NotificationHistoryModal(this.app, this.plugin).open();
         }),
       );
+
+    containerEl
+      .querySelectorAll<HTMLInputElement>('input[type="text"]')
+      .forEach((input) => makeClearable(input));
   }
 }

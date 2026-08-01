@@ -3,6 +3,7 @@ import { renderModalHeader } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import { MediaItem } from "../../models/media";
 import { t } from "../../i18n";
+import { makeClearable } from "../components/clearable-input";
 
 export class AddToListModal extends Modal {
   private storage: StorageService;
@@ -83,6 +84,7 @@ export class AddToListModal extends Modal {
       type: "text",
       attr: { placeholder: t("addToList.newListPlaceholder") },
     });
+    makeClearable(newListInput);
     const createBtn = createRow.createEl("button", {
       text: t("addToList.createAndAdd"),
       cls: "mod-cta",

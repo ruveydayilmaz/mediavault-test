@@ -3,6 +3,7 @@ import { renderModalHeader } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import { CustomList } from "../../models/list";
 import { t } from "../../i18n";
+import { makeClearable } from "../components/clearable-input";
 
 export class CreateListModal extends Modal {
   private storage: StorageService;
@@ -27,9 +28,11 @@ export class CreateListModal extends Modal {
       type: "text",
       attr: { placeholder: t("createList.titlePlaceholder") },
     });
+    makeClearable(titleInput);
     const descInput = contentEl.createEl("textarea", {
       attr: { placeholder: t("createList.descPlaceholder") },
     });
+    makeClearable(descInput);
 
     const createBtn = contentEl.createEl("button", {
       text: t("common.create"),

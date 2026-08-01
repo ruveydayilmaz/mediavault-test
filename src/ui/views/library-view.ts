@@ -30,6 +30,7 @@ import { ListDetailModal } from "../modals/list-detail-modal";
 import { tmdbImageUrl } from "../../api/tmdb-normalize";
 import { getSystemFavoriteLists } from "../../services/list-service";
 import { isAndroidDevice } from "../../utils/platform";
+import { makeClearable } from "../components/clearable-input";
 import {
   FilterCriteria,
   DEFAULT_FILTER_CRITERIA,
@@ -718,6 +719,7 @@ export class LibraryView extends ItemView {
         type: "text",
         attr: { placeholder: `Add ${label.toLowerCase()}...` },
       });
+      makeClearable(input);
       const suggestionsEl = wrap.createDiv({
         cls: "mediavault-autocomplete-list is-hidden",
       });
@@ -772,6 +774,7 @@ export class LibraryView extends ItemView {
           list: datalistId,
         },
       });
+      makeClearable(input);
       const datalist = row.createEl("datalist", { attr: { id: datalistId } });
       options.forEach((opt) => datalist.createEl("option", { value: opt }));
 
@@ -819,6 +822,7 @@ export class LibraryView extends ItemView {
       cls: "mediavault-library-search",
     });
     this.toolbarSearchEl = searchInput;
+    makeClearable(searchInput);
     searchInput.addEventListener("input", () => {
       if (this.searchDebounce) clearTimeout(this.searchDebounce);
       this.searchDebounce = setTimeout(() => {
@@ -849,6 +853,7 @@ export class LibraryView extends ItemView {
     filterSelect.value = this.query.filter;
     filterSelect.addEventListener("change", () => {
       this.query.filter = filterSelect.value as LibraryFilter;
+      this.filterCriteria.favoritesOnly = false;
       this.query.page = 1;
       void this.refresh();
     });

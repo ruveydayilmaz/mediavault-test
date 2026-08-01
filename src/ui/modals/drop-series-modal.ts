@@ -3,6 +3,7 @@ import { renderModalHeader } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import { dropSeries } from "../../services/drop-series-service";
 import { t } from "../../i18n";
+import { makeClearable } from "../components/clearable-input";
 
 export interface DropSeriesModalOptions {
   mediaId: string;
@@ -38,6 +39,7 @@ export class DropSeriesModal extends Modal {
       cls: "mediavault-episode-notes-input",
       attr: { placeholder: t("dropSeries.placeholder") },
     });
+    makeClearable(textarea);
     textarea.addEventListener("input", () => {
       this.reason = textarea.value;
     });

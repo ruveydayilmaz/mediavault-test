@@ -13,6 +13,7 @@ const tr: TranslationDict = {
     close: "Kapat",
     confirm: "Onayla",
     add: "Ekle",
+    clearInput: "Temizle",
     remove: "Kaldır",
     back: "Geri",
     next: "İleri",

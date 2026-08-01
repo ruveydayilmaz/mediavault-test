@@ -13,6 +13,7 @@ const en: TranslationDict = {
     close: "Close",
     confirm: "Confirm",
     add: "Add",
+    clearInput: "Clear",
     remove: "Remove",
     back: "Back",
     next: "Next",

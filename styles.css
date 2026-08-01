@@ -557,6 +557,16 @@
   flex-shrink: 0;
 }
 
+.mediavault-detail-log-btn.mediavault-episode-watch-btn-unwatched {
+  background: var(--background-modifier-border);
+  color: var(--text-muted);
+}
+
+.mediavault-detail-log-btn.mediavault-episode-watch-btn-unwatched:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
 .mediavault-detail-log-btn svg {
   width: 20px;
   height: 20px;
@@ -2320,6 +2330,61 @@ body.mediavault-android .mediavault-comfort-flags .setting-item {
   color: var(--text-muted);
 }
 
+/* --- Clearable text inputs --- */
+.mediavault-clearable-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.mediavault-clearable-wrap-textarea {
+  display: block;
+}
+
+.mediavault-clearable-field {
+  width: 100%;
+  box-sizing: border-box;
+  padding-right: 26px;
+}
+
+.mediavault-clearable-wrap-textarea .mediavault-clearable-field {
+  padding-right: 26px;
+}
+
+.mediavault-clearable-clear {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.mediavault-clearable-wrap-textarea .mediavault-clearable-clear {
+  top: 8px;
+  transform: none;
+}
+
+.mediavault-clearable-clear:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.mediavault-clearable-clear svg {
+  width: 14px;
+  height: 14px;
+}
+
+.mediavault-clearable-wrap.has-value .mediavault-clearable-clear {
+  display: flex;
+}
+
 /* --- Universal Filtering panel --- */
 .mediavault-filters-toggle.is-active {
   color: var(--interactive-accent);
@@ -3653,7 +3718,32 @@ body.mediavault-android .mediavault-filter-panel select {
 }
 
 .is-phone .mediavault-library-toolbar {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+}
+
+.is-phone .mediavault-library-toolbar-actions {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.is-phone .mediavault-library-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+}
+
+.is-phone .mediavault-library-filter {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 108px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.is-phone .mediavault-filters-toggle,
+.is-phone .mediavault-library-view-toggle {
+  flex-shrink: 0;
 }
 
 body.mediavault-android .mediavault-pagination {
@@ -3675,23 +3765,6 @@ body.mediavault-android .mediavault-detail-menu-btn {
 
 .is-phone .mediavault-list-tile-banner {
   height: 140px;
-}
-
-@media (max-width: 380px) {
-  .is-phone .mediavault-library-search {
-    flex: 1 1 100%;
-    order: 1;
-  }
-
-  .is-phone .mediavault-filters-toggle {
-    order: 2;
-  }
-
-  .is-phone .mediavault-library-filter {
-    order: 3;
-    flex: 1 1 auto;
-    min-width: 0;
-  }
 }
 
 .is-phone .mediavault-library-view-toggle {
