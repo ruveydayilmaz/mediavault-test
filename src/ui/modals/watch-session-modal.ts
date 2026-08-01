@@ -3,6 +3,7 @@ import { renderModalHeader } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import { WatchSession } from "../../models/review";
 import { Mood, WatchSource } from "../../types/enums";
+import { t } from "../../i18n";
 import {
   addWatchSession,
   updateWatchSession,
@@ -50,16 +51,20 @@ export class WatchSessionModal extends Modal {
     contentEl.empty();
     contentEl.addClass("mediavault-watch-session-modal");
     const isEdit = !!this.options.existingSession;
-    renderModalHeader(this, contentEl, isEdit ? `Edit review` : `Log a watch`);
+    renderModalHeader(
+      this,
+      contentEl,
+      isEdit ? t("watchSession.editReview") : t("watchSession.logWatch"),
+    );
 
     if (!isEdit) {
       contentEl.createEl("p", {
         cls: "mediavault-modal-hint",
-        text: "This creates a new watch session. Past reviews are never overwritten.",
+        text: t("watchSession.newSessionHint"),
       });
     }
 
-    new Setting(contentEl).setName("Watch date").addText((text) =>
+    new Setting(contentEl).setName(t("watchSession.watchDate")).addText((text) =>
       text
         .setValue(this.watchDate)
         .onChange((value) => {
@@ -68,9 +73,9 @@ export class WatchSessionModal extends Modal {
         .inputEl.setAttribute("type", "date"),
     );
 
-    new Setting(contentEl).setName("Rating (0-10)").addText((text) =>
+    new Setting(contentEl).setName(t("watchSession.rating")).addText((text) =>
       text
-        .setPlaceholder("e.g. 8.5")
+        .setPlaceholder(t("watchSession.ratingPlaceholder"))
         .setValue(this.rating !== null ? String(this.rating) : "")
         .onChange((value) => {
           const parsed = parseFloat(value);
@@ -78,7 +83,7 @@ export class WatchSessionModal extends Modal {
         }),
     );
 
-    new Setting(contentEl).setName("Mood").addDropdown((dropdown) => {
+    new Setting(contentEl).setName(t("watchSession.mood")).addDropdown((dropdown) => {
       dropdown.addOption("", "—");
       Object.values(Mood).forEach((m) =>
         dropdown.addOption(m, m[0].toUpperCase() + m.slice(1)),
@@ -89,7 +94,9 @@ export class WatchSessionModal extends Modal {
       });
     });
 
-    new Setting(contentEl).setName("Watch source").addDropdown((dropdown) => {
+    new Setting(contentEl)
+      .setName(t("watchSession.watchSource"))
+      .addDropdown((dropdown) => {
       dropdown.addOption("", "—");
       Object.values(WatchSource).forEach((s) =>
         dropdown.addOption(
@@ -104,15 +111,15 @@ export class WatchSessionModal extends Modal {
     });
 
     new Setting(contentEl)
-      .setName("Context")
-      .setDesc('e.g. "rainy Sunday", "watched with family"')
+      .setName(t("watchSession.context"))
+      .setDesc(t("watchSession.contextDesc"))
       .addText((text) =>
         text.setValue(this.context).onChange((value) => {
           this.context = value;
         }),
       );
 
-    new Setting(contentEl).setName("Review").addTextArea((textarea) => {
+    new Setting(contentEl).setName(t("watchSession.review")).addTextArea((textarea) => {
       textarea.setValue(this.review).onChange((value) => {
         this.review = value;
       });
@@ -123,22 +130,22 @@ export class WatchSessionModal extends Modal {
     const buttonRow = contentEl.createDiv({ cls: "mediavault-modal-buttons" });
 
     const saveBtn = buttonRow.createEl("button", {
-      text: isEdit ? "Save changes" : "Log watch",
+      text: isEdit ? t("watchSession.saveChanges") : t("watchSession.logWatchBtn"),
       cls: "mod-cta",
     });
     saveBtn.addEventListener("click", () => void this.save());
 
-    const cancelBtn = buttonRow.createEl("button", { text: "Cancel" });
+    const cancelBtn = buttonRow.createEl("button", { text: t("common.cancel") });
     cancelBtn.addEventListener("click", () => this.close());
   }
 
   private async save(): Promise<void> {
     if (!this.watchDate) {
-      new Notice("MediaVault: please set a watch date.");
+      new Notice(t("notice.setWatchDate"));
       return;
     }
     if (this.rating !== null && (this.rating < 0 || this.rating > 10)) {
-      new Notice("MediaVault: rating must be between 0 and 10.");
+      new Notice(t("notice.ratingRange"));
       return;
     }
 
@@ -156,7 +163,7 @@ export class WatchSessionModal extends Modal {
             watchSource: this.watchSource,
           },
         );
-        new Notice("MediaVault: review updated.");
+        new Notice(t("notice.reviewUpdated"));
       } else {
         await addWatchSession(this.storage, {
           mediaId: this.options.mediaId,
@@ -167,12 +174,12 @@ export class WatchSessionModal extends Modal {
           context: this.context || null,
           watchSource: this.watchSource,
         });
-        new Notice("MediaVault: watch logged.");
+        new Notice(t("notice.watchLogged"));
       }
       this.options.onSaved?.();
       this.close();
     } catch (err) {
-      new Notice(`MediaVault: failed to save — ${(err as Error).message}`);
+      new Notice(t("notice.saveFailed", { error: (err as Error).message }));
     }
   }
 

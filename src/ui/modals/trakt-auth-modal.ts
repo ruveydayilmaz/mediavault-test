@@ -2,6 +2,7 @@ import { App, Modal, Notice } from "obsidian";
 import { renderModalHeader } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import { requestDeviceCode, pollDeviceToken } from "../../api/trakt-auth";
+import { t } from "../../i18n";
 
 export class TraktAuthModal extends Modal {
   private storage: StorageService;
@@ -19,12 +20,12 @@ export class TraktAuthModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("mediavault-trakt-auth-modal");
-    renderModalHeader(this, contentEl, "Connect Trakt");
+    renderModalHeader(this, contentEl, t("settings.connectTrakt"));
 
     const settings = this.storage.settings.get();
     if (!settings.traktClientId || !settings.traktClientSecret) {
       contentEl.createDiv({
-        text: "Add your Trakt client ID and client secret above first, then reopen this dialog.",
+        text: t("settings.needClientCredentials"),
         cls: "mediavault-trakt-auth-error",
       });
       return;
@@ -32,26 +33,26 @@ export class TraktAuthModal extends Modal {
 
     const statusEl = contentEl.createDiv({
       cls: "mediavault-trakt-auth-status",
-      text: "Requesting a device code...",
+      text: t("settings.requestingDeviceCode"),
     });
 
     try {
       const device = await requestDeviceCode(settings.traktClientId);
 
       statusEl.empty();
-      statusEl.createEl("p", { text: "Go to:" });
+      statusEl.createEl("p", { text: t("settings.goTo") });
       const link = statusEl.createEl("a", {
         text: device.verificationUrl,
         href: device.verificationUrl,
       });
       link.setAttr("target", "_blank");
-      statusEl.createEl("p", { text: "And enter this code:" });
+      statusEl.createEl("p", { text: t("settings.enterThisCode") });
       statusEl.createEl("div", {
         text: device.userCode,
         cls: "mediavault-trakt-code",
       });
       statusEl.createEl("p", {
-        text: "Waiting for approval...",
+        text: t("settings.waitingForApproval"),
         cls: "mediavault-trakt-auth-waiting",
       });
 
@@ -63,7 +64,7 @@ export class TraktAuthModal extends Modal {
       );
     } catch (err) {
       statusEl.setText(
-        `Failed to start Trakt authorization — ${(err as Error).message}`,
+        t("settings.failedToStartAuth", { error: (err as Error).message }),
       );
     }
   }
@@ -80,7 +81,7 @@ export class TraktAuthModal extends Modal {
       if (this.cancelled) return;
       if (Date.now() > deadline) {
         statusEl.createEl("p", {
-          text: "Code expired — reopen this dialog to try again.",
+          text: t("settings.codeExpired"),
           cls: "mediavault-trakt-auth-error",
         });
         return;
@@ -105,7 +106,7 @@ export class TraktAuthModal extends Modal {
             traktTokenExpiresAt:
               Date.now() + result.token.expiresInSeconds * 1000,
           });
-          new Notice("MediaVault: Trakt connected.");
+          new Notice(t("settings.traktConnectedNotice"));
           this.onConnected?.();
           this.close();
           return;
@@ -113,7 +114,7 @@ export class TraktAuthModal extends Modal {
 
         if (result.status === "denied") {
           statusEl.createEl("p", {
-            text: "Authorization denied.",
+            text: t("settings.authDenied"),
             cls: "mediavault-trakt-auth-error",
           });
           return;
@@ -121,14 +122,14 @@ export class TraktAuthModal extends Modal {
 
         if (result.status === "expired") {
           statusEl.createEl("p", {
-            text: "Code expired — reopen this dialog to try again.",
+            text: t("settings.codeExpired"),
             cls: "mediavault-trakt-auth-error",
           });
           return;
         }
       } catch (err) {
         statusEl.createEl("p", {
-          text: `Error: ${(err as Error).message}`,
+          text: t("settings.errorPrefix", { error: (err as Error).message }),
           cls: "mediavault-trakt-auth-error",
         });
       }

@@ -6,6 +6,7 @@ import { addMediaFromTMDB } from "../../services/media-import";
 import { buildMediaItemFromTMDB } from "../../services/media-import";
 import { MediaType } from "../../types/enums";
 import { MediaDetailModal } from "../modals/media-detail-modal";
+import { t } from "../../i18n";
 
 export interface DiscoverCardData {
   tmdbId: number;
@@ -95,7 +96,10 @@ export function renderDiscoverCard(
       ).open();
     } catch (err) {
       new Notice(
-        `MediaVault: couldn't load "${card.title}" — ${(err as Error).message}`,
+        t("notice.couldNotLoad", {
+          title: card.title,
+          error: (err as Error).message,
+        }),
       );
     }
   });
@@ -103,11 +107,11 @@ export function renderDiscoverCard(
   if (owned) {
     poster.createDiv({
       cls: "mediavault-explore-owned-badge",
-      text: "In library",
+      text: t("common.inLibrary"),
     });
   } else {
     const addBtn = poster.createDiv({ cls: "mediavault-explore-add-floating" });
-    addBtn.setAttr("aria-label", "Add to library");
+    addBtn.setAttr("aria-label", t("common.addToLibraryAria"));
     addBtn.setText("+");
     addBtn.addEventListener("click", async (evt) => {
       evt.stopPropagation();
@@ -120,14 +124,14 @@ export function renderDiscoverCard(
         );
         new Notice(
           result.alreadyExisted
-            ? `MediaVault: "${result.mediaItem.title}" is already in your library.`
-            : `MediaVault: added "${result.mediaItem.title}" to your library.`,
+            ? t("notice.alreadyInLibrary", { title: result.mediaItem.title })
+            : t("notice.addedToLibrary", { title: result.mediaItem.title }),
         );
         addBtn.addClass("is-added");
-        addBtn.setText("✓");
+        addBtn.setText("\u2713");
         deps.onAdded?.(card);
       } catch (err) {
-        new Notice(`MediaVault: failed to add — ${(err as Error).message}`);
+        new Notice(t("notice.failedToAdd", { error: (err as Error).message }));
       }
     });
   }

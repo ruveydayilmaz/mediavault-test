@@ -10,6 +10,7 @@ import { Recommendation } from "../../services/recommendation/types";
 import { DiscoverFilters } from "../../api/tmdb";
 import { MediaType } from "../../types/enums";
 import { renderDiscoverCard } from "../components/discover-card";
+import { t } from "../../i18n";
 
 type ExploreTab = "discover" | "browse" | "search";
 
@@ -45,7 +46,7 @@ export class ExploreView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "Explore";
+    return t("explore.displayName");
   }
 
   getIcon(): string {
@@ -79,7 +80,7 @@ export class ExploreView extends ItemView {
     if (!this.plugin.storage.settings.get().tmdbApiKey) {
       body.createEl("p", {
         cls: "mediavault-empty-state",
-        text: "Add a TMDB API key in settings to use Explore.",
+        text: t("explore.addTmdbKeyHint"),
       });
       return;
     }
@@ -96,7 +97,7 @@ export class ExploreView extends ItemView {
         cls:
           "mediavault-explore-tab" +
           (this.activeTab === tab ? " is-active" : ""),
-        text: tab[0].toUpperCase() + tab.slice(1),
+        text: t(`explore.${tab}`),
       });
       btn.addEventListener("click", () => {
         if (this.activeTab === tab) return;
@@ -109,7 +110,7 @@ export class ExploreView extends ItemView {
   private async renderDiscoverTab(body: HTMLElement): Promise<void> {
     const loading = body.createEl("p", {
       cls: "mediavault-empty-state",
-      text: "Loading...",
+      text: t("explore.loading"),
     });
 
     try {
@@ -124,12 +125,12 @@ export class ExploreView extends ItemView {
 
       this.renderRow(
         body,
-        "Trending Movies",
+        t("explore.trendingMovies"),
         trendingMovies.items.slice(0, 12).map(fromSearchResult),
       );
       this.renderRow(
         body,
-        "Trending TV",
+        t("explore.trendingTV"),
         trendingTV.items.slice(0, 12).map(fromSearchResult),
       );
 
@@ -137,19 +138,21 @@ export class ExploreView extends ItemView {
         ...popularMovies.items.slice(0, 6),
         ...popularTV.items.slice(0, 6),
       ].map(fromSearchResult);
-      this.renderRow(body, "Popular This Week", popularThisWeek);
+      this.renderRow(body, t("explore.popularThisWeek"), popularThisWeek);
 
       await this.renderRecommendedRow(body);
     } catch (err) {
-      loading.setText(`Failed to load Explore — ${(err as Error).message}`);
+      loading.setText(t("explore.failedToLoad", { error: (err as Error).message }));
     }
   }
 
   private async renderRecommendedRow(body: HTMLElement): Promise<void> {
-    const heading = body.createEl("h3", { text: "Recommended For You" });
+    const heading = body.createEl("h3", {
+      text: t("explore.recommendedForYou"),
+    });
     const rowLoading = body.createEl("p", {
       cls: "mediavault-empty-state",
-      text: "Building recommendations...",
+      text: t("explore.buildingRecommendations"),
     });
 
     let recs: RecommendationSet;
@@ -157,7 +160,7 @@ export class ExploreView extends ItemView {
       recs = await buildRecommendations(this.plugin.storage, this.plugin.tmdb);
     } catch (err) {
       rowLoading.setText(
-        `Couldn't build recommendations — ${(err as Error).message}`,
+        t("explore.couldNotBuildRecs", { error: (err as Error).message }),
       );
       return;
     }
@@ -172,7 +175,7 @@ export class ExploreView extends ItemView {
       heading.remove();
       body.createEl("p", {
         cls: "mediavault-empty-state",
-        text: "Rate a few watches to get personalized recommendations here.",
+        text: t("explore.rateFewWatchesHint"),
       });
       return;
     }
@@ -210,8 +213,8 @@ export class ExploreView extends ItemView {
 
     const kindSelect = primaryRow.createEl("select");
     [
-      { value: "movie", label: "Movies" },
-      { value: "tv", label: "TV Shows" },
+      { value: "movie", label: t("explore.filterMovies") },
+      { value: "tv", label: t("explore.filterTvShows") },
     ].forEach((opt) =>
       kindSelect.createEl("option", { value: opt.value, text: opt.label }),
     );
@@ -224,7 +227,7 @@ export class ExploreView extends ItemView {
     });
 
     const genreSelect = primaryRow.createEl("select");
-    genreSelect.createEl("option", { value: "", text: "Any genre" });
+    genreSelect.createEl("option", { value: "", text: t("explore.anyGenre") });
     this.browseGenres.forEach((g) =>
       genreSelect.createEl("option", { value: String(g.id), text: g.name }),
     );
@@ -243,7 +246,7 @@ export class ExploreView extends ItemView {
       cls: "clickable-icon mediavault-explore-more-filters-toggle",
     });
     setIcon(moreToggle, "sliders-horizontal");
-    moreToggle.setAttr("aria-label", "More filters");
+    moreToggle.setAttr("aria-label", t("explore.moreFilters"));
     const moreFilters = filterBar.createDiv({
       cls: "mediavault-explore-filter-more is-collapsed",
     });
@@ -345,7 +348,7 @@ export class ExploreView extends ItemView {
     resultsEl.empty();
     const loading = resultsEl.createEl("p", {
       cls: "mediavault-empty-state",
-      text: "Loading...",
+      text: t("explore.loading"),
     });
     try {
       const result = await this.plugin.tmdb.discover(
@@ -356,13 +359,13 @@ export class ExploreView extends ItemView {
       if (result.items.length === 0) {
         resultsEl.createEl("p", {
           cls: "mediavault-empty-state",
-          text: "No results for these filters.",
+          text: t("explore.noResultsForFilters"),
         });
         return;
       }
       this.renderGrid(resultsEl, result.items.map(fromSearchResult));
     } catch (err) {
-      loading.setText(`Browse failed — ${(err as Error).message}`);
+      loading.setText(t("explore.browseFailed", { error: (err as Error).message }));
     }
   }
 
@@ -370,7 +373,7 @@ export class ExploreView extends ItemView {
     const input = body.createEl("input", {
       type: "text",
       cls: "mediavault-explore-search-input",
-      attr: { placeholder: "Search movies and TV shows..." },
+      attr: { placeholder: t("explore.searchPlaceholder") },
     });
     input.value = this.searchQuery;
     const resultsEl = body.createDiv({ cls: "mediavault-explore-results" });
@@ -380,7 +383,7 @@ export class ExploreView extends ItemView {
     } else {
       resultsEl.createEl("p", {
         cls: "mediavault-empty-state",
-        text: "Start typing to search TMDB.",
+        text: t("explore.startTypingToSearch"),
       });
     }
 
@@ -402,13 +405,13 @@ export class ExploreView extends ItemView {
     if (query.trim().length < 2) {
       resultsEl.createEl("p", {
         cls: "mediavault-empty-state",
-        text: "Keep typing...",
+        text: t("explore.keepTyping"),
       });
       return;
     }
     const loading = resultsEl.createEl("p", {
       cls: "mediavault-empty-state",
-      text: "Searching...",
+      text: t("explore.searching"),
     });
     try {
       const result = await this.plugin.tmdb.searchMulti(query);
@@ -416,13 +419,13 @@ export class ExploreView extends ItemView {
       if (result.items.length === 0) {
         resultsEl.createEl("p", {
           cls: "mediavault-empty-state",
-          text: "No results.",
+          text: t("explore.noResults"),
         });
         return;
       }
       this.renderGrid(resultsEl, result.items.map(fromSearchResult));
     } catch (err) {
-      loading.setText(`Search failed — ${(err as Error).message}`);
+      loading.setText(t("explore.searchFailed", { error: (err as Error).message }));
     }
   }
 

@@ -10,6 +10,7 @@ import {
 import { renderPoster } from "../components/media-render";
 import { CreateListModal } from "../modals/create-list-modal";
 import { ListDetailModal } from "../modals/list-detail-modal";
+import { t } from "../../i18n";
 
 export class ListsView extends ItemView {
   private plugin: MediaVaultPlugin;
@@ -26,7 +27,7 @@ export class ListsView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "MediaVault Lists";
+    return t("lists.customLists");
   }
 
   getIcon(): string {
@@ -39,9 +40,9 @@ export class ListsView extends ItemView {
     root.addClass("mediavault-lists-root");
 
     const toolbar = root.createDiv({ cls: "mediavault-lists-toolbar" });
-    toolbar.createEl("h2", { text: "Custom Lists" });
+    toolbar.createEl("h2", { text: t("lists.customLists") });
     const newBtn = toolbar.createEl("button", {
-      text: "+ New List",
+      text: t("lists.newList"),
       cls: "mod-cta",
     });
     newBtn.addEventListener("click", () => {
@@ -76,7 +77,7 @@ export class ListsView extends ItemView {
     if (lists.length === 0) {
       this.gridEl.createEl("p", {
         cls: "mediavault-empty-state",
-        text: "No lists yet — create one, or import TV Time custom lists.",
+        text: t("lists.emptyState"),
       });
       return;
     }
@@ -109,14 +110,19 @@ export class ListsView extends ItemView {
     }
     const meta = scrim.createDiv({ cls: "mediavault-list-card-meta" });
     meta.createSpan({
-      text: `${list.mediaIds.length} item${list.mediaIds.length === 1 ? "" : "s"}`,
+      text: t("lists.itemCountN", {
+        count: list.mediaIds.length,
+        plural: list.mediaIds.length === 1 ? "" : "s",
+      }),
     });
-    meta.createSpan({ text: `Updated ${formatRelativeDate(list.updatedAt)}` });
-    meta.createSpan({ text: list.owner ?? "You" });
+    meta.createSpan({
+      text: t("lists.updated", { date: formatRelativeDate(list.updatedAt) }),
+    });
+    meta.createSpan({ text: list.owner ?? t("common.you") });
     if (list.isImported) {
       meta.createSpan({
         cls: "mediavault-list-card-imported",
-        text: "Imported",
+        text: t("lists.imported"),
       });
     }
 

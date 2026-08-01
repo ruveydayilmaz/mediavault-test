@@ -21,6 +21,7 @@ import {
 } from "../../services/importer/tvtime/commit";
 import { NormalizedImportBundle } from "../../services/importer/tvtime/types";
 import { ImportTimer } from "../../services/importer/import-timer";
+import { t } from "../../i18n";
 
 export class ImportModal extends Modal {
   private storage: StorageService;
@@ -60,7 +61,7 @@ export class ImportModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("mediavault-import-modal");
-    renderModalHeader(this, contentEl, "Import from TV Time");
+    renderModalHeader(this, contentEl, t("import.title"));
 
     if (this.importing) {
       this.renderProgress(contentEl);
@@ -75,13 +76,13 @@ export class ImportModal extends Modal {
     if (this.detecting) {
       this.renderProgress(
         contentEl,
-        `Reading "${this.fileName}" — this may take a moment for large exports...`,
+        t("import.readingFile", { name: this.fileName }),
       );
       return;
     }
 
     contentEl.createEl("p", {
-      text: "Select a TV Time JSON or CSV export, or a complete GDPR ZIP export. The format and category are detected automatically. Nothing is written until you confirm.",
+      text: t("import.selectFileHint"),
       cls: "mediavault-import-hint",
     });
 
@@ -127,7 +128,7 @@ export class ImportModal extends Modal {
 
   private renderProgress(
     container: HTMLElement,
-    label = "Importing — this may take a moment for large files...",
+    label = t("import.importingLarge"),
   ): void {
     container.createEl("p", { text: label, cls: "mediavault-import-hint" });
 
@@ -141,7 +142,7 @@ export class ImportModal extends Modal {
 
     this.progressTextEl = container.createDiv({
       cls: "mediavault-import-progress-text",
-      text: "Starting...",
+      text: t("import.starting"),
     });
   }
 
@@ -162,7 +163,10 @@ export class ImportModal extends Modal {
       this.render();
     } catch (err) {
       new Notice(
-        `MediaVault: could not parse "${this.fileName}" — ${(err as Error).message}`,
+        t("import.couldNotParse", {
+          name: this.fileName,
+          error: (err as Error).message,
+        }),
       );
     }
   }
@@ -172,7 +176,7 @@ export class ImportModal extends Modal {
     this.render();
     try {
       this.zip = await runZipImport(zipData, (done, total) => {
-        this.updateProgress(done, total, "Scanning files");
+        this.updateProgress(done, total, t("import.scanningFiles"));
       });
       this.zipTiming = this.zip.timing;
       this.zipPreview = await previewBundle(this.storage, this.zip.bundle);
@@ -181,7 +185,10 @@ export class ImportModal extends Modal {
       this.report = null;
     } catch (err) {
       new Notice(
-        `MediaVault: could not read "${this.fileName}" — ${(err as Error).message}`,
+        t("import.couldNotRead", {
+          name: this.fileName,
+          error: (err as Error).message,
+        }),
       );
     } finally {
       this.detecting = false;
@@ -194,7 +201,7 @@ export class ImportModal extends Modal {
     result: ImportManagerResult,
   ): void {
     const box = container.createDiv({ cls: "mediavault-import-detection" });
-    box.createDiv({ text: "Detected:" });
+    box.createDiv({ text: t("import.detected") });
     box.createDiv({
       cls: "mediavault-import-detection-line",
       text: `${result.detection.format.toUpperCase()} → ${result.detection.label}`,
@@ -205,8 +212,8 @@ export class ImportModal extends Modal {
         cls: "mediavault-import-warning",
         text:
           result.detection.category === "json_list"
-            ? "Custom lists are recognized but not importable yet — this is coming in a future update. No data from this file will be imported."
-            : `MediaVault doesn't recognize this file's structure yet. Nothing will be imported.`,
+            ? t("import.unsupportedList")
+            : t("import.unsupportedGeneric"),
       });
     }
   }
@@ -216,7 +223,7 @@ export class ImportModal extends Modal {
     zip: ZipImportResult,
   ): void {
     const box = container.createDiv({ cls: "mediavault-import-detection" });
-    box.createDiv({ text: "TV Time GDPR Export" });
+    box.createDiv({ text: t("import.gdprExport") });
 
     const list = box.createDiv({ cls: "mediavault-import-zip-files" });
     zip.files.forEach((f) => {
@@ -232,7 +239,10 @@ export class ImportModal extends Modal {
 
     box.createDiv({
       cls: "mediavault-import-detection-line",
-      text: `${zip.supportedCount} file(s) recognized, ${zip.unsupportedCount} unsupported.`,
+      text: t("import.filesRecognized", {
+        recognized: zip.supportedCount,
+        unsupported: zip.unsupportedCount,
+      }),
     });
   }
 
@@ -243,42 +253,54 @@ export class ImportModal extends Modal {
     canImport: boolean,
   ): void {
     const summary = container.createDiv({ cls: "mediavault-import-summary" });
-    summary.createEl("h3", { text: "Preview" });
+    summary.createEl("h3", { text: t("import.preview") });
 
     const lines = [
-      preview.watchCount > 0 ? `${preview.watchCount} watch event(s)` : null,
-      preview.reviewCount > 0 ? `${preview.reviewCount} comment(s)` : null,
-      preview.likeCount > 0 ? `${preview.likeCount} like(s)` : null,
-      preview.ratingCount > 0 ? `${preview.ratingCount} rating(s)` : null,
-      preview.favoriteCount > 0 ? `${preview.favoriteCount} favorite(s)` : null,
-      preview.listCount > 0 ? `${preview.listCount} custom list(s)` : null,
-      `${preview.existingTitles} title(s) already in your library`,
-      `${preview.newTitles} new title(s) to look up on TMDB`,
+      preview.watchCount > 0
+        ? t("import.watchEvents", { count: preview.watchCount })
+        : null,
+      preview.reviewCount > 0
+        ? t("import.comments", { count: preview.reviewCount })
+        : null,
+      preview.likeCount > 0
+        ? t("import.likes", { count: preview.likeCount })
+        : null,
+      preview.ratingCount > 0
+        ? t("import.ratings", { count: preview.ratingCount })
+        : null,
+      preview.favoriteCount > 0
+        ? t("import.favorites", { count: preview.favoriteCount })
+        : null,
+      preview.listCount > 0
+        ? t("import.customLists", { count: preview.listCount })
+        : null,
+      t("import.existingTitles", { count: preview.existingTitles }),
+      t("import.newTitles", { count: preview.newTitles }),
       preview.warningCount > 0
-        ? `${preview.warningCount} row(s) will be skipped (see report after import)`
+        ? t("import.willBeSkipped", { count: preview.warningCount })
         : null,
     ].filter((l): l is string => l !== null);
 
     if (lines.length === 0) {
       summary.createDiv({
         cls: "mediavault-import-empty",
-        text: "Nothing importable was found.",
+        text: t("import.nothingImportable"),
       });
       return;
     }
 
-    lines.forEach((l) => summary.createDiv({ text: `• ${l}` }));
+    lines.forEach((l) => summary.createDiv({ text: `\u2022 ${l}` }));
 
     summary.createDiv({
       cls: "mediavault-import-hint",
-      text: "Existing reviews, ratings, and likes are never overwritten — only filled in where missing.",
+      text: t("import.neverOverwrittenHint"),
     });
 
     if (!canImport) return;
 
     const actions = container.createDiv({ cls: "mediavault-import-actions" });
     const commitBtn = actions.createEl("button", {
-      text: this.importing ? "Importing..." : "Confirm import",
+      text: this.importing ? t("import.importing") : t("import.confirmImport"),
       cls: "mod-cta",
     });
     commitBtn.disabled = this.importing;
@@ -286,13 +308,13 @@ export class ImportModal extends Modal {
   }
 
   private renderReport(container: HTMLElement, report: ImportReport): void {
-    container.createEl("h3", { text: "Import complete" });
+    container.createEl("h3", { text: t("import.importComplete") });
 
     if (report.timing.length > 0) {
       const timingBox = container.createDiv({
         cls: "mediavault-import-timing",
       });
-      timingBox.createEl("h4", { text: "Time breakdown" });
+      timingBox.createEl("h4", { text: t("import.timeBreakdown") });
       report.timing.forEach(({ stage, ms }) => {
         timingBox.createDiv({
           cls:
@@ -307,16 +329,16 @@ export class ImportModal extends Modal {
     const box = container.createDiv({ cls: "mediavault-import-report" });
 
     const rows: [string, number][] = [
-      ["Movies imported", report.moviesImported],
-      ["Shows imported", report.showsImported],
-      ["Episodes updated", report.episodesUpdated],
-      ["Comments imported", report.commentsImported],
-      ["Likes imported", report.likesImported],
-      ["Favorites imported", report.favoritesImported],
-      ["Ratings imported", report.ratingsImported],
-      ["Lists imported", report.listsImported],
-      ["Duplicates merged", report.duplicatesMerged],
-      ["Skipped", report.skipped],
+      [t("import.moviesImported"), report.moviesImported],
+      [t("import.showsImported"), report.showsImported],
+      [t("import.episodesUpdated"), report.episodesUpdated],
+      [t("import.commentsImported"), report.commentsImported],
+      [t("import.likesImported"), report.likesImported],
+      [t("import.favoritesImported"), report.favoritesImported],
+      [t("import.ratingsImported"), report.ratingsImported],
+      [t("import.listsImported"), report.listsImported],
+      [t("import.duplicatesMerged"), report.duplicatesMerged],
+      [t("import.skipped"), report.skipped],
     ];
     rows.forEach(([label, value]) => {
       box.createDiv({
@@ -328,15 +350,18 @@ export class ImportModal extends Modal {
     const diagBox = container.createDiv({
       cls: "mediavault-import-diagnostics",
     });
-    diagBox.createEl("h4", { text: "Diagnostics" });
+    diagBox.createEl("h4", { text: t("import.diagnostics") });
     const totalHours = report.totalImportedRuntimeSeconds / 3600;
     const diagRows: [string, string][] = [
-      ["Total records parsed", String(report.totalRecordsParsed)],
-      ["Media matched", String(report.matchedMediaCount)],
-      ["Media unmatched", String(report.unmatchedMediaCount)],
-      ["Episodes matched", String(report.matchedEpisodes)],
-      ["Episodes unmatched", String(report.unmatchedEpisodes)],
-      ["Total imported watch time", `${totalHours.toFixed(1)} hours`],
+      [t("import.totalRecordsParsed"), String(report.totalRecordsParsed)],
+      [t("import.mediaMatched"), String(report.matchedMediaCount)],
+      [t("import.mediaUnmatched"), String(report.unmatchedMediaCount)],
+      [t("import.episodesMatched"), String(report.matchedEpisodes)],
+      [t("import.episodesUnmatched"), String(report.unmatchedEpisodes)],
+      [
+        t("import.totalImportedWatchTime"),
+        t("import.hoursUnit", { n: totalHours.toFixed(1) }),
+      ],
     ];
     diagRows.forEach(([label, value]) => {
       diagBox.createDiv({
@@ -351,7 +376,7 @@ export class ImportModal extends Modal {
     if (skipReasons.length > 0) {
       diagBox.createDiv({
         cls: "mediavault-import-unmatched-group-label",
-        text: "Why records were skipped",
+        text: t("import.whyRecordsSkipped"),
       });
       skipReasons.forEach(([reason, count]) => {
         diagBox.createDiv({
@@ -366,7 +391,7 @@ export class ImportModal extends Modal {
         cls: "mediavault-import-unmatched",
       });
       unmatchedBox.createEl("h4", {
-        text: `Unmatched (${report.unmatched.length})`,
+        text: t("import.unmatchedCount", { count: report.unmatched.length }),
       });
 
       const movies = report.unmatched.filter((u) => u.kind === "movie");
@@ -381,19 +406,19 @@ export class ImportModal extends Modal {
         items.slice(0, 25).forEach((u) => {
           unmatchedBox.createDiv({
             cls: "mediavault-import-unmatched-item",
-            text: `${u.title}${u.year ? ` (${u.year})` : ""} — ${u.reason}`,
+            text: `${u.title}${u.year ? ` (${u.year})` : ""} \u2014 ${u.reason}`,
           });
         });
         if (items.length > 25) {
           unmatchedBox.createDiv({
             cls: "mediavault-import-hint",
-            text: `...and ${items.length - 25} more.`,
+            text: t("import.andNMore", { n: items.length - 25 }),
           });
         }
       };
 
-      renderGroup("Movies", movies);
-      renderGroup("Series", series);
+      renderGroup(t("import.movies"), movies);
+      renderGroup(t("import.series"), series);
     }
 
     if (report.matchLog.length > 0) {
@@ -402,20 +427,20 @@ export class ImportModal extends Modal {
 
     if (report.errors.length > 0) {
       const errBox = container.createDiv({ cls: "mediavault-import-errors" });
-      errBox.createEl("h4", { text: "Other errors" });
+      errBox.createEl("h4", { text: t("import.otherErrors") });
       report.errors
         .slice(0, 20)
-        .forEach((e) => errBox.createDiv({ text: `• ${e.reason}` }));
+        .forEach((e) => errBox.createDiv({ text: `\u2022 ${e.reason}` }));
       if (report.errors.length > 20) {
         errBox.createDiv({
-          text: `...and ${report.errors.length - 20} more (see console).`,
+          text: t("import.andNMoreConsole", { n: report.errors.length - 20 }),
         });
       }
       console.warn("MediaVault import errors:", report.errors);
     }
 
     const doneBtn = container.createEl("button", {
-      text: "Done",
+      text: t("import.done"),
       cls: "mod-cta",
     });
     doneBtn.addEventListener("click", () => this.close());
@@ -458,11 +483,16 @@ export class ImportModal extends Modal {
         ];
       }
       new Notice(
-        `MediaVault: import complete — ${this.report.moviesImported + this.report.showsImported} title(s) imported, ${this.report.duplicatesMerged} merged.`,
+        t("import.importCompleteNotice", {
+          count: this.report.moviesImported + this.report.showsImported,
+          merged: this.report.duplicatesMerged,
+        }),
       );
       this.onImported?.();
     } catch (err) {
-      new Notice(`MediaVault: import failed — ${(err as Error).message}`);
+      new Notice(
+        t("import.importFailed", { error: (err as Error).message }),
+      );
     } finally {
       this.importing = false;
       this.render();

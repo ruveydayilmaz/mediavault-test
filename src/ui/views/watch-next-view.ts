@@ -11,6 +11,7 @@ import {
 } from "../../services/watch-next-service";
 import { markEpisodeWatched } from "../../services/episode-status-sync";
 import { renderPoster, formatRuntime } from "../components/media-render";
+import { t } from "../../i18n";
 
 function groupByMediaId<T extends { mediaId: string }>(
   items: T[],
@@ -43,7 +44,7 @@ export class WatchNextView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "Watch Next";
+    return t("watchNext.displayName");
   }
 
   getIcon(): string {
@@ -87,14 +88,14 @@ export class WatchNextView extends ItemView {
     });
 
     const watchTab = tabs.createDiv({
-      text: "Watch Next",
+      text: t("watchNext.title"),
       cls:
         "mediavault-sidebar-tab" +
         (this.activeTab === "watch-next" ? " is-active" : ""),
     });
 
     const upcomingTab = tabs.createDiv({
-      text: "Upcoming",
+      text: t("watchNext.upcoming"),
       cls:
         "mediavault-sidebar-tab" +
         (this.activeTab === "upcoming" ? " is-active" : ""),
@@ -160,7 +161,7 @@ export class WatchNextView extends ItemView {
   private renderWatchNextEmptyState(container: HTMLElement): void {
     container.createEl("p", {
       cls: "mediavault-empty-state",
-      text: "Nothing queued — start watching a show to see it here.",
+      text: t("watchNext.emptyQueue"),
     });
   }
 
@@ -195,7 +196,10 @@ export class WatchNextView extends ItemView {
     if (episode.runtime)
       meta.createSpan({ text: formatRuntime(episode.runtime) });
     if (isNew)
-      meta.createSpan({ cls: "mediavault-media-card-new-badge", text: "New" });
+      meta.createSpan({
+        cls: "mediavault-media-card-new-badge",
+        text: t("watchNext.newBadge"),
+      });
 
     const watchedBtn = card.createEl("button", { cls: "mod-cta", text: "✓" });
     watchedBtn.addEventListener("click", (evt) => {
@@ -278,7 +282,7 @@ export class WatchNextView extends ItemView {
       const btn = tabBar.createEl("button", {
         cls:
           "mediavault-upcoming-tab" + (activeTab === tab ? " is-active" : ""),
-        text: tab === "episodes" ? "Episodes" : "Movies",
+        text: tab === "episodes" ? t("watchNext.tabEpisodes") : t("watchNext.tabMovies"),
       });
 
       btn.addEventListener("click", async () => {
@@ -303,7 +307,7 @@ export class WatchNextView extends ItemView {
       if (entries.length === 0) {
         body.createEl("p", {
           cls: "mediavault-empty-state",
-          text: "No upcoming episodes scheduled yet.",
+          text: t("watchNext.noUpcomingEpisodes"),
         });
         return;
       }
@@ -356,7 +360,7 @@ export class WatchNextView extends ItemView {
       if (entries.length === 0) {
         body.createEl("p", {
           cls: "mediavault-empty-state",
-          text: "No upcoming movie releases tracked yet.",
+          text: t("watchNext.noUpcomingMovies"),
         });
         return;
       }
@@ -403,7 +407,7 @@ export class WatchNextView extends ItemView {
 }
 
 function countdownLabel(daysUntil: number): string {
-  if (daysUntil === 0) return "Today";
-  if (daysUntil === 1) return "Tomorrow";
-  return `In ${daysUntil} days`;
+  if (daysUntil === 0) return t("watchNext.today");
+  if (daysUntil === 1) return t("watchNext.tomorrow");
+  return t("watchNext.inNDays", { n: daysUntil });
 }

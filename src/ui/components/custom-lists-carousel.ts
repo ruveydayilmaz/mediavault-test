@@ -7,6 +7,7 @@ import {
 } from "../../services/list-service";
 import { renderPoster } from "./media-render";
 import { createCarousel } from "./carousel";
+import { t } from "../../i18n";
 
 export async function renderCustomListsCarousel(
   container: HTMLElement,
@@ -20,7 +21,7 @@ export async function renderCustomListsCarousel(
   if (lists.length === 0) {
     container.createEl("p", {
       cls: "mediavault-empty-state",
-      text: "No custom lists yet.",
+      text: t("lists.noCustomLists"),
     });
     return;
   }
@@ -29,11 +30,14 @@ export async function renderCustomListsCarousel(
     cls: "mediavault-lists-carousel-header",
   });
 
-  header.createSpan({ cls: "mediavault-lists-carousel-title", text: "Lists" });
+  header.createSpan({
+    cls: "mediavault-lists-carousel-title",
+    text: t("lists.title"),
+  });
 
   const viewAll = header.createEl("button", {
     cls: "mediavault-lists-view-all",
-    text: "View All",
+    text: t("common.viewAll"),
   });
   viewAll.onclick = onViewAll;
 
@@ -41,7 +45,7 @@ export async function renderCustomListsCarousel(
     cls: "clickable-icon mediavault-section-nav-arrow",
   });
   setIcon(mobileArrow, "chevron-right");
-  mobileArrow.setAttr("aria-label", "View all lists");
+  mobileArrow.setAttr("aria-label", t("lists.viewAllLists"));
   mobileArrow.onclick = onViewAll;
 
   const carouselContainer = container.createDiv({
@@ -80,11 +84,19 @@ function buildListTile(
   scrim.createDiv({ cls: "mediavault-list-tile-title", text: list.title });
   const meta = scrim.createDiv({ cls: "mediavault-list-tile-meta" });
   meta.createSpan({
-    text: `${list.mediaIds.length} item${list.mediaIds.length === 1 ? "" : "s"}`,
+    text: t("lists.itemCountN", {
+      count: list.mediaIds.length,
+      plural: list.mediaIds.length === 1 ? "" : "s",
+    }),
   });
-  meta.createSpan({ text: `Updated ${formatRelativeDate(list.updatedAt)}` });
+  meta.createSpan({
+    text: t("lists.updated", { date: formatRelativeDate(list.updatedAt) }),
+  });
   if (list.isImported) {
-    meta.createSpan({ cls: "mediavault-list-tile-imported", text: "Imported" });
+    meta.createSpan({
+      cls: "mediavault-list-tile-imported",
+      text: t("lists.imported"),
+    });
   }
 
   return card;

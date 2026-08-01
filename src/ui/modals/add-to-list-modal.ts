@@ -2,6 +2,7 @@ import { App, Modal, Notice } from "obsidian";
 import { renderModalHeader } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import { MediaItem } from "../../models/media";
+import { t } from "../../i18n";
 
 export class AddToListModal extends Modal {
   private storage: StorageService;
@@ -31,7 +32,7 @@ export class AddToListModal extends Modal {
     renderModalHeader(
       this,
       contentEl,
-      `Add "${this.media.title}" to a list`,
+      t("addToList.addToListTitle", { title: this.media.title }),
       "h3",
     );
 
@@ -43,7 +44,7 @@ export class AddToListModal extends Modal {
     if (lists.length === 0) {
       listEl.createEl("p", {
         cls: "mediavault-empty-state",
-        text: "You don't have any lists yet.",
+        text: t("addToList.noListsYet"),
       });
     }
 
@@ -60,7 +61,10 @@ export class AddToListModal extends Modal {
           await this.storage.customLists.addMedia(list.id, this.media.id);
         } else {
           const confirmed = confirm(
-            `Remove "${this.media.title}" from "${list.title}"?\n\nThis only removes it from this list — the item stays in your library, and your watch history/favorites are not affected.`,
+            t("addToList.removeConfirm", {
+              title: this.media.title,
+              list: list.title,
+            }),
           );
           if (!confirmed) {
             checkbox.checked = true;
@@ -77,16 +81,16 @@ export class AddToListModal extends Modal {
     });
     const newListInput = createRow.createEl("input", {
       type: "text",
-      attr: { placeholder: "New list name..." },
+      attr: { placeholder: t("addToList.newListPlaceholder") },
     });
     const createBtn = createRow.createEl("button", {
-      text: "Create + Add",
+      text: t("addToList.createAndAdd"),
       cls: "mod-cta",
     });
     createBtn.addEventListener("click", async () => {
       const title = newListInput.value.trim();
       if (!title) {
-        new Notice("MediaVault: enter a list name first.");
+        new Notice(t("notice.enterListName"));
         return;
       }
       const list = await this.storage.customLists.create({ title });

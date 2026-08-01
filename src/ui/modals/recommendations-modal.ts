@@ -10,14 +10,17 @@ import {
   renderDiscoverCard,
   DiscoverCardData,
 } from "../components/discover-card";
+import { t } from "../../i18n";
 
-const CATEGORY_TITLES: Record<keyof RecommendationSet, string> = {
-  similarToFavorites: "Because you loved...",
-  hiddenGems: "Hidden gems for you",
-  comfortRewatch: "Comfort rewatches",
-  highEnergy: "High-energy picks",
-  lowAttention: "Low-attention picks",
-};
+function getCategoryTitles(): Record<keyof RecommendationSet, string> {
+  return {
+    similarToFavorites: t("explore.becauseYouLoved"),
+    hiddenGems: t("explore.hiddenGems"),
+    comfortRewatch: t("explore.comfortRewatches"),
+    highEnergy: t("explore.highEnergyPicks"),
+    lowAttention: t("explore.lowAttentionPicks"),
+  };
+}
 
 export class RecommendationsModal extends Modal {
   private storage: StorageService;
@@ -33,11 +36,11 @@ export class RecommendationsModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("mediavault-recommendations-modal");
-    renderModalHeader(this, contentEl, "Recommended for you");
+    renderModalHeader(this, contentEl, t("explore.recommendedForYouTitle"));
 
     const loading = contentEl.createDiv({
       cls: "mediavault-rec-loading",
-      text: "Building recommendations...",
+      text: t("explore.buildingRecs"),
     });
 
     let recs: RecommendationSet;
@@ -45,7 +48,7 @@ export class RecommendationsModal extends Modal {
       recs = await buildRecommendations(this.storage, this.tmdb);
     } catch (err) {
       loading.setText(
-        `Failed to build recommendations — ${(err as Error).message}`,
+        t("explore.failedToBuildRecs", { error: (err as Error).message }),
       );
       return;
     }
@@ -55,7 +58,7 @@ export class RecommendationsModal extends Modal {
     if (!hasAny) {
       contentEl.createDiv({
         cls: "mediavault-rec-empty",
-        text: "Not enough data yet — rate a few watches and set up some comfort profiles to get recommendations.",
+        text: t("explore.notEnoughData"),
       });
       return;
     }
@@ -63,7 +66,7 @@ export class RecommendationsModal extends Modal {
     (Object.keys(recs) as (keyof RecommendationSet)[]).forEach((key) => {
       const list = recs[key];
       if (list.length === 0) return;
-      contentEl.createEl("h3", { text: CATEGORY_TITLES[key] });
+      contentEl.createEl("h3", { text: getCategoryTitles()[key] });
       const row = contentEl.createDiv({ cls: "mediavault-explore-row" });
       list.forEach((rec) => {
         if (!rec.mediaId && (!rec.tmdbId || !rec.mediaKind)) return;

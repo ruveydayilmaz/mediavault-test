@@ -6,6 +6,8 @@ export type { RatingScale };
 export interface MediaVaultSettings {
   dataVersion: number;
 
+  language: "en" | "tr";
+
   tmdbApiKey: string;
 
   traktClientId: string;
@@ -63,6 +65,7 @@ export interface MediaVaultSettings {
 
 export const DEFAULT_SETTINGS: MediaVaultSettings = {
   dataVersion: 1,
+  language: "en",
   tmdbApiKey: "",
   traktClientId: "",
   traktClientSecret: "",

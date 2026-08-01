@@ -3,6 +3,7 @@ import type { Chart } from "chart.js";
 import type MediaVaultPlugin from "../../main";
 import { VIEW_TYPE_ANALYTICS } from "../../constants";
 import { computeAnalyticsMemoized } from "../../services/analytics/memoized";
+import { t } from "../../i18n";
 import {
   createChart,
   CHART_PALETTE,
@@ -27,7 +28,7 @@ export class AnalyticsView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "MediaVault Analytics";
+    return t("analytics.displayName");
   }
 
   getIcon(): string {
@@ -73,7 +74,7 @@ export class AnalyticsView extends ItemView {
     if (media.length === 0) {
       root.createDiv({
         cls: "mediavault-analytics-empty",
-        text: "Add some media and log a few watches to see your stats here.",
+        text: t("analytics.emptyState"),
       });
       return;
     }
@@ -90,7 +91,7 @@ export class AnalyticsView extends ItemView {
     const grid = root.createDiv({ cls: "mediavault-analytics-chart-grid" });
 
     if (stats.topGenres.length > 0) {
-      const card = this.chartCard(grid, "Genre breakdown");
+      const card = this.chartCard(grid, t("analytics.genreBreakdown"));
       const chart = createChart(
         card,
         "pie",
@@ -109,7 +110,7 @@ export class AnalyticsView extends ItemView {
     }
 
     if (stats.monthlyWatchTrend.length > 0) {
-      const card = this.chartCard(grid, "Monthly watch trend");
+      const card = this.chartCard(grid, t("analytics.monthlyTrend"));
       const colors = themeColors();
       const recent = stats.monthlyWatchTrend.slice(-12);
       const chart = createChart(
@@ -146,7 +147,7 @@ export class AnalyticsView extends ItemView {
     }
 
     {
-      const card = this.chartCard(grid, "Rewatch frequency");
+      const card = this.chartCard(grid, t("analytics.rewatchFrequency"));
       const colors = themeColors();
       const firstWatches = sessions.filter((s) => s.rewatchNumber === 0).length;
       const chart = createChart(
@@ -177,7 +178,7 @@ export class AnalyticsView extends ItemView {
     }
 
     if (stats.topActors.length > 0) {
-      const card = this.chartCard(grid, "Top actors");
+      const card = this.chartCard(grid, t("analytics.topActorsCard"));
       const colors = themeColors();
       const chart = createChart(
         card,
@@ -211,7 +212,7 @@ export class AnalyticsView extends ItemView {
       cls: "mediavault-analytics-section",
     });
     heatmapSection.createEl("h3", {
-      text: `Watch activity — ${new Date().getFullYear()}`,
+      text: t("analytics.watchActivity", { year: new Date().getFullYear() }),
     });
     const dailyCounts = computeDailyWatchCounts(sessions, episodeProgress);
     renderCalendarHeatmap(

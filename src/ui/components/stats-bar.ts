@@ -2,6 +2,7 @@ import {
   DashboardStatistics,
   formatWatchTime,
 } from "../../services/statistics-service";
+import { t } from "../../i18n";
 
 interface StatCardRefs {
   valueEl: HTMLElement;
@@ -34,10 +35,10 @@ export class StatsBar {
     }
 
     this.cards = [
-      this.createCard(this.barEl, "Movies Watched"),
-      this.createCard(this.barEl, "Movie Watch Time"),
-      this.createCard(this.barEl, "Episodes Watched"),
-      this.createCard(this.barEl, "TV Watch Time"),
+      this.createCard(this.barEl, t("stats.moviesWatched")),
+      this.createCard(this.barEl, t("stats.movieWatchTime")),
+      this.createCard(this.barEl, t("stats.episodesWatched")),
+      this.createCard(this.barEl, t("stats.tvWatchTime")),
     ];
   }
 
@@ -57,11 +58,13 @@ export class StatsBar {
       );
 
       this.mobileRefs.movieCount.setText(
-        `${stats.movieCount.toLocaleString()} movies watched`,
+        t("stats.moviesWatchedLabel", { count: stats.movieCount.toLocaleString() }),
       );
 
       this.mobileRefs.episodeCount.setText(
-        `${stats.episodeCount.toLocaleString()} episodes watched`,
+        t("stats.episodesWatchedLabel", {
+          count: stats.episodeCount.toLocaleString(),
+        }),
       );
 
       return;
@@ -111,7 +114,7 @@ export class StatsBar {
       }),
       movieCount: movie.createDiv({
         cls: "mediavault-stat-mobile-label",
-        text: "Movies",
+        text: t("library.filterMovies"),
       }),
       tvTime: tv.createDiv({
         cls: "mediavault-stat-mobile-value",
@@ -119,7 +122,7 @@ export class StatsBar {
       }),
       episodeCount: tv.createDiv({
         cls: "mediavault-stat-mobile-label",
-        text: "TV",
+        text: t("mediaType.tv"),
       }),
     };
   }

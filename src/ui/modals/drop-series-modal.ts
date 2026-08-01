@@ -2,6 +2,7 @@ import { App, Modal, Notice } from "obsidian";
 import { renderModalHeader } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import { dropSeries } from "../../services/drop-series-service";
+import { t } from "../../i18n";
 
 export interface DropSeriesModalOptions {
   mediaId: string;
@@ -27,15 +28,15 @@ export class DropSeriesModal extends Modal {
   onOpen(): void {
     const { contentEl } = this;
     contentEl.addClass("mediavault-drop-series-modal");
-    renderModalHeader(this, contentEl, "Why did you stop watching?", "h3");
+    renderModalHeader(this, contentEl, t("dropSeries.title"), "h3");
     contentEl.createDiv({
       cls: "mediavault-modal-hint",
-      text: `Optional — for "${this.options.mediaTitle}". Leave blank if you'd rather not say.`,
+      text: t("dropSeries.hint", { title: this.options.mediaTitle }),
     });
 
     const textarea = contentEl.createEl("textarea", {
       cls: "mediavault-episode-notes-input",
-      attr: { placeholder: "e.g. I lost interest after Season 3." },
+      attr: { placeholder: t("dropSeries.placeholder") },
     });
     textarea.addEventListener("input", () => {
       this.reason = textarea.value;
@@ -43,16 +44,16 @@ export class DropSeriesModal extends Modal {
 
     const buttons = contentEl.createDiv({ cls: "mediavault-modal-buttons" });
     buttons
-      .createEl("button", { text: "Cancel" })
+      .createEl("button", { text: t("common.cancel") })
       .addEventListener("click", () => this.close());
 
     const dropBtn = buttons.createEl("button", {
       cls: "mod-warning",
-      text: "Drop Series",
+      text: t("dropSeries.dropSeries"),
     });
     dropBtn.addEventListener("click", async () => {
       await dropSeries(this.storage, this.options.mediaId, this.reason);
-      new Notice(`MediaVault: marked "${this.options.mediaTitle}" as dropped.`);
+      new Notice(t("notice.markedDropped", { title: this.options.mediaTitle }));
       this.options.onDropped();
       this.close();
     });

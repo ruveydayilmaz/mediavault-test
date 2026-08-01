@@ -18,16 +18,19 @@ import {
 import { SelectMediaModal } from "./select-media-modal";
 import { addDestructiveMenuItem } from "../components/destructive-menu-item";
 import { isAndroidDevice } from "../../utils/platform";
+import { t } from "../../i18n";
 
-const SORT_MODE_OPTIONS: { value: ListSortMode; label: string }[] = [
-  { value: "recent", label: "Recent" },
-  { value: "manual", label: "Manual (drag to reorder)" },
-  { value: "dateAdded", label: "Date Added" },
-  { value: "title", label: "Title" },
-  { value: "rating", label: "Rating" },
-  { value: "year", label: "Year" },
-  { value: "runtime", label: "Runtime" },
-];
+function getSortModeOptions(): { value: ListSortMode; label: string }[] {
+  return [
+    { value: "recent", label: t("lists.sortRecent") },
+    { value: "manual", label: t("lists.sortManual") },
+    { value: "dateAdded", label: t("lists.sortDateAdded") },
+    { value: "title", label: t("lists.sortTitle") },
+    { value: "rating", label: t("lists.sortRating") },
+    { value: "year", label: t("lists.sortYear") },
+    { value: "runtime", label: t("lists.sortRuntime") },
+  ];
+}
 
 export class ListDetailModal extends Modal {
   private storage: StorageService;
@@ -69,7 +72,7 @@ export class ListDetailModal extends Modal {
       if (!fresh) {
         contentEl.createDiv({
           cls: "mediavault-empty-state mediavault-list-detail-gone",
-          text: "This list no longer exists.",
+          text: t("lists.noLongerExists"),
         });
         return;
       }
@@ -99,20 +102,20 @@ export class ListDetailModal extends Modal {
     if (this.list.isImported) {
       titleRow.createDiv({
         cls: "mediavault-list-imported-badge",
-        text: "Imported",
+        text: t("lists.imported"),
       });
     }
     if (this.list.isSystem) {
       titleRow.createDiv({
         cls: "mediavault-list-imported-badge",
-        text: "Built-in",
+        text: t("lists.builtIn"),
       });
     }
 
     if (!this.list.isSystem) {
       const menuBtn = titleRow.createEl("button", {
         cls: "mediavault-list-detail-menu-btn clickable-icon",
-        attr: { "aria-label": "List actions" },
+        attr: { "aria-label": t("lists.listActions") },
       });
       menuBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>`;
       menuBtn.addEventListener("click", (evt) =>
@@ -124,10 +127,15 @@ export class ListDetailModal extends Modal {
     const addMetaPill = (text: string) =>
       metaRow.createSpan({ cls: "mediavault-list-detail-meta-pill", text });
     addMetaPill(
-      `${this.list.mediaIds.length} item${this.list.mediaIds.length === 1 ? "" : "s"}`,
+      t("lists.itemCountN", {
+        count: this.list.mediaIds.length,
+        plural: this.list.mediaIds.length === 1 ? "" : "s",
+      }),
     );
-    addMetaPill(`Updated ${formatRelativeDate(this.list.updatedAt)}`);
-    addMetaPill(this.list.owner ?? "You");
+    addMetaPill(
+      t("lists.updated", { date: formatRelativeDate(this.list.updatedAt) }),
+    );
+    addMetaPill(this.list.owner ?? t("common.you"));
 
     const descEl = header.createDiv({
       cls: "mediavault-list-detail-description",
@@ -136,19 +144,19 @@ export class ListDetailModal extends Modal {
       descEl.setText(this.list.description);
     } else {
       descEl.addClass("is-placeholder");
-      descEl.setText("No description");
+      descEl.setText(t("lists.noDescription"));
     }
 
     {
       const sortRow = contentEl.createDiv({ cls: "mediavault-list-sort-row" });
       sortRow.createSpan({
         cls: "mediavault-list-sort-label",
-        text: "Sort by",
+        text: t("lists.sortBy"),
       });
       const sortSelect = sortRow.createEl("select", {
         cls: "mediavault-list-sort-select",
       });
-      SORT_MODE_OPTIONS.forEach((opt) =>
+      getSortModeOptions().forEach((opt) =>
         sortSelect.createEl("option", { value: opt.value, text: opt.label }),
       );
       sortSelect.value = this.list.sortMode;
@@ -183,13 +191,13 @@ export class ListDetailModal extends Modal {
       empty.createDiv({ cls: "mediavault-list-detail-empty-icon", text: "🎬" });
       empty.createDiv({
         cls: "mediavault-list-detail-empty-title",
-        text: "This list is empty",
+        text: t("lists.isEmpty"),
       });
       empty.createDiv({
         cls: "mediavault-empty-state",
         text: this.list.isSystem
-          ? "Mark movies or TV series as favorites to see them here."
-          : "Use the ⋮ menu above to add media.",
+          ? t("lists.emptySystemHint")
+          : t("lists.emptyCustomHint"),
       });
       return;
     }
@@ -215,7 +223,9 @@ export class ListDetailModal extends Modal {
       if (renderedCount < orderedMedia.length) {
         loadMoreBtn = contentEl.createEl("button", {
           cls: "mediavault-list-load-more",
-          text: `Load more (${orderedMedia.length - renderedCount} remaining)`,
+          text: t("common.loadMore", {
+            count: orderedMedia.length - renderedCount,
+          }),
         });
         loadMoreBtn.addEventListener("click", renderBatch);
       }
@@ -234,21 +244,21 @@ export class ListDetailModal extends Modal {
 
     menu.addItem((item) => {
       item
-        .setTitle("Edit title & description")
+        .setTitle(t("lists.editTitleDesc"))
         .setIcon("pencil")
         .onClick(() => this.enterEditMode(titleEl, descEl));
     });
 
     menu.addItem((item) => {
       item
-        .setTitle("Add media")
+        .setTitle(t("lists.addMedia"))
         .setIcon("plus")
         .onClick(() => this.addMedia());
     });
 
     menu.addItem((item) => {
       item
-        .setTitle("Duplicate list")
+        .setTitle(t("lists.duplicateList"))
         .setIcon("copy")
         .onClick(() => this.duplicateList());
     });
@@ -256,7 +266,7 @@ export class ListDetailModal extends Modal {
     menu.addSeparator();
 
     addDestructiveMenuItem(menu, evt, {
-      label: "Delete list",
+      label: t("lists.deleteList"),
       confirming: confirmingDelete,
       rebuild: (_m, confirming) =>
         this.openListMenu(evt, titleEl, descEl, confirming),
@@ -294,7 +304,7 @@ export class ListDetailModal extends Modal {
     const descInput = document.createElement("textarea");
     descInput.className = "mediavault-list-description-input";
     descInput.value = this.list.description ?? "";
-    descInput.placeholder = "Add a description...";
+    descInput.placeholder = t("lists.descPlaceholder");
     descEl.replaceWith(descInput);
 
     const saveDesc = async () => {
@@ -314,9 +324,7 @@ export class ListDetailModal extends Modal {
     const all = await this.storage.media.getAll();
     const candidates = all.filter((m) => !this.list.mediaIds.includes(m.id));
     if (candidates.length === 0) {
-      new Notice(
-        "MediaVault: every item in your library is already in this list.",
-      );
+      new Notice(t("lists.everyItemAlreadyInList"));
       return;
     }
     new SelectMediaModal(this.app, candidates, async (media) => {
@@ -333,13 +341,13 @@ export class ListDetailModal extends Modal {
   private async duplicateList(): Promise<void> {
     await this.storage.customLists.duplicate(this.list.id);
     this.notifyChanged();
-    new Notice(`MediaVault: duplicated "${this.list.title}".`);
+    new Notice(t("lists.duplicatedNotice", { title: this.list.title }));
     this.close();
   }
 
   private async deleteList(): Promise<void> {
     await this.storage.customLists.delete(this.list.id);
-    new Notice(`MediaVault: "${this.list.title}" deleted.`);
+    new Notice(t("lists.deletedNotice", { title: this.list.title }));
     this.notifyChanged();
     this.close();
   }
@@ -412,13 +420,16 @@ export class ListDetailModal extends Modal {
     if (!this.list.isSystem) {
       removeBtn = card.createEl("button", {
         cls: "mediavault-list-detail-remove",
-        text: "✕",
+        text: "\u2715",
       });
-      removeBtn.setAttr("aria-label", "Remove from list");
+      removeBtn.setAttr("aria-label", t("lists.removeFromList"));
       removeBtn.addEventListener("click", async (evt) => {
         evt.stopPropagation();
         const confirmed = confirm(
-          `Remove "${media.title}" from "${this.list.title}"?\n\nThis only removes it from this list — the item stays in your library, and your watch history/favorites are not affected.`,
+          t("addToList.removeConfirm", {
+            title: media.title,
+            list: this.list.title,
+          }),
         );
         if (!confirmed) return;
         const updated = await this.storage.customLists.removeMedia(

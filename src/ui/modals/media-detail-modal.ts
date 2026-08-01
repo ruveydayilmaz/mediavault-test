@@ -62,6 +62,7 @@ import { addMediaFromTMDB } from "../../services/media-import";
 import { resumeSeries } from "../../services/drop-series-service";
 import { DropSeriesModal } from "./drop-series-modal";
 import { addDestructiveMenuItem } from "../components/destructive-menu-item";
+import { t } from "../../i18n";
 
 type DetailTab =
   | "history"
@@ -254,7 +255,7 @@ export class MediaDetailModal extends Modal {
       cls: "clickable-icon mediavault-detail-menu-btn",
     });
     setIcon(menuBtn, "more-vertical");
-    menuBtn.setAttr("aria-label", "More options");
+    menuBtn.setAttr("aria-label", t("detail.moreOptions"));
     if (this.isPreview) {
       menuBtn.style.display = "none";
     } else {
@@ -273,7 +274,7 @@ export class MediaDetailModal extends Modal {
         cls: `clickable-icon mediavault-fav-btn ${this.media.isFavorite ? "is-favorite" : ""}`,
         text: this.media.isFavorite ? "★" : "☆",
       });
-      favBtn.setAttr("aria-label", "Toggle favorite");
+      favBtn.setAttr("aria-label", t("detail.toggleFavorite"));
       favBtn.addEventListener("click", async (evt) => {
         evt.stopPropagation();
         const updated = await this.storage.media.update(this.media.id, {
@@ -297,7 +298,7 @@ export class MediaDetailModal extends Modal {
       const logBtn = heroContent.createEl("button", {
         cls: "mediavault-detail-log-btn mod-cta",
         attr: {
-          "aria-label": "Log watch",
+          "aria-label": t("watchSession.logWatch"),
         },
       });
       setIcon(logBtn, "plus-circle");
@@ -337,7 +338,7 @@ export class MediaDetailModal extends Modal {
     if (existing) {
       const inLibraryBtn = heroContent.createEl("button", {
         cls: "mediavault-add-to-library-btn mediavault-in-library-btn",
-        text: "✓ In Library",
+        text: t("detail.inLibrary"),
       });
       inLibraryBtn.disabled = true;
       return;
@@ -345,12 +346,12 @@ export class MediaDetailModal extends Modal {
 
     const addBtn = heroContent.createEl("button", {
       cls: "mediavault-add-to-library-btn mod-cta",
-      text: "＋ Add to Library",
+      text: t("detail.addToLibrary"),
     });
     addBtn.addEventListener("click", async (evt) => {
       evt.stopPropagation();
       addBtn.disabled = true;
-      addBtn.setText("Adding...");
+      addBtn.setText(t("detail.adding"));
       try {
         const mediaKind = this.media.type === MediaType.Movie ? "movie" : "tv";
         const result = await addMediaFromTMDB(
@@ -361,8 +362,8 @@ export class MediaDetailModal extends Modal {
         );
         new Notice(
           result.alreadyExisted
-            ? `MediaVault: "${result.mediaItem.title}" is already in your library.`
-            : `MediaVault: added "${result.mediaItem.title}" to your library.`,
+            ? t("notice.alreadyInLibrary", { title: result.mediaItem.title })
+            : t("notice.addedToLibrary", { title: result.mediaItem.title }),
         );
         this.media = result.mediaItem;
         this.isPreview = false;
@@ -370,10 +371,13 @@ export class MediaDetailModal extends Modal {
         await this.render();
       } catch (err) {
         new Notice(
-          `MediaVault: couldn't add "${this.media.title}" — ${(err as Error).message}`,
+          t("notice.couldNotAdd", {
+            title: this.media.title,
+            error: (err as Error).message,
+          }),
         );
         addBtn.disabled = false;
-        addBtn.setText("＋ Add to Library");
+        addBtn.setText(t("detail.addToLibrary"));
       }
     });
   }
@@ -404,7 +408,9 @@ export class MediaDetailModal extends Modal {
       cls: "mediavault-movie-progress-actions",
     });
 
-    const updateBtn = actions.createEl("button", { text: "Update progress" });
+    const updateBtn = actions.createEl("button", {
+      text: t("detail.updateProgress"),
+    });
     updateBtn.addEventListener(
       "click",
       () => void this.openMoviePartialWatchModal(),
@@ -412,11 +418,11 @@ export class MediaDetailModal extends Modal {
 
     const finishBtn = actions.createEl("button", {
       cls: "mod-cta",
-      text: "Mark as finished",
+      text: t("detail.markAsFinished"),
     });
     finishBtn.addEventListener("click", async () => {
       await completeMovieFromProgress(this.storage, this.media.id);
-      new Notice(`MediaVault: marked "${this.media.title}" as finished.`);
+      new Notice(t("notice.markedFinished", { title: this.media.title }));
       this.onChanged?.();
       await this.refreshAndNotify();
     });
@@ -496,7 +502,7 @@ export class MediaDetailModal extends Modal {
       menu.addSeparator();
 
       addDestructiveMenuItem(menu, evt, {
-        label: "Delete",
+        label: t("detail.delete"),
         confirming: confirmingDelete,
         rebuild: (_m, confirming) => this.openHeroMenu(evt, confirming),
         onConfirm: () => void this.confirmAndDelete(true),
@@ -663,10 +669,10 @@ export class MediaDetailModal extends Modal {
       const droppedSection = contentEl.createDiv({
         cls: "mediavault-detail-section mediavault-dropped-banner",
       });
-      droppedSection.createEl("h3", { text: "Dropped" });
+      droppedSection.createEl("h3", { text: t("detail.dropped") });
       droppedSection.createDiv({
         cls: "mediavault-detail-meta",
-        text: "Reason:",
+        text: t("detail.reason"),
       });
       droppedSection.createEl("p", {
         cls: "mediavault-dropped-reason",
@@ -688,7 +694,7 @@ export class MediaDetailModal extends Modal {
       const chartSection = contentEl.createDiv({
         cls: "mediavault-detail-section",
       });
-      chartSection.createEl("h3", { text: "Rating evolution" });
+      chartSection.createEl("h3", { text: t("detail.ratingEvolution") });
       const chartContainer = chartSection.createDiv({
         cls: "mediavault-chart-container",
       });
@@ -769,7 +775,7 @@ export class MediaDetailModal extends Modal {
 
     const menuBtn = actions.createEl("button", { cls: "clickable-icon" });
     setIcon(menuBtn, "more-vertical");
-    menuBtn.setAttr("aria-label", "Watch entry options");
+    menuBtn.setAttr("aria-label", t("detail.watchEntryOptions"));
 
     const openEntryMenu = (evt: MouseEvent, confirmingDelete = false) => {
       evt.stopPropagation();
@@ -778,7 +784,7 @@ export class MediaDetailModal extends Modal {
 
       menu.addItem((item) =>
         item
-          .setTitle("Edit")
+          .setTitle(t("detail.edit"))
           .setIcon("pencil")
           .onClick(() => {
             new WatchSessionModal(this.app, this.storage, {
@@ -793,13 +799,13 @@ export class MediaDetailModal extends Modal {
       menu.addSeparator();
 
       addDestructiveMenuItem(menu, evt, {
-        label: "Delete",
+        label: t("detail.delete"),
         confirming: confirmingDelete,
         rebuild: (_m, confirming) => openEntryMenu(evt, confirming),
         onConfirm: () => {
           void (async () => {
             await deleteWatchSession(this.storage, session.id);
-            new Notice("MediaVault: watch entry deleted.");
+            new Notice(t("notice.watchEntryDeleted"));
             await this.refreshAndNotify();
           })();
         },
@@ -814,12 +820,12 @@ export class MediaDetailModal extends Modal {
   private async renderCommentsTab(contentEl: HTMLElement): Promise<void> {
     const section = contentEl.createDiv({ cls: "mediavault-detail-section" });
     const heading = section.createDiv({ cls: "mediavault-comments-heading" });
-    heading.createEl("h3", { text: "Comments" });
+    heading.createEl("h3", { text: t("detail.comments") });
 
     if (!this.trakt) {
       section.createDiv({
         cls: "mediavault-modal-hint",
-        text: "Trakt isn't available for this item.",
+        text: t("detail.traktUnavailable"),
       });
       return;
     }
@@ -838,7 +844,7 @@ export class MediaDetailModal extends Modal {
       cls: "mediavault-comment-compose-toggle",
     });
     setIcon(composeToggle, "square-pen");
-    composeToggle.setAttribute("aria-label", "Write a comment");
+    composeToggle.setAttribute("aria-label", t("detail.writeComment"));
 
     const listWrap = section.createDiv();
 
@@ -870,7 +876,7 @@ export class MediaDetailModal extends Modal {
     listWrap.empty();
     const loading = listWrap.createDiv({
       cls: "mediavault-modal-hint",
-      text: "Loading comments from Trakt...",
+      text: t("detail.loadingComments"),
     });
 
     let comments: TraktComment[];
@@ -891,12 +897,12 @@ export class MediaDetailModal extends Modal {
 
   private async renderCastTab(contentEl: HTMLElement): Promise<void> {
     const section = contentEl.createDiv({ cls: "mediavault-detail-section" });
-    section.createEl("h3", { text: "Cast" });
+    section.createEl("h3", { text: t("detail.cast") });
 
     const mediaKind = this.media.type === MediaType.Movie ? "movie" : "tv";
     const loading = section.createDiv({
       cls: "mediavault-modal-hint",
-      text: "Loading cast...",
+      text: t("detail.loadingCast"),
     });
     let cast;
     try {
@@ -910,7 +916,7 @@ export class MediaDetailModal extends Modal {
     if (cast.length === 0) {
       section.createDiv({
         cls: "mediavault-modal-hint",
-        text: "No cast information available.",
+        text: t("detail.noCastInfo"),
       });
       return;
     }
@@ -1012,7 +1018,7 @@ export class MediaDetailModal extends Modal {
       if (comment.spoiler) {
         header.createSpan({
           cls: "mediavault-comment-spoiler-tag",
-          text: "Spoiler",
+          text: t("detail.spoiler"),
         });
       }
       header.createSpan({
@@ -1048,7 +1054,7 @@ export class MediaDetailModal extends Modal {
 
         const editBtn = actions.createEl("button", {
           cls: "clickable-icon",
-          text: "Edit",
+          text: t("detail.edit"),
         });
         editBtn.addEventListener("click", () => {
           this.renderCommentEditForm(main, body, comment, target);
@@ -1056,19 +1062,21 @@ export class MediaDetailModal extends Modal {
 
         const deleteBtn = actions.createEl("button", {
           cls: "clickable-icon",
-          text: "Delete",
+          text: t("detail.delete"),
         });
         deleteBtn.addEventListener("click", async () => {
-          if (!confirm("Delete this comment from Trakt? This can't be undone."))
+          if (!confirm(t("detail.deleteCommentConfirm")))
             return;
           try {
             await this.trakt!.deleteComment(comment.id);
             this.trakt!.invalidateCommentsCache(target);
-            new Notice("MediaVault: comment deleted.");
+            new Notice(t("notice.commentDeleted"));
             item.remove();
           } catch (err) {
             new Notice(
-              `MediaVault: couldn't delete comment — ${describeTraktError(err)}`,
+              t("notice.couldNotDeleteComment", {
+                error: describeTraktError(err),
+              }),
             );
           }
         });
@@ -1094,25 +1102,29 @@ export class MediaDetailModal extends Modal {
     const editActions = item.createDiv({ cls: "mediavault-comment-actions" });
     const saveBtn = editActions.createEl("button", {
       cls: "mod-cta",
-      text: "Save",
+      text: t("detail.save"),
     });
-    const cancelBtn = editActions.createEl("button", { text: "Cancel" });
+    const cancelBtn = editActions.createEl("button", {
+      text: t("common.cancel"),
+    });
 
     cancelBtn.addEventListener("click", () => void this.render());
     saveBtn.addEventListener("click", async () => {
       const value = textarea.value.trim();
       if (value === "") {
-        new Notice("MediaVault: comment can't be empty.");
+        new Notice(t("detail.commentEmptyError"));
         return;
       }
       try {
         await this.trakt!.updateComment(comment.id, value, comment.spoiler);
         this.trakt!.invalidateCommentsCache(target);
-        new Notice("MediaVault: comment updated.");
+        new Notice(t("notice.commentUpdated"));
         await this.render();
       } catch (err) {
         new Notice(
-          `MediaVault: couldn't update comment — ${describeTraktError(err)}`,
+          t("notice.couldNotUpdateComment", {
+            error: describeTraktError(err),
+          }),
         );
       }
     });
@@ -1131,16 +1143,19 @@ export class MediaDetailModal extends Modal {
     if (!token) {
       composer.createDiv({
         cls: "mediavault-modal-hint",
-        text: "Connect your Trakt account to post comments.",
+        text: t("detail.connectTraktToComment"),
       });
       return composer;
     }
 
     const TRAKT_COMMENT_LIMIT = 2000;
-    composer.createEl("h4", { text: "Write a Public Comment" });
+    composer.createEl("h4", { text: t("detail.writePublicComment") });
     const textarea = composer.createEl("textarea", {
       cls: "mediavault-comment-compose-input",
-      attr: { placeholder: "Share your thoughts...", enterkeyhint: "done" },
+      attr: {
+        placeholder: t("detail.commentPlaceholder"),
+        enterkeyhint: "done",
+      },
     });
     const counter = composer.createDiv({
       cls: "mediavault-comment-char-counter",
@@ -1156,7 +1171,7 @@ export class MediaDetailModal extends Modal {
 
     const doneBtn = composer.createEl("button", {
       cls: "clickable-icon mediavault-comment-compose-done",
-      attr: { "aria-label": "Dismiss keyboard" },
+      attr: { "aria-label": t("detail.dismissKeyboard") },
     });
     setIcon(doneBtn, "chevron-down");
     doneBtn.addEventListener("click", () => textarea.blur());
@@ -1171,7 +1186,7 @@ export class MediaDetailModal extends Modal {
 
     const cancelBtn = buttonRow.createEl("button", {
       cls: "mediavault-comment-compose-cancel",
-      text: "Cancel",
+      text: t("common.cancel"),
     });
     cancelBtn.addEventListener("click", () => {
       textarea.value = "";
@@ -1182,43 +1197,45 @@ export class MediaDetailModal extends Modal {
 
     const postBtn = buttonRow.createEl("button", {
       cls: "mod-cta",
-      text: "Post Comment",
+      text: t("detail.postComment"),
     });
     postBtn.addEventListener("click", async () => {
       const text = textarea.value.trim();
       if (text === "") {
-        new Notice("MediaVault: write something before posting.");
+        new Notice(t("detail.writeSomethingFirst"));
         return;
       }
       if (text.length > TRAKT_COMMENT_LIMIT) {
         new Notice(
-          `MediaVault: comment is too long (Trakt's limit is ${TRAKT_COMMENT_LIMIT} characters).`,
+          t("detail.commentTooLong", { limit: TRAKT_COMMENT_LIMIT }),
         );
         return;
       }
 
       warningEl.empty();
       postBtn.disabled = true;
-      postBtn.setText("Posting...");
+      postBtn.setText(t("detail.posting"));
 
       let posted;
       try {
         posted = await this.trakt!.postComment(target, text);
       } catch (err) {
         new Notice(
-          `MediaVault: couldn't post comment — ${describeTraktError(err)}`,
+          t("notice.couldNotPostComment", {
+            error: describeTraktError(err),
+          }),
         );
         postBtn.disabled = false;
-        postBtn.setText("Post Comment");
+        postBtn.setText(t("detail.postComment"));
         return;
       }
 
-      new Notice("MediaVault: comment posted.");
+      new Notice(t("notice.commentPosted"));
       textarea.value = "";
       counter.setText(`0 / ${TRAKT_COMMENT_LIMIT}`);
       composer.addClass("is-collapsed");
       this.pendingHighlightCommentId = posted.id;
-      postBtn.setText("Refreshing...");
+      postBtn.setText(t("detail.refreshing"));
 
       await this.refreshCommentsAfterPost(warningEl, postBtn, onPosted);
     });
@@ -1238,16 +1255,18 @@ export class MediaDetailModal extends Modal {
       warningEl.empty();
       warningEl.createDiv({
         cls: "mediavault-modal-hint mediavault-comment-refresh-warning-text",
-        text: "Your comment was published successfully, but the comments list could not be refreshed.",
+        text: t("detail.refreshFailedHint"),
       });
-      const retryBtn = warningEl.createEl("button", { text: "Retry" });
+      const retryBtn = warningEl.createEl("button", {
+        text: t("detail.retry"),
+      });
       retryBtn.addEventListener(
         "click",
         () => void this.refreshCommentsAfterPost(warningEl, postBtn, onPosted),
       );
     } finally {
       postBtn.disabled = false;
-      postBtn.setText("Post Comment");
+      postBtn.setText(t("detail.postComment"));
     }
   }
 
@@ -1258,16 +1277,16 @@ export class MediaDetailModal extends Modal {
       if (this.isPreview) {
         contentEl.createDiv({
           cls: "mediavault-episode-empty",
-          text: "Add this show to your library to browse and track its episodes.",
+          text: t("detail.addToLibraryHint"),
         });
         return;
       }
       contentEl.createDiv({
         cls: "mediavault-episode-empty",
-        text: "No episode data yet. Import episode metadata from TMDB to start tracking.",
+        text: t("detail.noEpisodeDataYet"),
       });
       const importBtn = contentEl.createEl("button", {
-        text: "Import episodes from TMDB",
+        text: t("detail.importEpisodesFromTmdb"),
         cls: "mod-cta",
       });
       importBtn.addEventListener("click", () => void this.runEpisodeImport());
@@ -1347,11 +1366,11 @@ export class MediaDetailModal extends Modal {
     const isExpanded = this.expandedSeasons.has(seasonNumber);
     const toggle = header.createSpan({
       cls: "mediavault-season-toggle",
-      text: isExpanded ? "▾" : "▸",
+      text: isExpanded ? "\u25be" : "\u25b8",
     });
     header.createSpan({
       cls: "mediavault-season-title",
-      text: `Season ${seasonNumber}`,
+      text: t("detail.season", { n: seasonNumber }),
     });
     header.createSpan({
       cls: "mediavault-season-count",
@@ -1369,11 +1388,11 @@ export class MediaDetailModal extends Modal {
       if ((evt.target as HTMLElement).closest("button")) return;
       if (this.expandedSeasons.has(seasonNumber)) {
         this.expandedSeasons.delete(seasonNumber);
-        toggle.setText("▸");
+        toggle.setText("\u25b8");
         episodesEl.style.display = "none";
       } else {
         this.expandedSeasons.add(seasonNumber);
-        toggle.setText("▾");
+        toggle.setText("\u25be");
         episodesEl.style.display = "block";
       }
     });
@@ -1387,7 +1406,7 @@ export class MediaDetailModal extends Modal {
     setIcon(toggleWatchBtn, seasonWatched ? "rotate-ccw" : "check-check");
     toggleWatchBtn.setAttr(
       "aria-label",
-      seasonWatched ? "Season options" : "Mark season watched",
+      seasonWatched ? t("detail.seasonOptions") : t("detail.markSeasonWatched"),
     );
 
     toggleWatchBtn.addEventListener("click", async (evt) => {
@@ -1396,7 +1415,7 @@ export class MediaDetailModal extends Modal {
       if (!seasonWatched) {
         await markSeasonWatched(this.storage, episodes, true);
 
-        new Notice(`MediaVault: marked season ${seasonNumber} watched.`);
+        new Notice(t("notice.markedSeasonWatched", { n: seasonNumber }));
 
         await this.render();
         this.onChanged?.();
@@ -1407,7 +1426,7 @@ export class MediaDetailModal extends Modal {
 
       menu.addItem((item) =>
         item
-          .setTitle("Log season rewatch")
+          .setTitle(t("detail.logSeasonRewatch"))
           .setIcon("history")
           .onClick(() => {
             // TODO: Implement season rewatch
@@ -1423,7 +1442,7 @@ export class MediaDetailModal extends Modal {
           .onClick(async () => {
             await markSeasonWatched(this.storage, episodes, false);
 
-            new Notice(`MediaVault: marked season ${seasonNumber} unwatched.`);
+            new Notice(t("notice.markedSeasonUnwatched", { n: seasonNumber }));
 
             await this.render();
             this.onChanged?.();
@@ -1486,12 +1505,15 @@ export class MediaDetailModal extends Modal {
     });
     if (watches.length === 0) {
       setIcon(watchBtn, "check");
-      watchBtn.setAttr("aria-label", "Mark watched");
+      watchBtn.setAttr("aria-label", t("detail.markWatched"));
     } else {
-      watchBtn.setText(`×${watches.length}`);
+      watchBtn.setText(`\u00d7${watches.length}`);
       watchBtn.setAttr(
         "aria-label",
-        `Watched ${watches.length} time${watches.length === 1 ? "" : "s"}, add rewatch`,
+        t("detail.watchedNTimes", {
+          n: watches.length,
+          plural: watches.length === 1 ? "" : "s",
+        }),
       );
     }
     watchBtn.addEventListener("click", async (evt) => {
@@ -1526,7 +1548,7 @@ export class MediaDetailModal extends Modal {
         longPressTimer = window.setTimeout(async () => {
           longPressTimer = null;
           watchBtn.dataset.longPressed = "1";
-          if (!confirm("Remove one watch from this episode?")) return;
+          if (!confirm(t("detail.removeOneWatchConfirm"))) return;
           await removeOneEpisodeWatch(this.storage, episode);
           this.plugin?.refreshLibraryViews();
           this.plugin?.refreshListViews();
@@ -1558,13 +1580,11 @@ export class MediaDetailModal extends Modal {
       return;
     }
 
-    const confirmed = confirm(
-      "You haven't marked previous episodes as watched.\n\nWould you like to mark all previous episodes as watched?",
-    );
+    const confirmed = confirm(t("detail.previousEpisodesPrompt"));
     if (confirmed) {
       await markSeasonWatched(this.storage, [...preceding, episode], true);
       new Notice(
-        `MediaVault: marked ${preceding.length} previous episode(s) watched too.`,
+        t("notice.markedPrevEpisodesWatched", { n: preceding.length }),
       );
     } else {
       await markEpisodeWatched(this.storage, episode, true);
@@ -1628,11 +1648,11 @@ export class MediaDetailModal extends Modal {
     setIcon(prevBtn, "chevron-left");
     prevBtn.createSpan({
       text: prevEpisode
-        ? `S${prevEpisode.seasonNumber}E${prevEpisode.episodeNumber} — Previous`
-        : "Previous",
+        ? `S${prevEpisode.seasonNumber}E${prevEpisode.episodeNumber} \u2014 ${t("detail.previous")}`
+        : t("detail.previous"),
     });
     prevBtn.disabled = !prevEpisode;
-    prevBtn.setAttr("aria-label", "Previous episode");
+    prevBtn.setAttr("aria-label", t("detail.previousEpisode"));
     if (prevEpisode) {
       const target = prevEpisode;
       prevBtn.addEventListener("click", () => {
@@ -1646,12 +1666,12 @@ export class MediaDetailModal extends Modal {
     });
     nextBtn.createSpan({
       text: nextEpisode
-        ? `S${nextEpisode.seasonNumber}E${nextEpisode.episodeNumber} — Next`
-        : "Next",
+        ? `S${nextEpisode.seasonNumber}E${nextEpisode.episodeNumber} \u2014 ${t("detail.next")}`
+        : t("detail.next"),
     });
     setIcon(nextBtn, "chevron-right");
     nextBtn.disabled = !nextEpisode;
-    nextBtn.setAttr("aria-label", "Next episode");
+    nextBtn.setAttr("aria-label", t("detail.nextEpisode"));
     if (nextEpisode) {
       const target = nextEpisode;
       nextBtn.addEventListener("click", () => {
@@ -1691,7 +1711,7 @@ export class MediaDetailModal extends Modal {
     const favBtn = titleRow.createEl("button", {
       cls: "clickable-icon mediavault-fav-btn",
     });
-    favBtn.setAttr("aria-label", "Toggle favorite episode");
+    favBtn.setAttr("aria-label", t("detail.toggleFavoriteEpisode"));
     void this.storage.episodeProgress
       .findByEpisodeId(episode.id)
       .then((progress) => {
@@ -1744,17 +1764,17 @@ export class MediaDetailModal extends Modal {
     } else {
       infoSection.createDiv({
         cls: "mediavault-modal-hint",
-        text: "No overview available for this episode yet.",
+        text: t("detail.noEpisodeOverview"),
       });
     }
 
     const markBtn = infoSection.createEl("button", {
       cls: "mod-cta mediavault-mark-watched-btn",
-      text: "Mark as Watched",
+      text: t("detail.markAsWatched"),
     });
     markBtn.addEventListener("click", async () => {
       await addEpisodeWatch(this.storage, episode);
-      new Notice(`MediaVault: marked "${episode.title}" as watched.`);
+      new Notice(t("notice.markedEpisodeWatched", { title: episode.title }));
       this.plugin?.refreshLibraryViews();
       this.plugin?.refreshListViews();
       await this.render();
@@ -1771,7 +1791,7 @@ export class MediaDetailModal extends Modal {
     const reviewSection = contentEl.createDiv({
       cls: "mediavault-detail-section",
     });
-    reviewSection.createEl("h3", { text: "Episode watch history" });
+    reviewSection.createEl("h3", { text: t("detail.episodeWatchHistory") });
 
     if (watches.length > 1) {
       const chartWrap = reviewSection.createDiv({
@@ -1779,7 +1799,7 @@ export class MediaDetailModal extends Modal {
       });
       chartWrap.createDiv({
         cls: "mediavault-detail-meta",
-        text: "Rating evolution",
+        text: t("detail.ratingEvolution"),
       });
       renderRatingEvolutionChart(
         chartWrap.createDiv(),
@@ -1798,7 +1818,7 @@ export class MediaDetailModal extends Modal {
 
     const addBtn = reviewSection.createEl("button", {
       cls: "mediavault-add-watch-btn",
-      text: "Log Rewatch",
+      text: t("detail.logRewatch"),
     });
     addBtn.addEventListener("click", async () => {
       await addEpisodeWatch(this.storage, episode);
@@ -1813,11 +1833,11 @@ export class MediaDetailModal extends Modal {
     const commentsHeading = commentsSection.createDiv({
       cls: "mediavault-comments-heading",
     });
-    commentsHeading.createEl("h3", { text: "Comments" });
+    commentsHeading.createEl("h3", { text: t("detail.comments") });
     if (!this.trakt) {
       commentsSection.createDiv({
         cls: "mediavault-modal-hint",
-        text: "Trakt isn't available for this item.",
+        text: t("detail.traktUnavailable"),
       });
       return;
     }
@@ -1827,7 +1847,7 @@ export class MediaDetailModal extends Modal {
         cls: "mediavault-comment-compose-toggle",
       });
       setIcon(composeToggle, "square-pen");
-      composeToggle.setAttribute("aria-label", "Write a comment");
+      composeToggle.setAttribute("aria-label", t("detail.writeComment"));
 
       const target: TraktCommentTarget = {
         kind: "episode",
@@ -1905,7 +1925,7 @@ export class MediaDetailModal extends Modal {
       cls: "clickable-icon mediavault-delete-watch-btn",
     });
     setIcon(deleteBtn, "trash-2");
-    deleteBtn.setAttr("aria-label", "Delete this watch");
+    deleteBtn.setAttr("aria-label", t("detail.deleteThisWatch"));
     deleteBtn.addEventListener("click", async () => {
       await deleteEpisodeWatch(this.storage, watch.id);
       await this.render();
@@ -1916,7 +1936,7 @@ export class MediaDetailModal extends Modal {
 
     const notesInput = card.createEl("textarea", {
       cls: "mediavault-episode-notes-input",
-      attr: { placeholder: "Add notes or a review for this watch..." },
+      attr: { placeholder: t("watchSession.review") },
     });
     notesInput.value = watch.review ?? "";
     notesInput.addEventListener("blur", async () => {
@@ -1941,7 +1961,10 @@ export class MediaDetailModal extends Modal {
       });
       setIcon(star, i <= current ? "star" : "star-off");
       star.toggleClass("is-filled", i <= current);
-      star.setAttr("aria-label", `Rate ${i} star${i === 1 ? "" : "s"}`);
+      star.setAttr(
+        "aria-label",
+        t("detail.rateStars", { n: i, plural: i === 1 ? "" : "s" }),
+      );
       star.addEventListener("click", async () => {
         await updateEpisodeWatch(this.storage, watch.id, { rating: i });
         await this.render();
@@ -1967,7 +1990,7 @@ export class MediaDetailModal extends Modal {
     const wrap = container.createDiv({
       cls: "mediavault-episode-emotion-picker",
     });
-    wrap.createDiv({ cls: "mediavault-detail-meta", text: "How was it?" });
+    wrap.createDiv({ cls: "mediavault-detail-meta", text: t("detail.howWasIt") });
     const row = wrap.createDiv({ cls: "mediavault-emotion-row" });
 
     MediaDetailModal.EMOTIONS.forEach((emoji) => {
@@ -1991,7 +2014,7 @@ export class MediaDetailModal extends Modal {
     const section = contentEl.createDiv({ cls: "mediavault-detail-section" });
     const loading = section.createDiv({
       cls: "mediavault-modal-hint",
-      text: "Loading crew...",
+      text: t("detail.loadingCrew"),
     });
     try {
       const { crew } = await this.tmdb.getEpisodeCredits(
@@ -2002,7 +2025,7 @@ export class MediaDetailModal extends Modal {
       loading.remove();
 
       if (crew.length > 0) {
-        section.createEl("h3", { text: "Crew" });
+        section.createEl("h3", { text: t("detail.crew") });
         const crewList = section.createDiv({
           cls: "mediavault-episode-crew-list",
         });
@@ -2021,7 +2044,7 @@ export class MediaDetailModal extends Modal {
   }
 
   private async runEpisodeImport(): Promise<void> {
-    new Notice(`MediaVault: importing episodes for "${this.media.title}"...`);
+    new Notice(t("notice.importingEpisodes", { title: this.media.title }));
     try {
       const result = await importEpisodesForShow(
         this.storage,
@@ -2029,12 +2052,15 @@ export class MediaDetailModal extends Modal {
         this.media,
       );
       new Notice(
-        `MediaVault: imported ${result.episodesAdded} new episode(s) across ${result.seasonsProcessed} season(s).`,
+        t("notice.importedEpisodes", {
+          added: result.episodesAdded,
+          seasons: result.seasonsProcessed,
+        }),
       );
       await this.render();
     } catch (err) {
       new Notice(
-        `MediaVault: episode import failed — ${(err as Error).message}`,
+        t("notice.episodeImportFailed", { error: (err as Error).message }),
       );
     }
   }
@@ -2048,21 +2074,22 @@ export class MediaDetailModal extends Modal {
     if (!alreadyConfirmed) {
       const scope = describeDeletionScope(this.media);
       const confirmed = confirm(
-        `Delete "${this.media.title}"?\n\nThis will permanently delete:\n${scope
-          .map((line) => `• ${line}`)
-          .join("\n")}\n\nThis action cannot be undone.`,
+        t("detail.deleteConfirmBodyWithScope", {
+          title: this.media.title,
+          scope: scope.map((line) => `\u2022 ${line}`).join("\n"),
+        }),
       );
       if (!confirmed) return;
     }
 
     const summary = await deleteMedia(this.app, this.storage, this.media.id);
     if (!summary) {
-      new Notice("MediaVault: this item no longer exists.");
+      new Notice(t("notice.itemNoLongerExists"));
       this.close();
       return;
     }
 
-    new Notice(`MediaVault: "${summary.mediaTitle}" deleted.`);
+    new Notice(t("notice.mediaDeleted", { title: summary.mediaTitle }));
     this.close();
 
     if (this.plugin) {

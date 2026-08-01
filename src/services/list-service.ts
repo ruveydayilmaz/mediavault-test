@@ -3,6 +3,7 @@ import { MediaType } from "../types/enums";
 import { CustomList } from "../models/list";
 import { recentSortKey } from "./library-query";
 import { MediaVaultSettings } from "../settings/settings";
+import { i18n, t } from "../i18n";
 
 export const SYSTEM_FAVORITE_MOVIES_ID = "system:favorite-movies";
 export const SYSTEM_FAVORITE_TV_ID = "system:favorite-tv";
@@ -43,8 +44,8 @@ export function getSystemFavoriteLists(
   return [
     {
       id: SYSTEM_FAVORITE_MOVIES_ID,
-      title: "Favorite Movies",
-      description: "Every movie you've marked as a favorite.",
+      title: t("favorites.movies"),
+      description: t("favorites.moviesDescription"),
       mediaIds:
         movieSort === "manual"
           ? applyManualOrder(movieIds, settings.favoriteListManualOrder.movies)
@@ -59,8 +60,8 @@ export function getSystemFavoriteLists(
     },
     {
       id: SYSTEM_FAVORITE_TV_ID,
-      title: "Favorite TV Series",
-      description: "Every TV series you've marked as a favorite.",
+      title: t("favorites.tvSeries"),
+      description: t("favorites.tvDescription"),
       mediaIds:
         tvSort === "manual"
           ? applyManualOrder(tvIds, settings.favoriteListManualOrder.tv)
@@ -77,17 +78,7 @@ export function getSystemFavoriteLists(
 }
 
 export function formatRelativeDate(iso: string): string {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return iso;
-  const diffMs = Date.now() - then;
-  const diffMinutes = Math.floor(diffMs / 60000);
-  if (diffMinutes < 1) return "Just now";
-  if (diffMinutes < 60) return `${diffMinutes}m ago`;
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 30) return `${diffDays}d ago`;
-  return iso.slice(0, 10);
+  return i18n.formatRelativeTime(iso);
 }
 
 export function resolveListMedia(

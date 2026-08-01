@@ -19,6 +19,20 @@ export type ProgressTab =
   | "waiting_for_new_season"
   | "dropped";
 
+import { t } from "../i18n";
+
+export function getProgressTabs(): { value: ProgressTab; label: string }[] {
+  return [
+    { value: "all", label: t("library.tabAll") },
+    { value: "watching", label: t("library.tabWatching") },
+    { value: "up_to_date", label: t("library.tabUpToDate") },
+    { value: "plan_to_watch", label: t("library.tabPlanToWatch") },
+    { value: "finished", label: t("library.tabFinished") },
+    { value: "waiting_for_new_season", label: t("library.tabWaiting") },
+    { value: "dropped", label: t("library.tabDropped") },
+  ];
+}
+
 export const PROGRESS_TABS: { value: ProgressTab; label: string }[] = [
   { value: "all", label: "All" },
   { value: "watching", label: "Watching" },

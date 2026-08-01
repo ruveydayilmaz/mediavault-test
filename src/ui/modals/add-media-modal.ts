@@ -5,6 +5,7 @@ import { TMDBSearchResult } from "../../types/tmdb";
 import { tmdbImageUrl } from "../../api/tmdb-normalize";
 import { addMediaFromTMDB } from "../../services/media-import";
 import type { MediaItem } from "../../models/media";
+import { t } from "../../i18n";
 
 const DEBOUNCE_MS = 350;
 const MIN_QUERY_LENGTH = 2;
@@ -29,10 +30,9 @@ export class AddMediaModal extends SuggestModal<TMDBSearchResult> {
     this.tmdb = tmdb;
     this.storage = storage;
     this.onAdded = onAdded;
-    this.setPlaceholder("Search for a movie or TV show on TMDB...");
+    this.setPlaceholder(t("explore.addMediaSearchPlaceholder"));
 
-    this.emptyStateText =
-      "No results. Keep typing, or check your TMDB API key in settings.";
+    this.emptyStateText = t("explore.emptyStateText");
   }
 
   getSuggestions(query: string): Promise<TMDBSearchResult[]> {
@@ -57,7 +57,7 @@ export class AddMediaModal extends SuggestModal<TMDBSearchResult> {
           }
         } catch (err) {
           new Notice(
-            `MediaVault: TMDB search failed — ${(err as Error).message}`,
+            t("explore.addMediaSearchFailed", { error: (err as Error).message }),
           );
           this.latestResults = [];
         }
@@ -90,7 +90,7 @@ export class AddMediaModal extends SuggestModal<TMDBSearchResult> {
       });
     }
     titleLine.createSpan({
-      text: item.mediaKind === "movie" ? " · Movie" : " · TV",
+      text: item.mediaKind === "movie" ? t("explore.kindMovie") : t("explore.kindTv"),
       cls: "mediavault-search-kind",
     });
 
@@ -116,15 +116,15 @@ export class AddMediaModal extends SuggestModal<TMDBSearchResult> {
 
       new Notice(
         alreadyExisted
-          ? `MediaVault: "${mediaItem.title}" is already in your library.`
-          : `MediaVault: added "${mediaItem.title}" to your library.`,
+          ? t("notice.alreadyInLibrary", { title: mediaItem.title })
+          : t("notice.addedToLibrary", { title: mediaItem.title }),
       );
 
       if (!alreadyExisted) {
         this.onAdded?.(mediaItem);
       }
     } catch (err) {
-      new Notice(`MediaVault: failed to add media — ${(err as Error).message}`);
+      new Notice(t("explore.failedToAddMedia", { error: (err as Error).message }));
     }
   }
 }

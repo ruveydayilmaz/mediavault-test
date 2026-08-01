@@ -1,5 +1,6 @@
 import { App, FuzzySuggestModal } from "obsidian";
 import { MediaItem } from "../../models/media";
+import { t } from "../../i18n";
 
 export class SelectMediaModal extends FuzzySuggestModal<MediaItem> {
   private items: MediaItem[];
@@ -13,7 +14,7 @@ export class SelectMediaModal extends FuzzySuggestModal<MediaItem> {
     super(app);
     this.items = items;
     this.onSelect = onSelect;
-    this.setPlaceholder("Choose a movie or TV show from your library...");
+    this.setPlaceholder(t("library.selectMediaPlaceholder"));
   }
 
   getItems(): MediaItem[] {

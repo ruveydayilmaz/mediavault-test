@@ -4,19 +4,8 @@ import type { StorageService } from "../../services/storage";
 import { MediaItem } from "../../models/media";
 import { ComfortProfile, ComfortFlags } from "../../models/comfort";
 import { Season, TriggerWarning } from "../../types/enums";
-
-const FLAG_LABELS: Record<keyof ComfortFlags, string> = {
-  safeWhenAnxious: "Safe when anxious",
-  safeWhenDepressed: "Safe when depressed",
-  goodForBackgroundNoise: "Good for background noise",
-  goodWhileCleaning: "Good while cleaning",
-  goodBeforeSleep: "Good before sleep",
-  cozy: "Cozy",
-  funny: "Funny",
-  noMajorCharacterDeath: "No major character death",
-  lowConflict: "Low conflict",
-  familiarFavorite: "Familiar favorite",
-};
+import { t } from "../../i18n";
+import { getFlagLabels } from "./comfort-finder-modal";
 
 function labelizeEnum(value: string): string {
   return value.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
@@ -51,17 +40,26 @@ export class ComfortProfileModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("mediavault-comfort-modal");
-    renderModalHeader(this, contentEl, `Comfort profile`);
+    renderModalHeader(this, contentEl, t("comfort.profileTitle"));
 
-    this.renderSlider(contentEl, "Comfort score", "comfortScore");
-    this.renderSlider(contentEl, "Energy level", "energyLevel");
-    this.renderSlider(contentEl, "Attention required", "attentionLevel");
-    this.renderSlider(contentEl, "Emotional heaviness", "emotionalHeaviness");
-    this.renderSlider(contentEl, "Plot complexity", "plotComplexity");
-    this.renderSlider(contentEl, "Rewatchability", "rewatchability");
+    this.renderSlider(contentEl, t("comfort.comfortScore"), "comfortScore");
+    this.renderSlider(contentEl, t("comfort.energyLevelSlider"), "energyLevel");
+    this.renderSlider(
+      contentEl,
+      t("comfort.attentionRequiredSlider"),
+      "attentionLevel",
+    );
+    this.renderSlider(
+      contentEl,
+      t("comfort.emotionalHeaviness"),
+      "emotionalHeaviness",
+    );
+    this.renderSlider(contentEl, t("comfort.plotComplexity"), "plotComplexity");
+    this.renderSlider(contentEl, t("comfort.rewatchability"), "rewatchability");
 
-    contentEl.createEl("h3", { text: "Tags" });
+    contentEl.createEl("h3", { text: t("comfort.tags") });
     const flagsGrid = contentEl.createDiv({ cls: "mediavault-comfort-flags" });
+    const FLAG_LABELS = getFlagLabels();
     (Object.keys(FLAG_LABELS) as (keyof ComfortFlags)[]).forEach((flag) => {
       new Setting(flagsGrid).setName(FLAG_LABELS[flag]).addToggle((toggle) =>
         toggle.setValue(this.profile.flags[flag]).onChange(async (value) => {
@@ -72,7 +70,7 @@ export class ComfortProfileModal extends Modal {
       );
     });
 
-    contentEl.createEl("h3", { text: "Seasonal associations" });
+    contentEl.createEl("h3", { text: t("comfort.seasonalAssociations") });
     this.renderMultiToggle(
       contentEl,
       Object.values(Season),
@@ -80,7 +78,7 @@ export class ComfortProfileModal extends Modal {
       (tags) => this.updateProfile({ seasonalTags: tags as Season[] }),
     );
 
-    contentEl.createEl("h3", { text: "Trigger warnings" });
+    contentEl.createEl("h3", { text: t("comfort.triggerWarnings") });
     this.renderMultiToggle(
       contentEl,
       Object.values(TriggerWarning),
@@ -160,7 +158,7 @@ export class ComfortProfileModal extends Modal {
       this.onSaved?.();
     } catch (err) {
       new Notice(
-        `MediaVault: failed to save comfort profile — ${(err as Error).message}`,
+        t("comfort.failedToSaveProfile", { error: (err as Error).message }),
       );
     }
   }

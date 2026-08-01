@@ -41,6 +41,7 @@ import type { MediaItem } from "./models/media";
 import type { Episode } from "./models/episode";
 import { MediaType } from "./types/enums";
 import { applyAndroidBodyClass } from "./utils/platform";
+import { i18n, t } from "./i18n";
 
 export default class MediaVaultPlugin extends Plugin {
   storage!: StorageService;
@@ -57,6 +58,7 @@ export default class MediaVaultPlugin extends Plugin {
 
     this.storage = new StorageService(this);
     await this.storage.initialize();
+    i18n.setLocale(this.storage.settings.get().language);
     this.statistics = new StatisticsService(this.storage);
     await seedBuiltInPresets(this.storage);
 
@@ -181,9 +183,7 @@ export default class MediaVaultPlugin extends Plugin {
       name: "Import watch history (TV Time / JSON / CSV)",
       callback: () => {
         if (!this.storage.settings.get().tmdbApiKey) {
-          new Notice(
-            "MediaVault: add a TMDB API key in settings before importing.",
-          );
+          new Notice(t("notice.addTmdbKeyBeforeImporting"));
           return;
         }
         new ImportModal(this.app, this.storage, this.tmdb, () => {
@@ -198,7 +198,7 @@ export default class MediaVaultPlugin extends Plugin {
       name: "Discover recommendations",
       callback: () => {
         if (!this.storage.settings.get().tmdbApiKey) {
-          new Notice("MediaVault: add a TMDB API key in settings first.");
+          new Notice(t("notice.addTmdbKeyFirst"));
           return;
         }
         new RecommendationsModal(this.app, this.storage, this.tmdb).open();
@@ -254,7 +254,7 @@ export default class MediaVaultPlugin extends Plugin {
           this.storage,
           this.storage.settings.get().traktHistoryNotePath,
         );
-        new Notice("MediaVault: Trakt Rating History note regenerated.");
+        new Notice(t("notice.traktHistoryRegenerated"));
       },
     });
 
@@ -263,17 +263,15 @@ export default class MediaVaultPlugin extends Plugin {
       name: "Test TMDB connection",
       callback: async () => {
         if (!this.storage.settings.get().tmdbApiKey) {
-          new Notice("MediaVault: add a TMDB API key in settings first.");
+          new Notice(t("notice.addTmdbKeyFirst"));
           return;
         }
         try {
           const result = await this.tmdb.searchMovies("Interstellar");
-          new Notice(
-            `MediaVault: TMDB OK — found ${result.total} results for "Interstellar".`,
-          );
+          new Notice(t("notice.tmdbOk", { count: result.total }));
         } catch (err) {
           new Notice(
-            `MediaVault: TMDB request failed — ${(err as Error).message}`,
+            t("notice.tmdbRequestFailed", { error: (err as Error).message }),
           );
         }
       },
@@ -284,9 +282,7 @@ export default class MediaVaultPlugin extends Plugin {
 
   private openAddMediaModal(): void {
     if (!this.storage.settings.get().tmdbApiKey) {
-      new Notice(
-        "MediaVault: add a TMDB API key in settings before searching.",
-      );
+      new Notice(t("notice.addTmdbKeyBeforeSearching"));
       return;
     }
     new AddMediaModal(this.app, this.tmdb, this.storage, (media) => {
@@ -300,17 +296,17 @@ export default class MediaVaultPlugin extends Plugin {
   async generateNoteFor(media: MediaItem): Promise<void> {
     try {
       const path = await generateMediaNote(this.app, this.storage, media);
-      new Notice(`MediaVault: note updated — ${path}`);
+      new Notice(t("notice.noteUpdated", { path }));
     } catch (err) {
       new Notice(
-        `MediaVault: failed to generate note — ${(err as Error).message}`,
+        t("notice.noteGenerationFailed", { error: (err as Error).message }),
       );
     }
   }
 
   async regenerateAllNotes(): Promise<void> {
     const all = await this.storage.media.getAll();
-    new Notice(`MediaVault: regenerating ${all.length} note(s)...`);
+    new Notice(t("notice.regeneratingNotes", { count: all.length }));
     let count = 0;
     for (const media of all) {
       try {
@@ -323,7 +319,9 @@ export default class MediaVaultPlugin extends Plugin {
         );
       }
     }
-    new Notice(`MediaVault: regenerated ${count}/${all.length} note(s).`);
+    new Notice(
+      t("notice.regeneratedNotes", { count, total: all.length }),
+    );
   }
 
   private async openSelectMediaThen(
@@ -334,9 +332,7 @@ export default class MediaVaultPlugin extends Plugin {
     const candidates = filter ? all.filter(filter) : all;
     if (candidates.length === 0) {
       new Notice(
-        filter
-          ? "MediaVault: no matching TV shows in your library yet."
-          : "MediaVault: your library is empty — add something first.",
+        filter ? t("notice.noMatchingTvShows") : t("notice.libraryEmpty"),
       );
       return;
     }
@@ -385,6 +381,13 @@ export default class MediaVaultPlugin extends Plugin {
       "episodes",
       this.trakt,
     ).open();
+  }
+
+  async setLanguage(language: "en" | "tr"): Promise<void> {
+    await this.storage.settings.update({ language });
+    i18n.setLocale(language);
+    this.refreshLibraryViews();
+    this.refreshListViews();
   }
 
   refreshLibraryViews(options?: { skipWatchNext?: boolean }): void {
@@ -513,17 +516,15 @@ export default class MediaVaultPlugin extends Plugin {
   async runTraktSync(): Promise<void> {
     const settings = this.storage.settings.get();
     if (!settings.traktClientId || !settings.traktAccessToken) {
-      new Notice("MediaVault: connect your Trakt account in settings first.");
+      new Notice(t("notice.connectTraktFirst"));
       return;
     }
 
-    new Notice("MediaVault: syncing with Trakt...");
+    new Notice(t("notice.syncingWithTrakt"));
     try {
       const token = await ensureValidTraktToken(this.storage);
       if (!token) {
-        new Notice(
-          "MediaVault: Trakt connection is no longer valid — reconnect in settings.",
-        );
+        new Notice(t("notice.traktConnectionInvalid"));
         return;
       }
 
@@ -544,8 +545,15 @@ export default class MediaVaultPlugin extends Plugin {
 
       const errorCount = pullResult.errors.length + pushResult.errors.length;
       new Notice(
-        `MediaVault: Trakt sync complete — pulled ${pullResult.moviesAdded} movie(s) + ${pullResult.episodesMarked} episode(s), pushed ${pushResult.pushed}` +
-          (errorCount > 0 ? ` · ${errorCount} error(s), see console` : "."),
+        t("notice.traktSyncComplete", {
+          movies: pullResult.moviesAdded,
+          episodes: pullResult.episodesMarked,
+          pushed: pushResult.pushed,
+          errorSuffix:
+            errorCount > 0
+              ? t("notice.traktSyncErrorSuffix", { count: errorCount })
+              : ".",
+        }),
       );
       if (errorCount > 0) {
         console.warn("MediaVault Trakt sync errors:", [
@@ -554,7 +562,9 @@ export default class MediaVaultPlugin extends Plugin {
         ]);
       }
     } catch (err) {
-      new Notice(`MediaVault: Trakt sync failed — ${(err as Error).message}`);
+      new Notice(
+        t("notice.traktSyncFailed", { error: (err as Error).message }),
+      );
     }
   }
 
@@ -632,7 +642,7 @@ export default class MediaVaultPlugin extends Plugin {
     });
 
     if (!settings.notificationSilent) {
-      fired.forEach((n) => new Notice(`MediaVault: ${n.message}`));
+      fired.forEach((n) => new Notice(`MediaVault: ${n.message}`)); // notification messages localized at generation time
     }
     if (fired.length > 0) {
       this.refreshLibraryViews();

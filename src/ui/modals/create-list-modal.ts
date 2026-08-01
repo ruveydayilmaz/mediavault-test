@@ -2,6 +2,7 @@ import { App, Modal, Notice } from "obsidian";
 import { renderModalHeader } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import { CustomList } from "../../models/list";
+import { t } from "../../i18n";
 
 export class CreateListModal extends Modal {
   private storage: StorageService;
@@ -20,24 +21,24 @@ export class CreateListModal extends Modal {
   onOpen(): void {
     const { contentEl } = this;
     contentEl.addClass("mediavault-create-list-modal");
-    renderModalHeader(this, contentEl, "New list", "h3");
+    renderModalHeader(this, contentEl, t("createList.newList"), "h3");
 
     const titleInput = contentEl.createEl("input", {
       type: "text",
-      attr: { placeholder: 'Title, e.g. "Cozy Anime"' },
+      attr: { placeholder: t("createList.titlePlaceholder") },
     });
     const descInput = contentEl.createEl("textarea", {
-      attr: { placeholder: "Description (optional)" },
+      attr: { placeholder: t("createList.descPlaceholder") },
     });
 
     const createBtn = contentEl.createEl("button", {
-      text: "Create",
+      text: t("common.create"),
       cls: "mod-cta",
     });
     createBtn.addEventListener("click", async () => {
       const title = titleInput.value.trim();
       if (!title) {
-        new Notice("MediaVault: enter a list name first.");
+        new Notice(t("notice.enterListName"));
         return;
       }
       const list = await this.storage.customLists.create({

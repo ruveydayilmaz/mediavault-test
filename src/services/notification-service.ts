@@ -5,6 +5,7 @@ import { NotificationType } from "../models/notification";
 import { MediaStatus, MediaType } from "../types/enums";
 import { ENDED_TV_STATUSES } from "./status-service";
 import { MediaVaultSettings } from "../settings/settings";
+import { t } from "../i18n";
 
 const RETURNING_TV_STATUSES: ReadonlySet<string> = new Set([
   "Returning Series",
@@ -108,7 +109,7 @@ export async function checkMetadataUpdates(
         type: "series_returned",
         mediaId: show.id,
         title: show.title,
-        message: `"${show.title}" has returned for more episodes.`,
+        message: t("notifications.seriesReturnedMsg", { title: show.title }),
       });
     }
 
@@ -139,7 +140,10 @@ export async function checkMetadataUpdates(
             type: "new_season",
             mediaId: show.id,
             title: show.title,
-            message: `"${show.title}" has a new season (Season ${season.seasonNumber}).`,
+            message: t("notifications.newSeasonMsg", {
+              title: show.title,
+              season: season.seasonNumber,
+            }),
           });
         } else if (
           enabled.newEpisode &&
@@ -154,7 +158,7 @@ export async function checkMetadataUpdates(
               type: "new_episode",
               mediaId: show.id,
               title: show.title,
-              message: `"${show.title}" has a new episode available.`,
+              message: t("notifications.newEpisodeMsg", { title: show.title }),
             });
           }
         }
@@ -184,7 +188,7 @@ export async function checkMetadataUpdates(
           type: "movie_released",
           mediaId: movie.id,
           title: movie.title,
-          message: `"${movie.title}" has been released.`,
+          message: t("notifications.movieReleasedMsg", { title: movie.title }),
         });
       }
       if (details.releaseDate && details.releaseDate !== movie.releaseDate) {
@@ -218,7 +222,7 @@ export function checkReminders(
         type: "watchlist_reminder",
         mediaId: m.id,
         title: m.title,
-        message: `"${m.title}" has been on your watchlist a while — still interested?`,
+        message: t("notifications.watchlistReminderMsg", { title: m.title }),
       });
     }
   }
@@ -231,7 +235,7 @@ export function checkReminders(
         type: "continue_watching_reminder",
         mediaId: m.id,
         title: m.title,
-        message: `You haven't continued "${m.title}" in a while.`,
+        message: t("notifications.continueWatchingReminderMsg", { title: m.title }),
       });
     }
   }

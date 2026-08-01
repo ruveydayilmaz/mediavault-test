@@ -3,6 +3,7 @@ import { renderModalHeader } from "./modal-chrome";
 import type { TMDBService } from "../../api/tmdb";
 import { tmdbImageUrl } from "../../api/tmdb-normalize";
 import { TMDBImageOption } from "../../types/tmdb";
+import { t } from "../../i18n";
 
 export type ImagePickerKind = "poster" | "backdrop";
 
@@ -43,13 +44,13 @@ export class ImagePickerModal extends Modal {
     renderModalHeader(
       this,
       contentEl,
-      this.imageKind === "poster" ? "Choose a poster" : "Choose a banner",
+      this.imageKind === "poster" ? t("detail.choosePoster") : t("detail.chooseBanner"),
       "h3",
     );
 
     const loading = contentEl.createDiv({
       cls: "mediavault-modal-hint",
-      text: "Loading images from TMDB...",
+      text: t("detail.loadingImages"),
     });
 
     let options: TMDBImageOption[];
@@ -57,9 +58,7 @@ export class ImagePickerModal extends Modal {
       const images = await this.tmdb.getImages(this.tmdbId, this.mediaKind);
       options = this.imageKind === "poster" ? images.posters : images.backdrops;
     } catch {
-      loading.setText(
-        "Couldn't load images from TMDB. Check your API key and connection.",
-      );
+      loading.setText(t("detail.couldNotLoadImages"));
       return;
     }
 
@@ -68,7 +67,7 @@ export class ImagePickerModal extends Modal {
     if (options.length === 0) {
       contentEl.createDiv({
         cls: "mediavault-modal-hint",
-        text: "No images available for this title.",
+        text: t("detail.noImagesAvailable"),
       });
       return;
     }
@@ -89,13 +88,15 @@ export class ImagePickerModal extends Modal {
       if (option.filePath === this.currentPath) {
         tile.createDiv({
           cls: "mediavault-image-picker-current-badge",
-          text: "Current",
+          text: t("common.currentBadge"),
         });
       }
       tile.addEventListener("click", async () => {
         await this.onSelect(option.filePath);
         new Notice(
-          `MediaVault: ${this.imageKind === "poster" ? "poster" : "banner"} updated.`,
+          this.imageKind === "poster"
+            ? t("detail.posterUpdated")
+            : t("detail.bannerUpdated"),
         );
         this.close();
       });

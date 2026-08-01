@@ -3,11 +3,10 @@ import { renderModalHeader } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import { computeAnalyticsMemoized } from "../../services/analytics/memoized";
 import { CountItem } from "../../services/analytics/types";
+import { t, i18n } from "../../i18n";
 
 function formatRuntime(minutes: number): string {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return `${hours.toLocaleString()}h ${mins}m`;
+  return i18n.formatRuntime(minutes);
 }
 
 export class AnalyticsSummaryModal extends Modal {
@@ -22,7 +21,7 @@ export class AnalyticsSummaryModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("mediavault-analytics-modal");
-    renderModalHeader(this, contentEl, "Your MediaVault Stats");
+    renderModalHeader(this, contentEl, t("analytics.yourStats"));
 
     const [media, sessions, episodes, episodeProgress] = await Promise.all([
       this.storage.media.getAll(),
@@ -40,29 +39,45 @@ export class AnalyticsSummaryModal extends Modal {
       cls: "mediavault-analytics-headline",
     });
     headline.createDiv({
-      text: `You've watched ${formatRuntime(stats.totalRuntimeMinutes)}`,
+      text: t("analytics.watchedHeadline", {
+        runtime: formatRuntime(stats.totalRuntimeMinutes),
+      }),
     });
     headline.createDiv({
       cls: "mediavault-analytics-subline",
-      text: `${stats.moviesWatchedCount} movies · ${stats.episodesWatchedCount} episodes · ${stats.rewatchCount} rewatches`,
+      text: t("analytics.subline", {
+        movies: stats.moviesWatchedCount,
+        episodes: stats.episodesWatchedCount,
+        rewatches: stats.rewatchCount,
+      }),
     });
 
     const grid = contentEl.createDiv({ cls: "mediavault-analytics-grid" });
     this.stat(
       grid,
-      "Average rating",
-      stats.averageRating !== null ? stats.averageRating.toFixed(1) : "—",
+      t("analytics.averageRating"),
+      stats.averageRating !== null
+        ? i18n.formatRating(stats.averageRating)
+        : "\u2014",
     );
-    this.stat(grid, "Completion rate", `${stats.completionRate}%`);
-    this.stat(grid, "Library size", String(media.length));
+    this.stat(
+      grid,
+      t("analytics.completionRate"),
+      i18n.formatPercent(stats.completionRate / 100),
+    );
+    this.stat(grid, t("analytics.librarySize"), String(media.length));
 
-    this.renderTopList(contentEl, "Top genres", stats.topGenres);
-    this.renderTopList(contentEl, "Top actors", stats.topActors);
-    this.renderTopList(contentEl, "Top directors", stats.topDirectors);
-    this.renderTopList(contentEl, "Top studios", stats.topStudios);
+    this.renderTopList(contentEl, t("analytics.topGenres"), stats.topGenres);
+    this.renderTopList(contentEl, t("analytics.topActorsList"), stats.topActors);
+    this.renderTopList(
+      contentEl,
+      t("analytics.topDirectors"),
+      stats.topDirectors,
+    );
+    this.renderTopList(contentEl, t("analytics.topStudios"), stats.topStudios);
 
     if (stats.monthlyWatchTrend.length > 0) {
-      contentEl.createEl("h3", { text: "Monthly watch trend" });
+      contentEl.createEl("h3", { text: t("analytics.monthlyTrendModal") });
       const trendEl = contentEl.createDiv({
         cls: "mediavault-analytics-trend",
       });

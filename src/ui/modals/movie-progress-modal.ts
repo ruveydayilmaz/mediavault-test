@@ -3,6 +3,7 @@ import { renderModalHeader } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import { MediaItem } from "../../models/media";
 import { setMovieProgress } from "../../services/movie-progress-service";
+import { t } from "../../i18n";
 
 export interface MoviePartialWatchModalOptions {
   media: MediaItem;
@@ -29,9 +30,9 @@ export class MoviePartialWatchModal extends Modal {
   onOpen(): void {
     const { contentEl } = this;
     contentEl.addClass("mediavault-movie-progress-modal");
-    renderModalHeader(this, contentEl, "Where did you stop watching?", "h3");
+    renderModalHeader(this, contentEl, t("movieProgress.title"), "h3");
 
-    new Setting(contentEl).setName("Minutes in").addText((text) => {
+    new Setting(contentEl).setName(t("movieProgress.minutesIn")).addText((text) => {
       text.inputEl.type = "number";
       text.inputEl.min = "0";
       text
@@ -46,20 +47,20 @@ export class MoviePartialWatchModal extends Modal {
 
     const buttons = contentEl.createDiv({ cls: "mediavault-modal-buttons" });
     buttons
-      .createEl("button", { text: "Cancel" })
+      .createEl("button", { text: t("common.cancel") })
       .addEventListener("click", () => this.close());
 
     const saveBtn = buttons.createEl("button", {
       cls: "mod-cta",
-      text: "Save",
+      text: t("common.save"),
     });
     saveBtn.addEventListener("click", async () => {
       if (this.minute === null || this.minute < 0) {
-        new Notice("MediaVault: enter how many minutes in you stopped.");
+        new Notice(t("notice.enterMinutesStopped"));
         return;
       }
       await setMovieProgress(this.storage, this.options.media, this.minute);
-      new Notice(`MediaVault: saved progress at ${this.minute} min.`);
+      new Notice(t("notice.savedProgress", { minute: this.minute as number }));
       this.options.onSaved();
       this.close();
     });

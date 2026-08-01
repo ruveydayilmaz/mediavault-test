@@ -7,6 +7,7 @@ import {
   getSystemFavoriteLists,
   sortListMedia,
 } from "../../services/list-service";
+import { t } from "../../i18n";
 
 export interface FavoritesResponsiveOptions {
   visibleCount: number;
@@ -48,7 +49,7 @@ export async function renderFavoritesSection(
 
   if (movies.length) {
     const tab = tabs.createDiv({
-      text: "Favorite Movies",
+      text: t("favorites.movies"),
       cls:
         "mediavault-sidebar-tab" + (activeTab === "movies" ? " is-active" : ""),
     });
@@ -58,7 +59,7 @@ export async function renderFavoritesSection(
 
   if (shows.length) {
     const tab = tabs.createDiv({
-      text: "Favorite TV Series",
+      text: t("favorites.tvSeries"),
       cls:
         "mediavault-sidebar-tab" + (activeTab === "shows" ? " is-active" : ""),
     });
@@ -68,7 +69,7 @@ export async function renderFavoritesSection(
 
   const viewAll = header.createEl("button", {
     cls: "mediavault-favorites-view-all",
-    text: "View All",
+    text: t("common.viewAll"),
   });
 
   viewAll.onclick = onViewAll;
@@ -77,7 +78,7 @@ export async function renderFavoritesSection(
     cls: "clickable-icon mediavault-section-nav-arrow",
   });
   setIcon(mobileArrow, "chevron-right");
-  mobileArrow.setAttr("aria-label", "View all favorites");
+  mobileArrow.setAttr("aria-label", t("favorites.viewAllFavorites"));
   mobileArrow.onclick = () =>
     onArrowClick ? onArrowClick(activeTab) : onViewAll();
 

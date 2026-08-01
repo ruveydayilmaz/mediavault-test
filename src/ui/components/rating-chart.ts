@@ -1,4 +1,5 @@
 import { RatingEvolutionPoint } from "../../models/review";
+import { i18n, t } from "../../i18n";
 
 export function renderRatingEvolutionChart(
   container: HTMLElement,
@@ -12,7 +13,7 @@ export function renderRatingEvolutionChart(
   if (rated.length === 0) {
     container.createDiv({
       cls: "mediavault-chart-empty",
-      text: "No ratings yet.",
+      text: t("common.noRatingsYet"),
     });
     return;
   }
@@ -20,7 +21,7 @@ export function renderRatingEvolutionChart(
   if (rated.length === 1) {
     container.createDiv({
       cls: "mediavault-chart-single",
-      text: `Only one rated watch so far: ${rated[0].rating.toFixed(1)}`,
+      text: t("common.onlyOneRatedWatch", { rating: rated[0].rating.toFixed(1) }),
     });
     return;
   }
@@ -86,7 +87,11 @@ export function renderRatingEvolutionChart(
     watchLabel.setAttribute("text-anchor", "middle");
     watchLabel.setAttribute("class", "mediavault-chart-watch-label");
     watchLabel.textContent =
-      p.rewatchNumber === 0 ? "1st" : ordinal(p.rewatchNumber + 1);
+      i18n.getLocale() === "tr"
+        ? `${p.rewatchNumber + 1}.`
+        : p.rewatchNumber === 0
+          ? "1st"
+          : ordinal(p.rewatchNumber + 1);
     svg.appendChild(watchLabel);
   });
 

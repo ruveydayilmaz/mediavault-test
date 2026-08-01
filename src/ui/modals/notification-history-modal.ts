@@ -2,6 +2,7 @@ import { App, Modal } from "obsidian";
 import { renderModalHeader } from "./modal-chrome";
 import type MediaVaultPlugin from "../../main";
 import { MediaVaultNotification } from "../../models/notification";
+import { i18n, t } from "../../i18n";
 
 export class NotificationHistoryModal extends Modal {
   private plugin: MediaVaultPlugin;
@@ -15,9 +16,11 @@ export class NotificationHistoryModal extends Modal {
   async onOpen(): Promise<void> {
     const { contentEl } = this;
     contentEl.addClass("mediavault-notification-history-modal");
-    renderModalHeader(this, contentEl, "Notifications", "h3");
+    renderModalHeader(this, contentEl, t("notifications.title"), "h3");
 
-    const markAllBtn = contentEl.createEl("button", { text: "Mark all read" });
+    const markAllBtn = contentEl.createEl("button", {
+      text: t("notifications.markAllRead"),
+    });
     markAllBtn.addEventListener("click", async () => {
       await this.plugin.storage.notifications.markAllRead();
       await this.renderList();
@@ -35,7 +38,7 @@ export class NotificationHistoryModal extends Modal {
     if (notifications.length === 0) {
       this.listEl.createEl("p", {
         cls: "mediavault-empty-state",
-        text: "No notifications yet.",
+        text: t("notifications.empty"),
       });
       return;
     }
@@ -50,7 +53,10 @@ export class NotificationHistoryModal extends Modal {
     row.createDiv({ cls: "mediavault-notification-message", text: n.message });
     row.createDiv({
       cls: "mediavault-notification-date",
-      text: new Date(n.createdAt).toLocaleString(),
+      text: i18n.formatDate(n.createdAt, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      } as Intl.DateTimeFormatOptions),
     });
 
     row.addEventListener("click", async () => {

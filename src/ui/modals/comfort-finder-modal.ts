@@ -13,19 +13,22 @@ import { ComfortPreset, ComfortFlags } from "../../models/comfort";
 import { renderPoster } from "../components/media-render";
 import { MediaDetailModal } from "./media-detail-modal";
 import type { TMDBService } from "../../api/tmdb";
+import { t } from "../../i18n";
 
-const FLAG_LABELS: Record<keyof ComfortFlags, string> = {
-  safeWhenAnxious: "Safe when anxious",
-  safeWhenDepressed: "Safe when depressed",
-  goodForBackgroundNoise: "Good for background noise",
-  goodWhileCleaning: "Good while cleaning",
-  goodBeforeSleep: "Good before sleep",
-  cozy: "Cozy",
-  funny: "Funny",
-  noMajorCharacterDeath: "No major character death",
-  lowConflict: "Low conflict",
-  familiarFavorite: "Familiar favorite",
-};
+export function getFlagLabels(): Record<keyof ComfortFlags, string> {
+  return {
+    safeWhenAnxious: t("comfort.flagSafeAnxious"),
+    safeWhenDepressed: t("comfort.flagSafeDepressed"),
+    goodForBackgroundNoise: t("comfort.flagBackgroundNoise"),
+    goodWhileCleaning: t("comfort.flagGoodCleaning"),
+    goodBeforeSleep: t("comfort.flagGoodBeforeSleep"),
+    cozy: t("comfort.flagCozy"),
+    funny: t("comfort.flagFunny"),
+    noMajorCharacterDeath: t("comfort.flagNoCharacterDeath"),
+    lowConflict: t("comfort.flagLowConflict"),
+    familiarFavorite: t("comfort.flagFamiliarFavorite"),
+  };
+}
 
 type Mode = "quick" | "advanced";
 
@@ -56,12 +59,12 @@ export class ComfortFinderModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("mediavault-comfort-finder");
-    renderModalHeader(this, contentEl, "Comfort Finder");
+    renderModalHeader(this, contentEl, t("comfort.title"));
 
     if (this.allComfortable.length === 0) {
       contentEl.createDiv({
         cls: "mediavault-comfort-finder-empty",
-        text: "Nothing has a comfort profile yet — open a media item's detail view and set one up first.",
+        text: t("comfort.emptyNoProfiles"),
       });
       return;
     }
@@ -71,7 +74,7 @@ export class ComfortFinderModal extends Modal {
     });
     (["quick", "advanced"] as Mode[]).forEach((m) => {
       const btn = modeToggle.createEl("button", {
-        text: m === "quick" ? "Quick filter" : "Advanced filter",
+        text: m === "quick" ? t("comfort.quickFilter") : t("comfort.advancedFilter"),
         cls: m === this.mode ? "is-active" : "",
       });
       btn.addEventListener("click", () => {
@@ -89,7 +92,7 @@ export class ComfortFinderModal extends Modal {
       this.renderAdvancedFilters(filterSection);
     }
 
-    contentEl.createEl("h3", { text: "Results" });
+    contentEl.createEl("h3", { text: t("comfort.results") });
     this.resultsEl = contentEl.createDiv({ cls: "mediavault-comfort-results" });
     this.runQuery();
   }
@@ -124,25 +127,35 @@ export class ComfortFinderModal extends Modal {
   }
 
   private renderAdvancedFilters(container: HTMLElement): void {
-    this.rangeSlider(container, "Energy level", "energyMin", "energyMax");
     this.rangeSlider(
       container,
-      "Attention required",
+      t("comfort.energyLevel"),
+      "energyMin",
+      "energyMax",
+    );
+    this.rangeSlider(
+      container,
+      t("comfort.attentionRequired"),
       "attentionMin",
       "attentionMax",
     );
     this.maxSlider(
       container,
-      "Max emotional heaviness",
+      t("comfort.maxEmotionalHeaviness"),
       "emotionalHeavinessMax",
     );
-    this.minSlider(container, "Min comfort score", "comfortScoreMin");
-    this.minSlider(container, "Min rewatchability", "rewatchabilityMin");
+    this.minSlider(container, t("comfort.minComfortScore"), "comfortScoreMin");
+    this.minSlider(
+      container,
+      t("comfort.minRewatchability"),
+      "rewatchabilityMin",
+    );
 
-    container.createEl("h4", { text: "Required tags" });
+    container.createEl("h4", { text: t("comfort.requiredTags") });
     const flagWrap = container.createDiv({
       cls: "mediavault-comfort-multitoggle",
     });
+    const FLAG_LABELS = getFlagLabels();
     (Object.keys(FLAG_LABELS) as (keyof ComfortFlags)[]).forEach((flag) => {
       const required = this.criteria.requiredFlags ?? [];
       const pill = flagWrap.createEl("button", {
@@ -164,7 +177,7 @@ export class ComfortFinderModal extends Modal {
     });
 
     const saveBtn = container.createEl("button", {
-      text: "Save as preset...",
+      text: t("comfort.saveAsPreset"),
       cls: "mediavault-comfort-save-preset",
     });
     saveBtn.addEventListener("click", () => void this.promptSavePreset());
@@ -246,7 +259,7 @@ export class ComfortFinderModal extends Modal {
     if (ranked.length === 0) {
       this.resultsEl.createDiv({
         cls: "mediavault-comfort-no-results",
-        text: "Nothing matches yet — try loosening a filter.",
+        text: t("comfort.noResults"),
       });
       return;
     }
@@ -271,7 +284,7 @@ export class ComfortFinderModal extends Modal {
       if (match.matchedFlags.length > 0) {
         info.createDiv({
           cls: "mediavault-comfort-result-flags",
-          text: match.matchedFlags.map((f) => FLAG_LABELS[f]).join(" · "),
+          text: match.matchedFlags.map((f) => getFlagLabels()[f]).join(" \u00b7 "),
         });
       }
 
@@ -288,7 +301,7 @@ export class ComfortFinderModal extends Modal {
   }
 
   private async promptSavePreset(): Promise<void> {
-    const name = window.prompt("Name this preset:");
+    const name = window.prompt(t("comfort.namePresetPrompt"));
     if (!name || !name.trim()) return;
 
     try {
@@ -300,11 +313,11 @@ export class ComfortFinderModal extends Modal {
         excludedTriggers: this.criteria.excludedTriggers ?? [],
         seasonalTags: this.criteria.seasonalTags ?? [],
       });
-      new Notice(`MediaVault: saved preset "${name.trim()}".`);
+      new Notice(t("comfort.savedPreset", { name: name.trim() }));
       this.presets = await this.storage.comfortPresets.getAll();
     } catch (err) {
       new Notice(
-        `MediaVault: failed to save preset — ${(err as Error).message}`,
+        t("comfort.failedSavePreset", { error: (err as Error).message }),
       );
     }
   }

@@ -7,14 +7,17 @@ import { MediaType } from "../../types/enums";
 import { tmdbImageUrl } from "../../api/tmdb-normalize";
 import { buildMediaItemFromTMDB } from "../../services/media-import";
 import { MediaDetailModal } from "./media-detail-modal";
+import { t } from "../../i18n";
 
 type FilmographyCategory = TMDBFilmographyItem["category"];
 
-const CATEGORY_TABS: { id: FilmographyCategory; label: string }[] = [
-  { id: "tv_series", label: "TV Series" },
-  { id: "tv_program", label: "TV Programs" },
-  { id: "movie", label: "Movies" },
-];
+function getCategoryTabs(): { id: FilmographyCategory; label: string }[] {
+  return [
+    { id: "tv_series", label: t("detail.tvSeries") },
+    { id: "tv_program", label: t("detail.tvPrograms") },
+    { id: "movie", label: t("detail.movies") },
+  ];
+}
 
 export class ActorDetailsModal extends Modal {
   private storage: StorageService;
@@ -53,7 +56,7 @@ export class ActorDetailsModal extends Modal {
 
     const loading = contentEl.createDiv({
       cls: "mediavault-modal-hint",
-      text: "Loading actor details...",
+      text: t("detail.loadingActorDetails"),
     });
     try {
       this.person = await this.tmdb.getPersonDetails(this.personId);
@@ -90,12 +93,12 @@ export class ActorDetailsModal extends Modal {
       });
     }
 
-    contentEl.createEl("h3", { text: "Filmography" });
+    contentEl.createEl("h3", { text: t("detail.filmography") });
 
     if (this.person.filmography.length === 0) {
       contentEl.createDiv({
         cls: "mediavault-modal-hint",
-        text: "No filmography available.",
+        text: t("detail.noFilmography"),
       });
       return;
     }
@@ -107,7 +110,7 @@ export class ActorDetailsModal extends Modal {
 
     if (this.activeTab === null) {
       this.activeTab =
-        CATEGORY_TABS.find((t) => this.itemsForTab(t.id).length > 0)?.id ??
+        getCategoryTabs().find((tab) => this.itemsForTab(tab.id).length > 0)?.id ??
         "movie";
     }
 
@@ -124,7 +127,7 @@ export class ActorDetailsModal extends Modal {
 
   private renderTabBar(): void {
     this.tabBarEl.empty();
-    CATEGORY_TABS.forEach((tab) => {
+    getCategoryTabs().forEach((tab) => {
       const count = this.itemsForTab(tab.id).length;
       const btn = this.tabBarEl.createEl("button", {
         cls:
@@ -232,7 +235,10 @@ export class ActorDetailsModal extends Modal {
       ).open();
     } catch (err) {
       new Notice(
-        `MediaVault: couldn't load "${item.title}" — ${(err as Error).message}`,
+        t("detail.couldNotLoadItem", {
+          title: item.title,
+          error: (err as Error).message,
+        }),
       );
     }
   }

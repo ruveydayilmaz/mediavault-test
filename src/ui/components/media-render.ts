@@ -2,29 +2,30 @@ import { MediaItem } from "../../models/media";
 import { MediaStatus, MediaType } from "../../types/enums";
 import { tmdbImageUrl } from "../../api/tmdb-normalize";
 import type { StorageService } from "../../services/storage";
+import { t } from "../../i18n";
 
 export function statusLabel(status: MediaStatus): string {
   switch (status) {
     case MediaStatus.Watching:
-      return "Currently Watching";
+      return t("status.currently_watching");
     case MediaStatus.Completed:
-      return "Finished";
+      return t("status.completed");
     case MediaStatus.WaitingForNewSeason:
-      return "Waiting for New Season";
+      return t("status.waiting_for_new_season");
     case MediaStatus.UpToDate:
-      return "Up to Date";
+      return t("status.up_to_date");
     case MediaStatus.OnHold:
-      return "On Hold";
+      return t("status.on_hold");
     case MediaStatus.Dropped:
-      return "Dropped";
+      return t("status.dropped");
     case MediaStatus.PlanToWatch:
-      return "Plan to Watch";
+      return t("status.plan_to_watch");
     case MediaStatus.Rewatching:
-      return "Rewatching";
+      return t("status.rewatching");
     case MediaStatus.ComfortMedia:
-      return "Comfort Media";
+      return t("status.comfort_media");
     case MediaStatus.Favorite:
-      return "Favorite";
+      return t("status.favorite");
     default:
       return status;
   }

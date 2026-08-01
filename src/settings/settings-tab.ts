@@ -5,6 +5,8 @@ import type { MediaVaultSettings } from "./settings";
 import { TraktAuthModal } from "../ui/modals/trakt-auth-modal";
 import { NotificationHistoryModal } from "../ui/modals/notification-history-modal";
 import { disconnectTrakt } from "../services/trakt-token";
+import { i18n, t } from "../i18n";
+import { SUPPORTED_LOCALES } from "../i18n/types";
 
 export class MediaVaultSettingTab extends PluginSettingTab {
   plugin: MediaVaultPlugin;
@@ -20,16 +22,31 @@ export class MediaVaultSettingTab extends PluginSettingTab {
 
     const settings = this.plugin.storage.settings;
 
-    containerEl.createEl("h2", { text: "MediaVault Settings" });
-
-    containerEl.createEl("h3", { text: "TMDB" });
+    containerEl.createEl("h2", { text: t("settings.title") });
 
     new Setting(containerEl)
-      .setName("TMDB API key")
-      .setDesc("Required to search and import movie/TV metadata.")
+      .setName(t("settings.language"))
+      .setDesc(t("settings.languageDesc"))
+      .addDropdown((dropdown) => {
+        const options: Record<string, string> = {};
+        for (const loc of SUPPORTED_LOCALES) options[loc.code] = loc.label;
+        dropdown
+          .addOptions(options)
+          .setValue(settings.get().language)
+          .onChange(async (value) => {
+            await this.plugin.setLanguage(value as "en" | "tr");
+            this.display();
+          });
+      });
+
+    containerEl.createEl("h3", { text: t("settings.tmdbSection") });
+
+    new Setting(containerEl)
+      .setName(t("settings.tmdbApiKey"))
+      .setDesc(t("settings.tmdbApiKeyDesc"))
       .addText((text) =>
         text
-          .setPlaceholder("Enter your TMDB API key")
+          .setPlaceholder(t("settings.tmdbApiKeyPlaceholder"))
           .setValue(settings.get().tmdbApiKey)
           .onChange(async (value) => {
             await settings.update({ tmdbApiKey: value.trim() });
@@ -38,8 +55,8 @@ export class MediaVaultSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Cache duration (minutes)")
-      .setDesc("How long to cache TMDB API responses before refetching.")
+      .setName(t("settings.cacheDuration"))
+      .setDesc(t("settings.cacheDurationDesc"))
       .addText((text) =>
         text
           .setPlaceholder("1440")
@@ -53,10 +70,8 @@ export class MediaVaultSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Episode sync interval (hours)")
-      .setDesc(
-        "How often a Currently Watching show's episodes auto-refresh from TMDB. Shows with no episodes imported yet always sync on first open; Finished/Dropped/Plan to Watch shows never auto-refresh.",
-      )
+      .setName(t("settings.episodeSyncInterval"))
+      .setDesc(t("settings.episodeSyncIntervalDesc"))
       .addText((text) =>
         text
           .setPlaceholder("24")
@@ -70,10 +85,8 @@ export class MediaVaultSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Show Adult (+18) Content")
-      .setDesc(
-        "When off (default), adult movies/TV are excluded from Search, Explore, Recommendations, Similar items, Discovery, and all other TMDB-backed results.",
-      )
+      .setName(t("settings.showAdultContent"))
+      .setDesc(t("settings.showAdultContentDesc"))
       .addToggle((toggle) =>
         toggle
           .setValue(settings.get().showAdultContent)
@@ -82,15 +95,15 @@ export class MediaVaultSettingTab extends PluginSettingTab {
           }),
       );
 
-    containerEl.createEl("h3", { text: "Trakt" });
+    containerEl.createEl("h3", { text: t("settings.traktSection") });
 
-    new Setting(containerEl).setName("Trakt client ID").addText((text) =>
+    new Setting(containerEl).setName(t("settings.traktClientId")).addText((text) =>
       text.setValue(settings.get().traktClientId).onChange(async (value) => {
         await settings.update({ traktClientId: value.trim() });
       }),
     );
 
-    new Setting(containerEl).setName("Trakt client secret").addText((text) =>
+    new Setting(containerEl).setName(t("settings.traktClientSecret")).addText((text) =>
       text
         .setValue(settings.get().traktClientSecret)
         .onChange(async (value) => {
@@ -99,20 +112,22 @@ export class MediaVaultSettingTab extends PluginSettingTab {
     );
 
     new Setting(containerEl)
-      .setName("Connect Trakt account")
+      .setName(t("settings.connectTraktAccount"))
       .setDesc(
-        settings.get().traktAccessToken ? "Connected." : "Not connected.",
+        settings.get().traktAccessToken
+          ? t("settings.connected")
+          : t("settings.notConnected"),
       )
       .addButton((btn) => {
         if (settings.get().traktAccessToken) {
-          btn.setButtonText("Disconnect").onClick(async () => {
+          btn.setButtonText(t("settings.traktDisconnect")).onClick(async () => {
             await disconnectTrakt(this.plugin.storage);
-            new Notice("MediaVault: Trakt disconnected.");
+            new Notice(t("settings.traktDisconnected"));
             this.display();
           });
         } else {
           btn
-            .setButtonText("Connect")
+            .setButtonText(t("settings.traktConnect"))
             .setCta()
             .onClick(() => {
               new TraktAuthModal(this.app, this.plugin.storage, () =>
@@ -123,24 +138,26 @@ export class MediaVaultSettingTab extends PluginSettingTab {
       });
 
     if (settings.get().traktAccessToken) {
-      new Setting(containerEl).setName("Auto-sync").addDropdown((dropdown) =>
-        dropdown
-          .addOptions({
-            manual: "Manual only",
-            on_startup: "On startup",
-            interval: "Every X minutes",
-          })
-          .setValue(settings.get().traktAutoSync)
-          .onChange(async (value) => {
-            await settings.update({
-              traktAutoSync: value as MediaVaultSettings["traktAutoSync"],
-            });
-          }),
-      );
+      new Setting(containerEl)
+        .setName(t("settings.traktAutoSync"))
+        .addDropdown((dropdown) =>
+          dropdown
+            .addOptions({
+              manual: t("settings.autoSyncManual"),
+              on_startup: t("settings.autoSyncOnStartup"),
+              interval: t("settings.autoSyncInterval"),
+            })
+            .setValue(settings.get().traktAutoSync)
+            .onChange(async (value) => {
+              await settings.update({
+                traktAutoSync: value as MediaVaultSettings["traktAutoSync"],
+              });
+            }),
+        );
 
       new Setting(containerEl)
-        .setName("Sync interval (minutes)")
-        .setDesc("Only used when auto-sync is set to 'Every X minutes'.")
+        .setName(t("settings.syncIntervalMinutes"))
+        .setDesc(t("settings.syncIntervalMinutesDesc"))
         .addText((text) =>
           text
             .setValue(String(settings.get().traktSyncIntervalMinutes))
@@ -153,8 +170,8 @@ export class MediaVaultSettingTab extends PluginSettingTab {
         );
 
       new Setting(containerEl)
-        .setName("History note path")
-        .setDesc("Where the generated Trakt Rating History note is written.")
+        .setName(t("settings.historyNotePath"))
+        .setDesc(t("settings.historyNotePathDesc"))
         .addText((text) =>
           text
             .setValue(settings.get().traktHistoryNotePath)
@@ -167,27 +184,37 @@ export class MediaVaultSettingTab extends PluginSettingTab {
         );
 
       new Setting(containerEl)
-        .setName("Sync now")
+        .setName(t("settings.syncNow"))
         .setDesc(
           settings.get().traktLastSyncedAt
-            ? `Last synced: ${new Date(settings.get().traktLastSyncedAt as string).toLocaleString()}`
-            : "Never synced yet.",
+            ? t("settings.lastSynced", {
+                date: i18n.formatDate(
+                  settings.get().traktLastSyncedAt as string,
+                  {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  } as Intl.DateTimeFormatOptions,
+                ),
+              })
+            : t("settings.neverSyncedYet"),
         )
         .addButton((btn) =>
-          btn.setButtonText("Sync now").onClick(async () => {
+          btn.setButtonText(t("settings.syncNow")).onClick(async () => {
             await this.plugin.runTraktSync();
             this.display();
           }),
         );
     }
 
-    containerEl.createEl("h3", { text: "Comments Languages" });
+    containerEl.createEl("h3", {
+      text: t("settings.commentsLanguagesSection"),
+    });
     containerEl.createEl("p", {
       cls: "setting-item-description",
-      text: "Trakt comments are shown in these languages only, in priority order. Use ISO 639-1 codes (e.g. en, ja, de).",
+      text: t("settings.commentsLanguagesDesc"),
     });
 
-    new Setting(containerEl).setName("Primary language").addText((text) =>
+    new Setting(containerEl).setName(t("settings.primaryLanguage")).addText((text) =>
       text
         .setPlaceholder("en")
         .setValue(settings.get().commentsPrimaryLanguage)
@@ -199,8 +226,8 @@ export class MediaVaultSettingTab extends PluginSettingTab {
     );
 
     new Setting(containerEl)
-      .setName("Additional languages")
-      .setDesc("Comma-separated, in priority order (e.g. ja, de).")
+      .setName(t("settings.additionalLanguages"))
+      .setDesc(t("settings.additionalLanguagesDesc"))
       .addText((text) =>
         text
           .setPlaceholder("ja, de")
@@ -214,11 +241,13 @@ export class MediaVaultSettingTab extends PluginSettingTab {
           }),
       );
 
-    containerEl.createEl("h3", { text: "Vault Integration" });
+    containerEl.createEl("h3", {
+      text: t("settings.vaultIntegrationSection"),
+    });
 
     new Setting(containerEl)
-      .setName("Media folder path")
-      .setDesc("Folder where generated media notes will be stored.")
+      .setName(t("settings.mediaFolderPath"))
+      .setDesc(t("settings.mediaFolderPathDesc"))
       .addText((text) =>
         text
           .setPlaceholder("MediaVault")
@@ -231,10 +260,8 @@ export class MediaVaultSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Auto-create notes")
-      .setDesc(
-        "Automatically generate a markdown note when media is added to your library.",
-      )
+      .setName(t("settings.autoCreateNotes"))
+      .setDesc(t("settings.autoCreateNotesDesc"))
       .addToggle((toggle) =>
         toggle
           .setValue(settings.get().autoCreateNotes)
@@ -243,35 +270,43 @@ export class MediaVaultSettingTab extends PluginSettingTab {
           }),
       );
 
-    containerEl.createEl("h3", { text: "Display" });
+    containerEl.createEl("h3", { text: t("settings.displaySection") });
 
     if (!Platform.isMobileApp) {
-      new Setting(containerEl).setName("Default view").addDropdown((dropdown) =>
-        dropdown
-          .addOptions({ grid: "Grid", list: "List", table: "Table" })
-          .setValue(settings.get().defaultView)
-          .onChange(async (value) => {
-            await settings.update({
-              defaultView: value as MediaVaultSettings["defaultView"],
-            });
-          }),
-      );
+      new Setting(containerEl)
+        .setName(t("settings.defaultView"))
+        .addDropdown((dropdown) =>
+          dropdown
+            .addOptions({
+              grid: t("settings.defaultViewGrid"),
+              list: t("settings.defaultViewList"),
+              table: t("settings.defaultViewTable"),
+            })
+            .setValue(settings.get().defaultView)
+            .onChange(async (value) => {
+              await settings.update({
+                defaultView: value as MediaVaultSettings["defaultView"],
+              });
+            }),
+        );
     }
 
-    new Setting(containerEl).setName("Rating scale").addDropdown((dropdown) =>
-      dropdown
-        .addOptions({
-          [RatingScale.FiveStar]: "5 star",
-          [RatingScale.TenPoint]: "10 point",
-          [RatingScale.HundredPoint]: "100 point",
-        })
-        .setValue(settings.get().ratingScale)
-        .onChange(async (value) => {
-          await settings.update({ ratingScale: value as RatingScale });
-        }),
-    );
+    new Setting(containerEl)
+      .setName(t("settings.ratingScale"))
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOptions({
+            [RatingScale.FiveStar]: t("settings.ratingScaleFiveStar"),
+            [RatingScale.TenPoint]: t("settings.ratingScaleTenPoint"),
+            [RatingScale.HundredPoint]: t("settings.ratingScaleHundredPoint"),
+          })
+          .setValue(settings.get().ratingScale)
+          .onChange(async (value) => {
+            await settings.update({ ratingScale: value as RatingScale });
+          }),
+      );
 
-    containerEl.createEl("h3", { text: "Notifications" });
+    containerEl.createEl("h3", { text: t("settings.notificationsSection") });
 
     const notifTypeLabels: {
       key: keyof MediaVaultSettings["notificationsEnabled"];
@@ -280,33 +315,33 @@ export class MediaVaultSettingTab extends PluginSettingTab {
     }[] = [
       {
         key: "newEpisode",
-        name: "New episode",
-        desc: "A show you're watching has a new episode out.",
+        name: t("settings.notifNewEpisode"),
+        desc: t("settings.notifNewEpisodeDesc"),
       },
       {
         key: "newSeason",
-        name: "New season",
-        desc: "A show you're watching has a new season announced.",
+        name: t("settings.notifNewSeason"),
+        desc: t("settings.notifNewSeasonDesc"),
       },
       {
         key: "movieReleased",
-        name: "Movie released",
-        desc: "A movie on your watchlist has been released.",
+        name: t("settings.notifMovieReleased"),
+        desc: t("settings.notifMovieReleasedDesc"),
       },
       {
         key: "seriesReturned",
-        name: "Series returned",
-        desc: "An ended show has come back for more episodes.",
+        name: t("settings.notifSeriesReturned"),
+        desc: t("settings.notifSeriesReturnedDesc"),
       },
       {
         key: "watchlistReminder",
-        name: "Watchlist reminder",
-        desc: "Nudge about titles that have sat on your watchlist a while.",
+        name: t("settings.notifWatchlistReminder"),
+        desc: t("settings.notifWatchlistReminderDesc"),
       },
       {
         key: "continueWatchingReminder",
-        name: "Continue watching reminder",
-        desc: "Nudge about shows you've stopped partway through.",
+        name: t("settings.notifContinueWatching"),
+        desc: t("settings.notifContinueWatchingDesc"),
       },
     ];
 
@@ -329,10 +364,8 @@ export class MediaVaultSettingTab extends PluginSettingTab {
     });
 
     new Setting(containerEl)
-      .setName("Notification time")
-      .setDesc(
-        "The daily check runs once per day, at or after this local time (24h, HH:mm).",
-      )
+      .setName(t("settings.notificationTime"))
+      .setDesc(t("settings.notificationTimeDesc"))
       .addText((text) =>
         text
           .setPlaceholder("09:00")
@@ -345,13 +378,11 @@ export class MediaVaultSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Timezone")
-      .setDesc(
-        "IANA timezone name (e.g. America/New_York). Leave blank to use this device's local time.",
-      )
+      .setName(t("settings.notificationTimezone"))
+      .setDesc(t("settings.notificationTimezoneDesc"))
       .addText((text) =>
         text
-          .setPlaceholder("System local time")
+          .setPlaceholder(t("common.unknown"))
           .setValue(settings.get().notificationTimezone)
           .onChange(async (value) => {
             await settings.update({ notificationTimezone: value.trim() });
@@ -359,10 +390,8 @@ export class MediaVaultSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Silent mode")
-      .setDesc(
-        "Still record notifications to history, but don't show a toast for each one.",
-      )
+      .setName(t("settings.notificationSilent"))
+      .setDesc(t("settings.notificationSilentDesc"))
       .addToggle((toggle) =>
         toggle
           .setValue(settings.get().notificationSilent)
@@ -372,21 +401,23 @@ export class MediaVaultSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Check now")
+      .setName(t("settings.checkNow"))
       .setDesc(
         settings.get().notificationLastCheckedDate
-          ? `Last checked: ${settings.get().notificationLastCheckedDate}`
-          : "Never checked yet.",
+          ? t("settings.lastChecked", {
+              date: settings.get().notificationLastCheckedDate as string,
+            })
+          : t("settings.neverCheckedYet"),
       )
       .addButton((btn) =>
-        btn.setButtonText("Check now").onClick(async () => {
+        btn.setButtonText(t("settings.checkNow")).onClick(async () => {
           await this.plugin.runNotificationCheckNow();
-          new Notice("MediaVault: notification check complete.");
+          new Notice(t("settings.checkNowComplete"));
           this.display();
         }),
       )
       .addButton((btn) =>
-        btn.setButtonText("View history").onClick(() => {
+        btn.setButtonText(t("settings.viewHistory")).onClick(() => {
           new NotificationHistoryModal(this.app, this.plugin).open();
         }),
       );

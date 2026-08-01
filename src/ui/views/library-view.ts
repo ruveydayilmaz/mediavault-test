@@ -1,6 +1,7 @@
 import { ItemView, WorkspaceLeaf, setIcon, Platform } from "obsidian";
 import type MediaVaultPlugin from "../../main";
 import { VIEW_TYPE_LIBRARY } from "../../constants";
+import { t } from "../../i18n";
 import { MediaItem } from "../../models/media";
 import {
   LibraryFilter,
@@ -8,7 +9,7 @@ import {
   LibraryQuery,
   DEFAULT_LIBRARY_QUERY,
   runLibraryQuery,
-  PROGRESS_TABS,
+  getProgressTabs,
   applyProgressTab,
 } from "../../services/library-query";
 import {
@@ -62,22 +63,26 @@ function desktopFavoritesCount(width: number): number {
   return Math.min(6, Math.max(3, Math.round(width / IDEAL_CARD_WIDTH_PX)));
 }
 
-const FILTER_OPTIONS: { value: LibraryFilter; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "movies", label: "Movies" },
-  { value: "shows", label: "Shows" },
-  { value: "favorites", label: "Favorites" },
-  { value: "comfort", label: "Comfort" },
-];
+function getFilterOptions(): { value: LibraryFilter; label: string }[] {
+  return [
+    { value: "all", label: t("common.all") },
+    { value: "movies", label: t("library.filterMovies") },
+    { value: "shows", label: t("library.filterShows") },
+    { value: "favorites", label: t("nav.favorites") },
+    { value: "comfort", label: t("comfort.title") },
+  ];
+}
 
-const SORT_OPTIONS: { value: LibrarySortField; label: string }[] = [
-  { value: "recent", label: "Recent" },
-  { value: "title", label: "Title" },
-  { value: "rating", label: "Rating" },
-  { value: "watchCount", label: "Watch Count" },
-  { value: "year", label: "Year" },
-  { value: "runtime", label: "Runtime" },
-];
+function getSortOptions(): { value: LibrarySortField; label: string }[] {
+  return [
+    { value: "recent", label: t("library.sortRecent") },
+    { value: "title", label: t("library.sortTitle") },
+    { value: "rating", label: t("library.sortRating") },
+    { value: "watchCount", label: t("library.sortWatchCount") },
+    { value: "year", label: t("library.sortYear") },
+    { value: "runtime", label: t("library.sortRuntime") },
+  ];
+}
 
 export class LibraryView extends ItemView {
   private plugin: MediaVaultPlugin;
@@ -318,7 +323,8 @@ export class LibraryView extends ItemView {
       barEl.querySelectorAll<HTMLButtonElement>(".mediavault-progress-tab"),
     );
 
-    PROGRESS_TABS.forEach((tab, i) => {
+    const progressTabs = getProgressTabs();
+    progressTabs.forEach((tab, i) => {
       const count =
         tab.value === "all"
           ? all.length
@@ -339,7 +345,7 @@ export class LibraryView extends ItemView {
       btn.toggleClass("is-active", isActive);
     });
 
-    for (let i = PROGRESS_TABS.length; i < existingButtons.length; i++) {
+    for (let i = progressTabs.length; i < existingButtons.length; i++) {
       existingButtons[i].remove();
     }
   }
@@ -401,7 +407,7 @@ export class LibraryView extends ItemView {
     const yearRow = panel.createDiv({ cls: "mediavault-filter-row" });
     yearRow.createSpan({
       cls: "mediavault-filter-label",
-      text: "Release Year",
+      text: t("library.releaseYear"),
     });
     const yearGroup = yearRow.createDiv({
       cls: "mediavault-filter-controls-group",
@@ -433,7 +439,7 @@ export class LibraryView extends ItemView {
     });
 
     const runtimeRow = panel.createDiv({ cls: "mediavault-filter-row" });
-    runtimeRow.createSpan({ cls: "mediavault-filter-label", text: "Runtime" });
+    runtimeRow.createSpan({ cls: "mediavault-filter-label", text: t("library.runtime") });
     const runtimeModeSelect = runtimeRow.createEl("select");
     (
       [
@@ -463,7 +469,7 @@ export class LibraryView extends ItemView {
     runtimeMin.value = this.filterCriteria.runtimeMin?.toString() ?? "";
     runtimeGroup.createSpan({
       cls: "mediavault-filter-runtime-unit",
-      text: "min",
+      text: t("library.minUnit"),
     });
     runtimeMin.addEventListener("change", () => {
       const parsed = parseInt(runtimeMin.value, 10);
@@ -481,7 +487,7 @@ export class LibraryView extends ItemView {
     runtimeMax.value = this.filterCriteria.runtimeMax?.toString() ?? "";
     runtimeGroup.createSpan({
       cls: "mediavault-filter-runtime-unit",
-      text: "min",
+      text: t("library.minUnit"),
     });
     runtimeMax.addEventListener("change", () => {
       const parsed = parseInt(runtimeMax.value, 10);
@@ -493,7 +499,7 @@ export class LibraryView extends ItemView {
 
     this.renderMinSlider(
       panel,
-      "Rating",
+      t("library.rating"),
       0,
       10,
       0.5,
@@ -505,10 +511,10 @@ export class LibraryView extends ItemView {
     );
 
     const favRow = panel.createDiv({ cls: "mediavault-filter-row" });
-    favRow.createSpan({ cls: "mediavault-filter-label", text: "Favorite" });
+    favRow.createSpan({ cls: "mediavault-filter-label", text: t("library.favoriteOnly") });
     const favCheckbox = favRow.createEl("input", { type: "checkbox" });
     favCheckbox.checked = this.filterCriteria.favoritesOnly;
-    favRow.createSpan({ text: "Favorite only" });
+    favRow.createSpan({ text: t("library.favoriteOnly") });
     favCheckbox.addEventListener("change", () => {
       this.filterCriteria.favoritesOnly = favCheckbox.checked;
       applyAndRefresh();
@@ -516,7 +522,7 @@ export class LibraryView extends ItemView {
 
     this.renderMinSlider(
       panel,
-      "Comfort Score",
+      t("library.comfortScore"),
       0,
       10,
       1,
@@ -529,7 +535,7 @@ export class LibraryView extends ItemView {
 
     this.renderMinSlider(
       panel,
-      "Watch Count",
+      t("library.watchCount"),
       0,
       20,
       1,
@@ -542,7 +548,7 @@ export class LibraryView extends ItemView {
 
     const resetBtn = panel.createEl("button", {
       cls: "mediavault-filter-reset",
-      text: "Reset Filters",
+      text: t("library.clearFilters"),
     });
     resetBtn.addEventListener("click", () => {
       this.filterCriteria = { ...DEFAULT_FILTER_CRITERIA };
@@ -558,7 +564,7 @@ export class LibraryView extends ItemView {
   ): void {
     if (genres.length === 0) return;
     const row = panel.createDiv({ cls: "mediavault-filter-row" });
-    row.createSpan({ cls: "mediavault-filter-label", text: "Genre" });
+    row.createSpan({ cls: "mediavault-filter-label", text: t("library.genre") });
 
     const grid = row.createDiv({ cls: "mediavault-genre-grid" });
     const settings = this.plugin.storage.settings.get();
@@ -837,7 +843,7 @@ export class LibraryView extends ItemView {
     const filterSelect = filterGroup.createEl("select", {
       cls: "mediavault-library-filter",
     });
-    FILTER_OPTIONS.forEach((opt) => {
+    getFilterOptions().forEach((opt) => {
       filterSelect.createEl("option", { value: opt.value, text: opt.label });
     });
     filterSelect.value = this.query.filter;
@@ -851,7 +857,7 @@ export class LibraryView extends ItemView {
       cls: "clickable-icon mediavault-filters-toggle",
     });
     setIcon(this.filterToggleBtn, "sliders-horizontal");
-    this.filterToggleBtn.setAttr("aria-label", "Filters");
+    this.filterToggleBtn.setAttr("aria-label", t("library.filters"));
     this.filterToggleBtn.addEventListener("click", () => {
       this.filterPanelOpen = !this.filterPanelOpen;
       void this.refresh();
@@ -886,11 +892,11 @@ export class LibraryView extends ItemView {
       cls: "mediavault-library-sort-icon",
     });
     setIcon(sortIcon, "arrow-up-down");
-    sortIcon.setAttr("aria-label", "Sort");
+    sortIcon.setAttr("aria-label", t("library.sortBy"));
     const sortSelect = sortGroup.createEl("select", {
       cls: "mediavault-library-sort",
     });
-    SORT_OPTIONS.forEach((opt) => {
+    getSortOptions().forEach((opt) => {
       sortSelect.createEl("option", {
         value: opt.value,
         text: `Sort: ${opt.label}`,
@@ -914,7 +920,9 @@ export class LibraryView extends ItemView {
     );
     dirBtn.setAttr(
       "aria-label",
-      this.query.sortDirection === "asc" ? "Ascending" : "Descending",
+      this.query.sortDirection === "asc"
+        ? t("library.ascending")
+        : t("library.descending"),
     );
     dirBtn.addEventListener("click", () => {
       this.query.sortDirection =
@@ -925,7 +933,9 @@ export class LibraryView extends ItemView {
       );
       dirBtn.setAttr(
         "aria-label",
-        this.query.sortDirection === "asc" ? "Ascending" : "Descending",
+        this.query.sortDirection === "asc"
+          ? t("library.ascending")
+          : t("library.descending"),
       );
       void this.plugin.storage.settings.update({
         defaultSortDirection: this.query.sortDirection,
@@ -939,10 +949,10 @@ export class LibraryView extends ItemView {
       cls: "mediavault-library-page-size",
     });
     [
-      { value: "24", label: "24 / page" },
-      { value: "100", label: "100 / page" },
-      { value: "1000", label: "1000 / page" },
-      { value: "999999", label: "Show all" },
+      { value: "24", label: t("library.pageSize", { n: 24 }) },
+      { value: "100", label: t("library.pageSize", { n: 100 }) },
+      { value: "1000", label: t("library.pageSize", { n: 1000 }) },
+      { value: "999999", label: t("library.showAll") },
     ].forEach((opt) =>
       pageSizeSelect.createEl("option", { value: opt.value, text: opt.label }),
     );
@@ -971,7 +981,14 @@ export class LibraryView extends ItemView {
           (mode === this.viewMode ? " is-active" : ""),
       });
       setIcon(btn, viewModeIcons[mode]);
-      btn.setAttr("aria-label", mode[0].toUpperCase() + mode.slice(1));
+      btn.setAttr(
+        "aria-label",
+        mode === "grid"
+          ? t("library.viewGrid")
+          : mode === "list"
+            ? t("library.viewList")
+            : t("library.viewTable"),
+      );
       btn.addEventListener("click", () => {
         this.viewMode = mode;
         this.viewToggleEl
@@ -998,7 +1015,7 @@ export class LibraryView extends ItemView {
     if (total === 0) {
       this.contentEl2.createDiv({
         cls: "mediavault-library-empty",
-        text: "No media matches your current filters.",
+        text: t("library.emptyBody"),
       });
       this.applyMinHeightReservation(prevHeight);
       return;
@@ -1115,14 +1132,14 @@ export class LibraryView extends ItemView {
     const thead = table.createEl("thead");
     const headRow = thead.createEl("tr");
     [
-      "Title",
-      "Year",
-      "Type",
-      "Status",
-      "Progress",
-      "Rating",
-      "Watch Count",
-      "Runtime",
+      t("library.sortTitle"),
+      t("library.releaseYear"),
+      t("library.type"),
+      t("library.status"),
+      t("library.progress"),
+      t("library.rating"),
+      t("library.watchCount"),
+      t("library.runtime"),
     ].forEach((h) => {
       headRow.createEl("th", { text: h });
     });
@@ -1139,7 +1156,7 @@ export class LibraryView extends ItemView {
       const progressCell = row.createEl("td");
       void getMediaPercentWatched(this.plugin.storage, item).then((percent) => {
         if (percent === null) {
-          progressCell.setText("—");
+          progressCell.setText("\u2014");
           return;
         }
         const track = progressCell.createDiv({
@@ -1191,7 +1208,7 @@ export class LibraryView extends ItemView {
       cls: "clickable-icon mediavault-pagination-btn",
     });
     setIcon(prevBtn, "chevron-left");
-    prevBtn.setAttr("aria-label", "Previous page");
+    prevBtn.setAttr("aria-label", t("common.previous"));
     prevBtn.disabled = page <= 1;
     prevBtn.addEventListener("click", () => {
       this.query.page = page - 1;
@@ -1210,7 +1227,7 @@ export class LibraryView extends ItemView {
       cls: "clickable-icon mediavault-pagination-btn",
     });
     setIcon(nextBtn, "chevron-right");
-    nextBtn.setAttr("aria-label", "Next page");
+    nextBtn.setAttr("aria-label", t("common.next"));
     nextBtn.disabled = page >= totalPages;
     nextBtn.addEventListener("click", () => {
       this.query.page = page + 1;
