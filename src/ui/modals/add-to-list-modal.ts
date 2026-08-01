@@ -33,7 +33,7 @@ export class AddToListModal extends Modal {
     renderModalHeader(
       this,
       contentEl,
-      t("addToList.addToListTitle", { title: this.media.title }),
+      t("addToList.addToListTitle"),
       "h3",
     );
 

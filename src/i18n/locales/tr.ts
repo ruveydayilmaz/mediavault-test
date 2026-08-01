@@ -507,7 +507,7 @@ const tr: TranslationDict = {
     namePlaceholder: "Liste adı",
   },
   addToList: {
-    addToListTitle: "\"{title}\" öğesini bir listeye ekle",
+    addToListTitle: "Listeye ekle",
     noListsYet: "Henüz hiç listeniz yok.",
     removeConfirm: "\"{title}\", \"{list}\" listesinden kaldırılsın mı?\n\nBu yalnızca listeden kaldırır — öğe kitaplığınızda kalır, izleme geçmişiniz/favorileriniz etkilenmez.",
     newListPlaceholder: "Yeni liste adı...",

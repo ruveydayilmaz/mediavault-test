@@ -92,6 +92,12 @@ export class ActorDetailsModal extends Modal {
         text: this.person.placeOfBirth,
       });
     }
+    if (this.person.biography) {
+      info.createDiv({
+        cls: "mediavault-detail-meta",
+        text: this.person.biography,
+      });
+    }
 
     contentEl.createEl("h3", { text: t("detail.filmography") });
 

@@ -507,7 +507,7 @@ const en: TranslationDict = {
     namePlaceholder: "List name",
   },
   addToList: {
-    addToListTitle: "Add \"{title}\" to a list",
+    addToListTitle: "Add to a list",
     noListsYet: "You don't have any lists yet.",
     removeConfirm: "Remove \"{title}\" from \"{list}\"?\n\nThis only removes it from this list — the item stays in your library, and your watch history/favorites are not affected.",
     newListPlaceholder: "New list name...",

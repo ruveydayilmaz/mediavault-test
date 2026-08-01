@@ -152,33 +152,6 @@ export default class MediaVaultPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "mediavault-log-watch",
-      name: "Log a watch (review)",
-      callback: () => {
-        void this.openSelectMediaThen((media) => this.openLogWatch(media));
-      },
-    });
-
-    this.addCommand({
-      id: "mediavault-view-review-timeline",
-      name: "View review timeline",
-      callback: () => {
-        void this.openSelectMediaThen((media) => this.openMediaDetail(media));
-      },
-    });
-
-    this.addCommand({
-      id: "mediavault-track-episodes",
-      name: "Track episodes",
-      callback: () => {
-        void this.openSelectMediaThen(
-          (media) => this.openEpisodeTracker(media),
-          (m) => m.type === MediaType.TVShow,
-        );
-      },
-    });
-
-    this.addCommand({
       id: "mediavault-import-watch-history",
       name: "Import watch history (TV Time / JSON / CSV)",
       callback: () => {

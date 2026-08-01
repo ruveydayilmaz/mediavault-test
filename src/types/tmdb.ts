@@ -232,6 +232,7 @@ export interface TMDBRawCombinedCreditItem {
 export interface TMDBRawPersonDetails {
   id: number;
   name: string;
+  biography: string;
   profile_path?: string | null;
   birthday?: string | null;
   place_of_birth?: string | null;
@@ -254,6 +255,7 @@ export interface TMDBFilmographyItem {
 export interface TMDBPersonDetails {
   tmdbPersonId: number;
   name: string;
+  biography: string;
   profilePath: string | null;
   birthday: string | null;
   placeOfBirth: string | null;

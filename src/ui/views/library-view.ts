@@ -70,7 +70,6 @@ function getFilterOptions(): { value: LibraryFilter; label: string }[] {
     { value: "movies", label: t("library.filterMovies") },
     { value: "shows", label: t("library.filterShows") },
     { value: "favorites", label: t("nav.favorites") },
-    { value: "comfort", label: t("comfort.title") },
   ];
 }
 
@@ -440,7 +439,10 @@ export class LibraryView extends ItemView {
     });
 
     const runtimeRow = panel.createDiv({ cls: "mediavault-filter-row" });
-    runtimeRow.createSpan({ cls: "mediavault-filter-label", text: t("library.runtime") });
+    runtimeRow.createSpan({
+      cls: "mediavault-filter-label",
+      text: t("library.runtime"),
+    });
     const runtimeModeSelect = runtimeRow.createEl("select");
     (
       [
@@ -512,10 +514,12 @@ export class LibraryView extends ItemView {
     );
 
     const favRow = panel.createDiv({ cls: "mediavault-filter-row" });
-    favRow.createSpan({ cls: "mediavault-filter-label", text: t("library.favoriteOnly") });
+    favRow.createSpan({
+      cls: "mediavault-filter-label",
+      text: t("library.favoriteOnly"),
+    });
     const favCheckbox = favRow.createEl("input", { type: "checkbox" });
     favCheckbox.checked = this.filterCriteria.favoritesOnly;
-    favRow.createSpan({ text: t("library.favoriteOnly") });
     favCheckbox.addEventListener("change", () => {
       this.filterCriteria.favoritesOnly = favCheckbox.checked;
       applyAndRefresh();
@@ -565,7 +569,10 @@ export class LibraryView extends ItemView {
   ): void {
     if (genres.length === 0) return;
     const row = panel.createDiv({ cls: "mediavault-filter-row" });
-    row.createSpan({ cls: "mediavault-filter-label", text: t("library.genre") });
+    row.createSpan({
+      cls: "mediavault-filter-label",
+      text: t("library.genre"),
+    });
 
     const grid = row.createDiv({ cls: "mediavault-genre-grid" });
     const settings = this.plugin.storage.settings.get();
@@ -893,11 +900,7 @@ export class LibraryView extends ItemView {
     const sortGroup = container.createDiv({
       cls: "mediavault-library-sort-group",
     });
-    const sortIcon = sortGroup.createDiv({
-      cls: "mediavault-library-sort-icon",
-    });
-    setIcon(sortIcon, "arrow-up-down");
-    sortIcon.setAttr("aria-label", t("library.sortBy"));
+
     const sortSelect = sortGroup.createEl("select", {
       cls: "mediavault-library-sort",
     });
