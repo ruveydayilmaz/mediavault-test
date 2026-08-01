@@ -1,31 +1,41 @@
 import { Modal, setIcon } from "obsidian";
 
-// Root cause: Obsidian's own close button (`.modal-close-button`) isn't
-// always a stable descendant of `modal.modalEl` — on some mobile builds the
-// element gets appended asynchronously, and the surrounding
-// `.modal-container` can be torn down and recreated (e.g. during the
-// mobile sheet-open animation) rather than just having children added to
-// it. A MutationObserver scoped to a single per-modal container node can
-// end up watching a node that's since been detached from the tree, so it
-// silently stops firing - which is what caused the close button to
-// reappear on Android/iOS after the previous, per-modal-scoped fix.
+// --- Root cause -----------------------------------------------------------
+// Every previous attempt at this (CSS descendant selector, then a
+// container-scoped MutationObserver, then a body-level MutationObserver)
+// assumed `.modal-close-button` is a *descendant* of the `.modal` element
+// (`modalEl`), matching desktop's DOM shape. On Obsidian's mobile shell the
+// close button is not nested inside `.modal` at all - it's rendered as a
+// separate, absolutely-positioned element inside the surrounding
+// `.modal-container`, as a *sibling* of `.modal`, so it sits outside the
+// area any of those "hide things inside modalEl" checks ever looked at.
+// That's why marking `modalEl` with `mediavault-modal-shell` and then
+// searching *inside* it (`.modal.mediavault-modal-shell .modal-close-button`,
+// via CSS or via querySelectorAll) never matched on mobile: the button
+// genuinely isn't inside that subtree.
 //
-// Instead of scoping (and re-scoping) an observer per modal, we keep a
-// single observer on `document.body` for the lifetime of the app. It only
-// ever touches elements that live inside a `.modal.mediavault-modal-shell`
-// (i.e. our own modals), so it never affects Obsidian's native modals or
-// other plugins' modals. Because it watches `document.body` rather than a
-// container reference captured at open-time, it survives any re-parenting
-// Obsidian does internally, and it applies uniformly on desktop, Android
-// and iOS instead of being gated by a platform check.
+// The fix is structural, not another nesting guess: for any
+// `.modal-close-button` found anywhere in the document, walk up to its
+// enclosing `.modal-container` and check whether *that* container also
+// contains a MediaVault modal shell anywhere within it (parent, sibling, or
+// otherwise) - rather than assuming a specific parent/child relationship
+// between the two. This only ever touches close buttons that share a modal
+// container with one of our own modals, so it can't affect Obsidian's
+// native modals or other plugins' modals, and it works regardless of
+// whether Obsidian nests the button inside `.modal` (desktop) or beside it
+// (mobile).
 let globalCloseButtonObserver: MutationObserver | null = null;
 
 function removeMediaVaultCloseButtons(): void {
   document
-    .querySelectorAll<HTMLElement>(
-      ".modal.mediavault-modal-shell .modal-close-button",
-    )
-    .forEach((btn) => btn.remove());
+    .querySelectorAll<HTMLElement>(".modal-close-button")
+    .forEach((btn) => {
+      const container =
+        btn.closest(".modal-container") ?? btn.parentElement ?? btn;
+      if (container.querySelector(".mediavault-modal-shell")) {
+        btn.remove();
+      }
+    });
 }
 
 function ensureGlobalCloseButtonObserver(): void {

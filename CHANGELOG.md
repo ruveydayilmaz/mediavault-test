@@ -2,6 +2,14 @@
 
 All notable changes to MediaVault are documented in this file.
 
+## [4.41.0] — Root-Cause Fix for Modal Close Button
+
+- **Actual root cause found**: every prior attempt (CSS descendant selector, per-modal `MutationObserver`, body-level `MutationObserver`) assumed `.modal-close-button` is nested *inside* `.modal` (`modalEl`), matching desktop's DOM shape. On Obsidian's mobile shell, the close button is not a descendant of `.modal` at all — it's rendered as a separate element inside the surrounding `.modal-container`, as a *sibling* of `.modal`. Every previous fix searched only inside `modalEl`'s own subtree, so on mobile it was searching a subtree the button was never actually in — it wasn't a timing or re-render problem, it was the wrong DOM assumption from the start.
+- Replaced the nesting-based check with a structural one: for any `.modal-close-button` found anywhere in the document, walk up to its enclosing `.modal-container` and check whether that container also contains a MediaVault modal shell (`.mediavault-modal-shell`) *anywhere* within it — parent, sibling, or otherwise — rather than assuming a specific parent/child relationship. This only ever removes a close button that shares a modal container with one of our own modals, so Obsidian's native modals and other plugins' modals are untouched, and it works identically on desktop, Android and iOS without a platform check.
+- Simplified the CSS fallback back down to the correct (desktop-shape) descendant rule only, since the mobile case is now handled correctly at the source instead of being CSS-guessed.
+- `renderModalHeader`/`renderMobileBackButton`/`renderInlineBackButton` (used by all 15 header/back-button-bearing MediaVault modals) continue to be the single place this is wired up; `AddMediaModal`/`SelectMediaModal` are Obsidian `SuggestModal`/`FuzzySuggestModal` subclasses, which never render a close button, so they were correctly out of scope.
+- Verification: `tsc -noEmit -skipLibCheck` clean, `eslint src` clean, production build succeeded. No `tests/` directory present (pre-existing gap); no new tests written, per standing instruction.
+
 ## [4.40.0] — Explore Sync & Modal Close Button Fix
 
 - **Root cause of stale Explore state**: `renderDiscoverCard`'s poster-click handler opened `MediaDetailModal` without ever passing the plugin instance (`plugin` argument was hardcoded `undefined`), so the modal's `Add to Library` success handler's `plugin?.refreshLibraryViews()/refreshListViews()/refreshExploreViews()` calls were silent no-ops. `DiscoverCardDeps` now carries an optional `plugin`, threaded through from `ExploreView` (Discover/Browse/Search/Recommended rows) and `RecommendationsModal` (now constructed with the plugin from `main.ts`), and passed into every `MediaDetailModal` construction inside `discover-card.ts`. Returning from the Detail modal via the back button now shows the correct In Library icon immediately, with no manual refresh required.
