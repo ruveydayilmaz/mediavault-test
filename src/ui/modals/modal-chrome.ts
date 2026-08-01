@@ -1,21 +1,33 @@
 import { Modal, Platform, setIcon } from "obsidian";
 
 function removeNativeCloseButton(modal: Modal): void {
-  const find = (): HTMLElement | null =>
-    modal.modalEl.querySelector<HTMLElement>(".modal-close-button") ??
-    modal.modalEl.parentElement?.querySelector<HTMLElement>(
-      ":scope > .modal-close-button",
-    ) ??
-    null;
+  const scope: ParentNode =
+    modal.modalEl.closest(".modal-container") ??
+    modal.modalEl.parentElement ??
+    modal.modalEl;
 
-  const existing = find();
-  if (existing) {
-    existing.remove();
-    return;
-  }
-  // On some Android builds Obsidian appends its close button to the modal
-  // shell asynchronously (after onOpen runs), so retry on the next frame.
-  requestAnimationFrame(() => find()?.remove());
+  const removeAll = (): void => {
+    scope
+      .querySelectorAll<HTMLElement>(".modal-close-button")
+      .forEach((btn) => btn.remove());
+  };
+
+  removeAll();
+
+  if (modal.modalEl.dataset.mediavaultCloseObserved === "1") return;
+  modal.modalEl.dataset.mediavaultCloseObserved = "1";
+
+  // Obsidian's Android build sometimes appends the close button to the
+  // modal shell asynchronously (after onOpen runs), so keep watching for
+  // as long as the modal is open rather than relying on a single retry.
+  const observer = new MutationObserver(removeAll);
+  observer.observe(scope, { childList: true, subtree: true });
+
+  const originalOnClose = modal.onClose?.bind(modal);
+  modal.onClose = (): void => {
+    observer.disconnect();
+    originalOnClose?.();
+  };
 }
 
 function markMediaVaultModalShell(modal: Modal): void {

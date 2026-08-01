@@ -1,4 +1,4 @@
-import { App, Notice } from "obsidian";
+import { App, Notice, setIcon } from "obsidian";
 import type { StorageService } from "../../services/storage";
 import type { TMDBService } from "../../api/tmdb";
 import { tmdbImageUrl } from "../../api/tmdb-normalize";
@@ -105,14 +105,17 @@ export function renderDiscoverCard(
   });
 
   if (owned) {
-    poster.createDiv({
+    const ownedBadge = poster.createDiv({
       cls: "mediavault-explore-owned-badge",
-      text: t("common.inLibrary"),
     });
+    setIcon(ownedBadge, "check-circle");
+    ownedBadge.setAttr("aria-label", t("common.inLibrary"));
+    ownedBadge.setAttr("title", t("common.inLibrary"));
   } else {
     const addBtn = poster.createDiv({ cls: "mediavault-explore-add-floating" });
     addBtn.setAttr("aria-label", t("common.addToLibraryAria"));
-    addBtn.setText("+");
+    addBtn.setAttr("title", t("common.addToLibraryAria"));
+    setIcon(addBtn, "plus");
     addBtn.addEventListener("click", async (evt) => {
       evt.stopPropagation();
       try {
@@ -128,7 +131,9 @@ export function renderDiscoverCard(
             : t("notice.addedToLibrary", { title: result.mediaItem.title }),
         );
         addBtn.addClass("is-added");
-        addBtn.setText("\u2713");
+        setIcon(addBtn, "check");
+        addBtn.setAttr("aria-label", t("common.inLibrary"));
+        addBtn.setAttr("title", t("common.inLibrary"));
         deps.onAdded?.(card);
       } catch (err) {
         new Notice(t("notice.failedToAdd", { error: (err as Error).message }));

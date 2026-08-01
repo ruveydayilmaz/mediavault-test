@@ -199,6 +199,13 @@ export class MediaDetailModal extends Modal {
     }
   }
 
+  private async rerenderPreservingEpisodesScroll(): Promise<void> {
+    if (this.activeTab === "episodes") {
+      this.episodesScrollTop = this.contentEl.scrollTop;
+    }
+    await this.render();
+  }
+
   private handleBack(): void {
     if (this.activeTab === "episode-detail") {
       this.activeTab = this.tabBeforeEpisodeDetail;
@@ -1420,7 +1427,7 @@ export class MediaDetailModal extends Modal {
 
         new Notice(t("notice.markedSeasonWatched", { n: seasonNumber }));
 
-        await this.render();
+        await this.rerenderPreservingEpisodesScroll();
         this.onChanged?.();
         return;
       }
@@ -1447,7 +1454,7 @@ export class MediaDetailModal extends Modal {
 
             new Notice(t("notice.markedSeasonUnwatched", { n: seasonNumber }));
 
-            await this.render();
+            await this.rerenderPreservingEpisodesScroll();
             this.onChanged?.();
           }),
       );
@@ -1536,7 +1543,7 @@ export class MediaDetailModal extends Modal {
         this.plugin?.refreshListViews();
       }
       this.onChanged?.();
-      await this.render();
+      await this.rerenderPreservingEpisodesScroll();
     });
 
     if (watches.length > 0) {
@@ -1559,7 +1566,7 @@ export class MediaDetailModal extends Modal {
           this.plugin?.refreshLibraryViews();
           this.plugin?.refreshListViews();
           this.onChanged?.();
-          await this.render();
+          await this.rerenderPreservingEpisodesScroll();
         }, LONG_PRESS_MS);
       });
       watchBtn.addEventListener("pointerup", clearTimer);
