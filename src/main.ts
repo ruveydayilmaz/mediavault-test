@@ -201,7 +201,12 @@ export default class MediaVaultPlugin extends Plugin {
           new Notice(t("notice.addTmdbKeyFirst"));
           return;
         }
-        new RecommendationsModal(this.app, this.storage, this.tmdb).open();
+        new RecommendationsModal(
+          this.app,
+          this.storage,
+          this.tmdb,
+          this,
+        ).open();
       },
     });
 

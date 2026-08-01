@@ -2,6 +2,13 @@
 
 All notable changes to MediaVault are documented in this file.
 
+## [4.40.0] — Explore Sync & Modal Close Button Fix
+
+- **Root cause of stale Explore state**: `renderDiscoverCard`'s poster-click handler opened `MediaDetailModal` without ever passing the plugin instance (`plugin` argument was hardcoded `undefined`), so the modal's `Add to Library` success handler's `plugin?.refreshLibraryViews()/refreshListViews()/refreshExploreViews()` calls were silent no-ops. `DiscoverCardDeps` now carries an optional `plugin`, threaded through from `ExploreView` (Discover/Browse/Search/Recommended rows) and `RecommendationsModal` (now constructed with the plugin from `main.ts`), and passed into every `MediaDetailModal` construction inside `discover-card.ts`. Returning from the Detail modal via the back button now shows the correct In Library icon immediately, with no manual refresh required.
+- Also passed an `onChanged` callback into the preview-mode `MediaDetailModal` so the originating card's own `onAdded` hook fires in addition to the plugin-level refresh.
+- **Root cause of the modal close-button regression**: the previous fix scoped its `MutationObserver` to a single `.modal-container` reference captured when each modal opened. On mobile, Obsidian can tear down and recreate that container (e.g. during the sheet-open animation) rather than mutate it in place, silently orphaning the observer so the native `X` button could reappear on both Android and iOS. Replaced the per-modal observer with a single app-lifetime `MutationObserver` on `document.body` that only ever removes `.modal-close-button` elements found inside a `.modal.mediavault-modal-shell` — scoped strictly to MediaVault's own modals, applied uniformly on desktop/Android/iOS instead of being gated by `Platform.isMobile`, and immune to the container being replaced since it watches the body rather than a captured node. Widened the CSS fallback to also match the close button as a sibling of `.modal` within its container.
+- Verification: `tsc -noEmit -skipLibCheck` clean (only the pre-existing `tsconfig.json` `baseUrl` deprecation notice). No `node_modules` available for `eslint`/`vitest` this session, matching the prior session's constraint; no new tests written, per standing instruction.
+
 ## [4.32.0] — Full Localization System
 
 - New centralized `I18nService` (`src/i18n/`): single `t(key, params)` lookup used everywhere in the UI, with dot-notation nested keys, English fallback for any missing translation, and a `setLocale()`/`onChange()` subscription so already-mounted views can react to a language switch without an Obsidian restart.

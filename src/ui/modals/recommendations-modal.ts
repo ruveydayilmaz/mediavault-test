@@ -2,6 +2,7 @@ import { App, Modal } from "obsidian";
 import { renderModalHeader } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import type { TMDBService } from "../../api/tmdb";
+import type MediaVaultPlugin from "../../main";
 import {
   buildRecommendations,
   RecommendationSet,
@@ -25,11 +26,18 @@ function getCategoryTitles(): Record<keyof RecommendationSet, string> {
 export class RecommendationsModal extends Modal {
   private storage: StorageService;
   private tmdb: TMDBService;
+  private plugin?: MediaVaultPlugin;
 
-  constructor(app: App, storage: StorageService, tmdb: TMDBService) {
+  constructor(
+    app: App,
+    storage: StorageService,
+    tmdb: TMDBService,
+    plugin?: MediaVaultPlugin,
+  ) {
     super(app);
     this.storage = storage;
     this.tmdb = tmdb;
+    this.plugin = plugin;
   }
 
   async onOpen(): Promise<void> {
@@ -81,7 +89,12 @@ export class RecommendationsModal extends Modal {
         };
         renderDiscoverCard(
           row,
-          { app: this.app, storage: this.storage, tmdb: this.tmdb },
+          {
+            app: this.app,
+            storage: this.storage,
+            tmdb: this.tmdb,
+            plugin: this.plugin,
+          },
           card,
         );
       });

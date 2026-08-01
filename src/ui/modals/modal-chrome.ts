@@ -1,40 +1,48 @@
-import { Modal, Platform, setIcon } from "obsidian";
+import { Modal, setIcon } from "obsidian";
 
-function removeNativeCloseButton(modal: Modal): void {
-  const scope: ParentNode =
-    modal.modalEl.closest(".modal-container") ??
-    modal.modalEl.parentElement ??
-    modal.modalEl;
+// Root cause: Obsidian's own close button (`.modal-close-button`) isn't
+// always a stable descendant of `modal.modalEl` — on some mobile builds the
+// element gets appended asynchronously, and the surrounding
+// `.modal-container` can be torn down and recreated (e.g. during the
+// mobile sheet-open animation) rather than just having children added to
+// it. A MutationObserver scoped to a single per-modal container node can
+// end up watching a node that's since been detached from the tree, so it
+// silently stops firing - which is what caused the close button to
+// reappear on Android/iOS after the previous, per-modal-scoped fix.
+//
+// Instead of scoping (and re-scoping) an observer per modal, we keep a
+// single observer on `document.body` for the lifetime of the app. It only
+// ever touches elements that live inside a `.modal.mediavault-modal-shell`
+// (i.e. our own modals), so it never affects Obsidian's native modals or
+// other plugins' modals. Because it watches `document.body` rather than a
+// container reference captured at open-time, it survives any re-parenting
+// Obsidian does internally, and it applies uniformly on desktop, Android
+// and iOS instead of being gated by a platform check.
+let globalCloseButtonObserver: MutationObserver | null = null;
 
-  const removeAll = (): void => {
-    scope
-      .querySelectorAll<HTMLElement>(".modal-close-button")
-      .forEach((btn) => btn.remove());
-  };
+function removeMediaVaultCloseButtons(): void {
+  document
+    .querySelectorAll<HTMLElement>(
+      ".modal.mediavault-modal-shell .modal-close-button",
+    )
+    .forEach((btn) => btn.remove());
+}
 
-  removeAll();
-
-  if (modal.modalEl.dataset.mediavaultCloseObserved === "1") return;
-  modal.modalEl.dataset.mediavaultCloseObserved = "1";
-
-  // Obsidian's Android build sometimes appends the close button to the
-  // modal shell asynchronously (after onOpen runs), so keep watching for
-  // as long as the modal is open rather than relying on a single retry.
-  const observer = new MutationObserver(removeAll);
-  observer.observe(scope, { childList: true, subtree: true });
-
-  const originalOnClose = modal.onClose?.bind(modal);
-  modal.onClose = (): void => {
-    observer.disconnect();
-    originalOnClose?.();
-  };
+function ensureGlobalCloseButtonObserver(): void {
+  if (globalCloseButtonObserver) return;
+  globalCloseButtonObserver = new MutationObserver(() => {
+    removeMediaVaultCloseButtons();
+  });
+  globalCloseButtonObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
 }
 
 function markMediaVaultModalShell(modal: Modal): void {
   modal.modalEl.addClass("mediavault-modal-shell");
-  if (Platform.isMobile) {
-    removeNativeCloseButton(modal);
-  }
+  ensureGlobalCloseButtonObserver();
+  removeMediaVaultCloseButtons();
 }
 
 export function renderMobileBackButton(

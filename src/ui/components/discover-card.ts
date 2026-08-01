@@ -6,6 +6,7 @@ import { addMediaFromTMDB } from "../../services/media-import";
 import { buildMediaItemFromTMDB } from "../../services/media-import";
 import { MediaType } from "../../types/enums";
 import { MediaDetailModal } from "../modals/media-detail-modal";
+import type MediaVaultPlugin from "../../main";
 import { t } from "../../i18n";
 
 export interface DiscoverCardData {
@@ -22,6 +23,7 @@ export interface DiscoverCardDeps {
   app: App;
   storage: StorageService;
   tmdb: TMDBService;
+  plugin?: MediaVaultPlugin;
   layout?: "row" | "grid";
   isOwned?: (card: DiscoverCardData) => boolean;
   onAdded?: (card: DiscoverCardData) => void;
@@ -64,7 +66,14 @@ export function renderDiscoverCard(
     if (card.mediaId) {
       const media = await deps.storage.media.findById(card.mediaId);
       if (media) {
-        new MediaDetailModal(deps.app, deps.storage, deps.tmdb, media).open();
+        new MediaDetailModal(
+          deps.app,
+          deps.storage,
+          deps.tmdb,
+          media,
+          undefined,
+          deps.plugin,
+        ).open();
         return;
       }
     }
@@ -72,7 +81,14 @@ export function renderDiscoverCard(
       card.mediaKind === "movie" ? MediaType.Movie : MediaType.TVShow;
     const existing = await deps.storage.media.findByTmdbId(card.tmdbId, type);
     if (existing) {
-      new MediaDetailModal(deps.app, deps.storage, deps.tmdb, existing).open();
+      new MediaDetailModal(
+        deps.app,
+        deps.storage,
+        deps.tmdb,
+        existing,
+        undefined,
+        deps.plugin,
+      ).open();
       return;
     }
     try {
@@ -86,8 +102,8 @@ export function renderDiscoverCard(
         deps.storage,
         deps.tmdb,
         previewMedia,
-        undefined,
-        undefined,
+        () => deps.onAdded?.(card),
+        deps.plugin,
         "cast",
         undefined,
         undefined,

@@ -447,6 +447,7 @@ export class ExploreView extends ItemView {
           app: this.app,
           storage: this.plugin.storage,
           tmdb: this.plugin.tmdb,
+          plugin: this.plugin,
           isOwned: (c) => this.ownedKeys.has(`${c.mediaKind}:${c.tmdbId}`),
           onAdded: (c) => {
             this.plugin.refreshLibraryViews();
@@ -467,6 +468,7 @@ export class ExploreView extends ItemView {
           app: this.app,
           storage: this.plugin.storage,
           tmdb: this.plugin.tmdb,
+          plugin: this.plugin,
           layout: "grid",
           isOwned: (c) => this.ownedKeys.has(`${c.mediaKind}:${c.tmdbId}`),
           onAdded: (c) => {
