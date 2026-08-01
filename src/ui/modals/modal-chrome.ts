@@ -32,7 +32,7 @@ function removeNativeCloseButton(modal: Modal): void {
 
 function markMediaVaultModalShell(modal: Modal): void {
   modal.modalEl.addClass("mediavault-modal-shell");
-  if (Platform.isAndroidApp) {
+  if (Platform.isMobile) {
     removeNativeCloseButton(modal);
   }
 }

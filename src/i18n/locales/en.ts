@@ -545,6 +545,8 @@ const en: TranslationDict = {
     goTo: "Go to:",
     enterThisCode: "And enter this code:",
     waitingForApproval: "Waiting for approval...",
+    copyCode: "Copy code",
+    codeCopied: "Code copied to clipboard",
     failedToStartAuth: "Failed to start Trakt authorization — {error}",
     codeExpired: "Code expired — reopen this dialog to try again.",
     traktConnectedNotice: "MediaVault: Trakt connected.",

@@ -1,4 +1,4 @@
-import { App, Modal, Notice } from "obsidian";
+import { App, Modal, Notice, setIcon } from "obsidian";
 import { renderModalHeader } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import { requestDeviceCode, pollDeviceToken } from "../../api/trakt-auth";
@@ -47,9 +47,36 @@ export class TraktAuthModal extends Modal {
       });
       link.setAttr("target", "_blank");
       statusEl.createEl("p", { text: t("settings.enterThisCode") });
-      statusEl.createEl("div", {
+      const codeRow = statusEl.createDiv({ cls: "mediavault-trakt-code-row" });
+      codeRow.createEl("div", {
         text: device.userCode,
         cls: "mediavault-trakt-code",
+      });
+      const copyBtn = codeRow.createEl("button", {
+        cls: "clickable-icon mediavault-trakt-code-copy",
+      });
+      setIcon(copyBtn, "copy");
+      copyBtn.setAttr("aria-label", t("settings.copyCode"));
+      copyBtn.addEventListener("click", async () => {
+        try {
+          if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(device.userCode);
+          } else {
+            const temp = document.createElement("textarea");
+            temp.value = device.userCode;
+            temp.style.position = "fixed";
+            temp.style.opacity = "0";
+            document.body.appendChild(temp);
+            temp.select();
+            document.execCommand("copy");
+            temp.remove();
+          }
+          new Notice(t("settings.codeCopied"));
+        } catch {
+          new Notice(
+            t("settings.errorPrefix", { error: t("settings.copyCode") }),
+          );
+        }
       });
       statusEl.createEl("p", {
         text: t("settings.waitingForApproval"),

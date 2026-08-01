@@ -424,6 +424,15 @@ export default class MediaVaultPlugin extends Plugin {
     });
   }
 
+  refreshExploreViews(): void {
+    this.app.workspace.getLeavesOfType(VIEW_TYPE_EXPLORE).forEach((leaf) => {
+      const view = leaf.view;
+      if (view instanceof ExploreView) {
+        void view.refresh();
+      }
+    });
+  }
+
   async activateAnalyticsView(): Promise<void> {
     const { workspace } = this.app;
 

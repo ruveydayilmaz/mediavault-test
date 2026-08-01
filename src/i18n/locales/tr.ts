@@ -545,6 +545,8 @@ const tr: TranslationDict = {
     goTo: "Şuraya gidin:",
     enterThisCode: "Ve bu kodu girin:",
     waitingForApproval: "Onay bekleniyor...",
+    copyCode: "Kodu kopyala",
+    codeCopied: "Kod panoya kopyalandı",
     failedToStartAuth: "Trakt yetkilendirmesi başlatılamadı — {error}",
     codeExpired: "Kodun süresi doldu — tekrar denemek için bu iletişim kutusunu yeniden açın.",
     traktConnectedNotice: "MediaVault: Trakt bağlandı.",

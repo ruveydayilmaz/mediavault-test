@@ -376,6 +376,9 @@ export class MediaDetailModal extends Modal {
         this.media = result.mediaItem;
         this.isPreview = false;
         this.onChanged?.();
+        this.plugin?.refreshLibraryViews();
+        this.plugin?.refreshListViews();
+        this.plugin?.refreshExploreViews();
         await this.render();
       } catch (err) {
         new Notice(
