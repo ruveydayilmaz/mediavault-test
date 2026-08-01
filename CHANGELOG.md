@@ -2,6 +2,13 @@
 
 All notable changes to MediaVault are documented in this file.
 
+## [4.43.0] — Direct Close-Button Removal, Scoped Per-Modal
+
+- Replaced every prior CSS/global-observer/lifecycle-gate approach with the simplest correct fix: `modal.modalEl.querySelector(".modal-close-button")?.remove()` called immediately when each MediaVault modal builds its chrome, plus a `MutationObserver` scoped strictly to that modal's own `modalEl` (not `document.body`, not a shared/global observer) so the button is removed again after every re-render. Disconnected in a wrapped `onClose` to avoid leaking observers.
+- Because the observer's root is each modal's own `modalEl`, this cannot touch a native Obsidian modal or another plugin's modal under any circumstance — there's no shared state, no document-wide query, and no assumption about where in the tree the button lives relative to anything else.
+- Investigated why older MediaVault versions never showed the button: earlier modals had no in-app header chrome at all (no back button, no `renderModalHeader`), so nothing about them resembled a titled dialog to Obsidian. The default close button started appearing once the mobile-header/back-button milestones (v4.2x–v4.33) gave modals real header chrome — it's a side effect of that UI work, not a single reverted line, so there's no old code path to restore; removing the button explicitly (as done here) is the correct fix rather than a workaround.
+- Verification: `tsc -noEmit -skipLibCheck` clean, `eslint src` clean, production build succeeded. No `tests/` directory present (pre-existing gap); no new tests written, per standing instruction.
+
 ## [4.42.0] — Modal Close Button: Lifecycle-Gated Fix
 
 - **Actual root cause**: every prior attempt (CSS descendant selector, per-modal `MutationObserver`, body-level `MutationObserver` keyed off a container relationship) made an assumption about *where* Obsidian places `.modal-close-button` relative to a MediaVault modal's own DOM. Each assumption held on some platform/version and broke on another, which is why the button kept reappearing after every fix — the bug was in guessing DOM shape at all, not in any particular guess.

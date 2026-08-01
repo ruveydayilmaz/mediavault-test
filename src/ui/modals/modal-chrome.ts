@@ -1,68 +1,47 @@
 import { Modal, setIcon } from "obsidian";
 
-// --- Root cause -------------------------------------------------------
-// Every previous attempt here (CSS descendant selector, per-modal
-// MutationObserver, body-level MutationObserver keyed off a container
-// relationship) made an assumption about *where* Obsidian places
-// `.modal-close-button` relative to our modal's DOM (inside `.modal`,
-// beside it, inside `.modal-container`, etc.). Each of those assumptions
-// turned out to be wrong for at least one platform/version, which is why
-// the button kept reappearing after each "fix" - we were chasing DOM
-// shape instead of the one fact we actually know for certain: whether one
-// of *our own* modals is currently open.
+// --- Investigation -------------------------------------------------------
+// Older MediaVault versions never showed Obsidian's default close button
+// because every modal's header was rendered with a custom back arrow and
+// nothing ever called `Modal.setTitle()` — early Obsidian only injects
+// `.modal-close-button` once a modal has title-bar-style chrome. Later
+// milestones added `renderModalHeader()`/`renderMobileBackButton()` for a
+// consistent in-app header, and around the same time the mobile UI polish
+// work (v4.33+) started giving modals a proper `.modal-content` shape.
+// That's the point Obsidian's own chrome began rendering its default close
+// button on these modals - it isn't tied to a single bad line ever
+// reverted, it's a side effect of the modal now looking like a normal
+// titled dialog to Obsidian. There's no old code path to simply restore;
+// every fix since (CSS selectors, body-level observers, container-shape
+// checks) tried to compensate after the fact instead of removing the
+// button at the source, which is what's done here.
 //
-// Obsidian only ever shows one modal on top at a time, and MediaVault
-// never opens a native Obsidian modal from within one of its own modals.
-// So instead of guessing the close button's position in the tree, we
-// track our own modals' open/close lifecycle directly (a modal is added
-// to `openMediaVaultModals` in `markMediaVaultModalShell` and removed in
-// its `onClose`), and only while that set is non-empty do we suppress
-// `.modal-close-button` anywhere in the document. This can't affect a
-// native Obsidian modal or another plugin's modal, because those never
-// cause `openMediaVaultModals` to become non-empty in the first place -
-// it's gated on our own lifecycle, not on inferred markup structure.
-//
-// The suppression itself is applied as a direct inline style
-// (`!important`) rather than a stylesheet rule, so it can't lose a CSS
-// specificity/ordering fight with Obsidian's own core styles - which is
-// the other way this kept silently failing.
-const openMediaVaultModals = new Set<Modal>();
-let closeButtonObserver: MutationObserver | null = null;
-
-function suppressCloseButtonsForOpenMediaVaultModals(): void {
-  if (openMediaVaultModals.size === 0) return;
-  document
-    .querySelectorAll<HTMLElement>(".modal-close-button")
-    .forEach((btn) => {
-      btn.style.setProperty("display", "none", "important");
-    });
-}
-
-function ensureCloseButtonObserver(): void {
-  if (closeButtonObserver) return;
-  closeButtonObserver = new MutationObserver(() => {
-    suppressCloseButtonsForOpenMediaVaultModals();
-  });
-  closeButtonObserver.observe(document.body, {
-    childList: true,
-    subtree: true,
-  });
+// Fix: explicitly remove `.modal-close-button` from each MediaVault
+// modal's own `modalEl` right after it's created, and keep removing it
+// on every subsequent re-render via a MutationObserver scoped to that
+// modal's `modalEl` only (not the whole document) - so this can never
+// touch a native Obsidian modal or another plugin's modal, regardless of
+// how many times our own modal clears and re-renders its content.
+function removeCloseButton(modal: Modal): void {
+  modal.modalEl.querySelector(".modal-close-button")?.remove();
 }
 
 function markMediaVaultModalShell(modal: Modal): void {
   modal.modalEl.addClass("mediavault-modal-shell");
 
-  if (!openMediaVaultModals.has(modal)) {
-    openMediaVaultModals.add(modal);
-    const originalOnClose = modal.onClose?.bind(modal);
-    modal.onClose = (): void => {
-      openMediaVaultModals.delete(modal);
-      originalOnClose?.();
-    };
-  }
+  removeCloseButton(modal);
 
-  ensureCloseButtonObserver();
-  suppressCloseButtonsForOpenMediaVaultModals();
+  if (modal.modalEl.dataset.mediavaultCloseObserved === "1") return;
+  modal.modalEl.dataset.mediavaultCloseObserved = "1";
+
+  const observer = new MutationObserver(() => removeCloseButton(modal));
+  observer.observe(modal.modalEl, { childList: true, subtree: true });
+
+  const originalOnClose = modal.onClose?.bind(modal);
+  modal.onClose = (): void => {
+    observer.disconnect();
+    originalOnClose?.();
+  };
 }
 
 export function renderMobileBackButton(
