@@ -353,13 +353,17 @@ export class MediaDetailModal extends Modal {
     }
 
     const addBtn = heroContent.createEl("button", {
-      cls: "mediavault-add-to-library-btn mod-cta",
-      text: t("detail.addToLibrary"),
+      cls: "mediavault-detail-log-btn mod-cta",
+      attr: {
+        "aria-label": t("common.addToLibraryAria"),
+      },
     });
+    setIcon(addBtn, "plus-circle");
+
     addBtn.addEventListener("click", async (evt) => {
       evt.stopPropagation();
       addBtn.disabled = true;
-      addBtn.setText(t("detail.adding"));
+
       try {
         const mediaKind = this.media.type === MediaType.Movie ? "movie" : "tv";
         const result = await addMediaFromTMDB(
@@ -388,7 +392,6 @@ export class MediaDetailModal extends Modal {
           }),
         );
         addBtn.disabled = false;
-        addBtn.setText(t("detail.addToLibrary"));
       }
     });
   }
@@ -1076,8 +1079,7 @@ export class MediaDetailModal extends Modal {
           text: t("detail.delete"),
         });
         deleteBtn.addEventListener("click", async () => {
-          if (!confirm(t("detail.deleteCommentConfirm")))
-            return;
+          if (!confirm(t("detail.deleteCommentConfirm"))) return;
           try {
             await this.trakt!.deleteComment(comment.id);
             this.trakt!.invalidateCommentsCache(target);
@@ -1219,9 +1221,7 @@ export class MediaDetailModal extends Modal {
         return;
       }
       if (text.length > TRAKT_COMMENT_LIMIT) {
-        new Notice(
-          t("detail.commentTooLong", { limit: TRAKT_COMMENT_LIMIT }),
-        );
+        new Notice(t("detail.commentTooLong", { limit: TRAKT_COMMENT_LIMIT }));
         return;
       }
 
@@ -2007,7 +2007,10 @@ export class MediaDetailModal extends Modal {
     const wrap = container.createDiv({
       cls: "mediavault-episode-emotion-picker",
     });
-    wrap.createDiv({ cls: "mediavault-detail-meta", text: t("detail.howWasIt") });
+    wrap.createDiv({
+      cls: "mediavault-detail-meta",
+      text: t("detail.howWasIt"),
+    });
     const row = wrap.createDiv({ cls: "mediavault-emotion-row" });
 
     MediaDetailModal.EMOTIONS.forEach((emoji) => {

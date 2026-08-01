@@ -3766,13 +3766,14 @@ body.mediavault-android .mediavault-filter-panel select {
   flex-shrink: 0;
 }
 
-.is-phone .mediavault-filter-row {
+.is-phone .mediavault-filter-tag-row {
   flex-direction: column;
   align-items: stretch;
-  width: 100%;
+  gap: 8px;
 }
 
-.is-phone .mediavault-filter-row input {
+.is-phone .mediavault-filter-tag-row input,
+.is-phone .mediavault-filter-tag-row .mediavault-autocomplete-wrap {
   width: 100%;
   box-sizing: border-box;
 }

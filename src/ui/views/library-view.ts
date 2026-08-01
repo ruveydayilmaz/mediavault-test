@@ -362,7 +362,7 @@ export class LibraryView extends ItemView {
 
     if (this.screenTier === "mobile") {
       const mobileControlsRow = panel.createDiv({
-        cls: "mediavault-filter-row mediavault-filter-mobile-controls",
+        cls: "mediavault-filter-row mediavault-filter-tag-row",
       });
       this.renderSortControls(mobileControlsRow);
       this.renderPageSizeControl(mobileControlsRow);

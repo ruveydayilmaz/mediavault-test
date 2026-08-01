@@ -128,13 +128,10 @@ export function renderDiscoverCard(
     ownedBadge.setAttr("aria-label", t("common.inLibrary"));
     ownedBadge.setAttr("title", t("common.inLibrary"));
   } else {
-    const addBtn = poster.createEl("button", {
-      cls: "mediavault-detail-log-btn mod-cta",
-      attr: {
-        "aria-label": t("common.addToLibraryAria"),
-      },
-    });
-    setIcon(addBtn, "plus-circle");
+    const addBtn = poster.createDiv({ cls: "mediavault-explore-add-floating" });
+    addBtn.setAttr("aria-label", t("common.addToLibraryAria"));
+    addBtn.setAttr("title", t("common.addToLibraryAria"));
+    setIcon(addBtn, "plus");
 
     addBtn.addEventListener("click", async (evt) => {
       evt.stopPropagation();
