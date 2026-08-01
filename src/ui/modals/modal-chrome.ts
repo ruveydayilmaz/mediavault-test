@@ -23,7 +23,7 @@ import { Modal, setIcon } from "obsidian";
 // touch a native Obsidian modal or another plugin's modal, regardless of
 // how many times our own modal clears and re-renders its content.
 function removeCloseButton(modal: Modal): void {
-  modal.modalEl.querySelector(".modal-close-button")?.remove();
+  modal.modalEl.querySelector(".modal-header-button")?.remove();
 }
 
 function markMediaVaultModalShell(modal: Modal): void {

@@ -309,7 +309,7 @@
 
 /* --- Media detail modal --- */
 .modal.mediavault-modal-shell .modal-header,
-.modal.mediavault-modal-shell .modal-close-button {
+.modal.mediavault-modal-shell .modal-header-button {
   display: none !important;
 }
 
