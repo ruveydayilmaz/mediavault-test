@@ -1,49 +1,49 @@
 import { Modal, setIcon } from "obsidian";
 
-// --- Root cause -----------------------------------------------------------
-// Every previous attempt at this (CSS descendant selector, then a
-// container-scoped MutationObserver, then a body-level MutationObserver)
-// assumed `.modal-close-button` is a *descendant* of the `.modal` element
-// (`modalEl`), matching desktop's DOM shape. On Obsidian's mobile shell the
-// close button is not nested inside `.modal` at all - it's rendered as a
-// separate, absolutely-positioned element inside the surrounding
-// `.modal-container`, as a *sibling* of `.modal`, so it sits outside the
-// area any of those "hide things inside modalEl" checks ever looked at.
-// That's why marking `modalEl` with `mediavault-modal-shell` and then
-// searching *inside* it (`.modal.mediavault-modal-shell .modal-close-button`,
-// via CSS or via querySelectorAll) never matched on mobile: the button
-// genuinely isn't inside that subtree.
+// --- Root cause -------------------------------------------------------
+// Every previous attempt here (CSS descendant selector, per-modal
+// MutationObserver, body-level MutationObserver keyed off a container
+// relationship) made an assumption about *where* Obsidian places
+// `.modal-close-button` relative to our modal's DOM (inside `.modal`,
+// beside it, inside `.modal-container`, etc.). Each of those assumptions
+// turned out to be wrong for at least one platform/version, which is why
+// the button kept reappearing after each "fix" - we were chasing DOM
+// shape instead of the one fact we actually know for certain: whether one
+// of *our own* modals is currently open.
 //
-// The fix is structural, not another nesting guess: for any
-// `.modal-close-button` found anywhere in the document, walk up to its
-// enclosing `.modal-container` and check whether *that* container also
-// contains a MediaVault modal shell anywhere within it (parent, sibling, or
-// otherwise) - rather than assuming a specific parent/child relationship
-// between the two. This only ever touches close buttons that share a modal
-// container with one of our own modals, so it can't affect Obsidian's
-// native modals or other plugins' modals, and it works regardless of
-// whether Obsidian nests the button inside `.modal` (desktop) or beside it
-// (mobile).
-let globalCloseButtonObserver: MutationObserver | null = null;
+// Obsidian only ever shows one modal on top at a time, and MediaVault
+// never opens a native Obsidian modal from within one of its own modals.
+// So instead of guessing the close button's position in the tree, we
+// track our own modals' open/close lifecycle directly (a modal is added
+// to `openMediaVaultModals` in `markMediaVaultModalShell` and removed in
+// its `onClose`), and only while that set is non-empty do we suppress
+// `.modal-close-button` anywhere in the document. This can't affect a
+// native Obsidian modal or another plugin's modal, because those never
+// cause `openMediaVaultModals` to become non-empty in the first place -
+// it's gated on our own lifecycle, not on inferred markup structure.
+//
+// The suppression itself is applied as a direct inline style
+// (`!important`) rather than a stylesheet rule, so it can't lose a CSS
+// specificity/ordering fight with Obsidian's own core styles - which is
+// the other way this kept silently failing.
+const openMediaVaultModals = new Set<Modal>();
+let closeButtonObserver: MutationObserver | null = null;
 
-function removeMediaVaultCloseButtons(): void {
+function suppressCloseButtonsForOpenMediaVaultModals(): void {
+  if (openMediaVaultModals.size === 0) return;
   document
     .querySelectorAll<HTMLElement>(".modal-close-button")
     .forEach((btn) => {
-      const container =
-        btn.closest(".modal-container") ?? btn.parentElement ?? btn;
-      if (container.querySelector(".mediavault-modal-shell")) {
-        btn.remove();
-      }
+      btn.style.setProperty("display", "none", "important");
     });
 }
 
-function ensureGlobalCloseButtonObserver(): void {
-  if (globalCloseButtonObserver) return;
-  globalCloseButtonObserver = new MutationObserver(() => {
-    removeMediaVaultCloseButtons();
+function ensureCloseButtonObserver(): void {
+  if (closeButtonObserver) return;
+  closeButtonObserver = new MutationObserver(() => {
+    suppressCloseButtonsForOpenMediaVaultModals();
   });
-  globalCloseButtonObserver.observe(document.body, {
+  closeButtonObserver.observe(document.body, {
     childList: true,
     subtree: true,
   });
@@ -51,8 +51,18 @@ function ensureGlobalCloseButtonObserver(): void {
 
 function markMediaVaultModalShell(modal: Modal): void {
   modal.modalEl.addClass("mediavault-modal-shell");
-  ensureGlobalCloseButtonObserver();
-  removeMediaVaultCloseButtons();
+
+  if (!openMediaVaultModals.has(modal)) {
+    openMediaVaultModals.add(modal);
+    const originalOnClose = modal.onClose?.bind(modal);
+    modal.onClose = (): void => {
+      openMediaVaultModals.delete(modal);
+      originalOnClose?.();
+    };
+  }
+
+  ensureCloseButtonObserver();
+  suppressCloseButtonsForOpenMediaVaultModals();
 }
 
 export function renderMobileBackButton(

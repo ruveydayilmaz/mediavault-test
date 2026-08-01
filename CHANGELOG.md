@@ -2,6 +2,14 @@
 
 All notable changes to MediaVault are documented in this file.
 
+## [4.42.0] — Modal Close Button: Lifecycle-Gated Fix
+
+- **Actual root cause**: every prior attempt (CSS descendant selector, per-modal `MutationObserver`, body-level `MutationObserver` keyed off a container relationship) made an assumption about *where* Obsidian places `.modal-close-button` relative to a MediaVault modal's own DOM. Each assumption held on some platform/version and broke on another, which is why the button kept reappearing after every fix — the bug was in guessing DOM shape at all, not in any particular guess.
+- Replaced all DOM-shape guessing with a lifecycle-based gate: MediaVault now tracks its own open modals directly (added to an `openMediaVaultModals` set in `markMediaVaultModalShell`, removed via a wrapped `onClose`). Obsidian only ever shows one modal on top at a time, and MediaVault never opens a native Obsidian modal from inside one of its own, so "one of our modals is currently open" is a fact we can track with certainty instead of inferring from markup.
+- While that set is non-empty, any `.modal-close-button` found anywhere in the document gets suppressed via a direct inline `style.setProperty("display", "none", "important")` — not a stylesheet rule — so it can't lose a CSS specificity/cascade-order fight against Obsidian's own core styles, which is the other way this was silently failing.
+- Kept the existing scoped CSS rule (`.modal.mediavault-modal-shell .modal-close-button`) as a harmless secondary layer for the case where it does match; the JS lifecycle gate is now the actual fix.
+- Verification: `tsc -noEmit -skipLibCheck` clean, `eslint src` clean, production build succeeded. No `tests/` directory present (pre-existing gap); no new tests written, per standing instruction.
+
 ## [4.41.0] — Root-Cause Fix for Modal Close Button
 
 - **Actual root cause found**: every prior attempt (CSS descendant selector, per-modal `MutationObserver`, body-level `MutationObserver`) assumed `.modal-close-button` is nested *inside* `.modal` (`modalEl`), matching desktop's DOM shape. On Obsidian's mobile shell, the close button is not a descendant of `.modal` at all — it's rendered as a separate element inside the surrounding `.modal-container`, as a *sibling* of `.modal`. Every previous fix searched only inside `modalEl`'s own subtree, so on mobile it was searching a subtree the button was never actually in — it wasn't a timing or re-render problem, it was the wrong DOM assumption from the start.
