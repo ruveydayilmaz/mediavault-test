@@ -308,8 +308,8 @@
 }
 
 /* --- Media detail modal --- */
-.modal:has(> .modal-content[class*="mediavault-"]) .modal-header,
-.modal:has(> .modal-content[class*="mediavault-"]) .modal-close-button {
+.modal.mediavault-modal-shell .modal-header,
+.modal.mediavault-modal-shell .modal-close-button {
   display: none;
 }
 
@@ -322,10 +322,8 @@
 .mediavault-detail-hero {
   position: relative;
   flex-shrink: 0;
-  min-height: 220px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
+  height: 240px;
+  overflow: hidden;
   background: var(--background-modifier-border);
 }
 
@@ -376,10 +374,15 @@
 }
 
 .mediavault-detail-hero-content {
-  position: relative;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 1;
   padding: 16px 20px;
   width: 100%;
+  max-height: 100%;
+  box-sizing: border-box;
 
   display: flex;
   align-items: center;
@@ -397,6 +400,12 @@
   flex: 1 1 auto;
   overflow-wrap: break-word;
   word-break: break-word;
+
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .mediavault-detail-hero-content .mediavault-detail-title-row {
