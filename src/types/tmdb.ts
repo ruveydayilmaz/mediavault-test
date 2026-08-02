@@ -235,6 +235,7 @@ export interface TMDBRawPersonDetails {
   biography: string;
   profile_path?: string | null;
   birthday?: string | null;
+  deathday?: string | null;
   place_of_birth?: string | null;
   combined_credits?: {
     cast?: TMDBRawCombinedCreditItem[];
@@ -258,6 +259,7 @@ export interface TMDBPersonDetails {
   biography: string;
   profilePath: string | null;
   birthday: string | null;
+  deathday: string | null;
   placeOfBirth: string | null;
   filmography: TMDBFilmographyItem[];
 }

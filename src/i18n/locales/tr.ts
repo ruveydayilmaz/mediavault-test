@@ -514,6 +514,7 @@ const tr: TranslationDict = {
     createAndAdd: "Oluştur + Ekle",
     title: "Listeye Ekle",
     newListName: "Yeni liste adı",
+    alreadyInList: "Bu listede",
   },
   watchSession: {
     editReview: "Yorumu düzenle",

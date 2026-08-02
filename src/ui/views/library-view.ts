@@ -362,7 +362,7 @@ export class LibraryView extends ItemView {
 
     if (this.screenTier === "mobile") {
       const mobileControlsRow = panel.createDiv({
-        cls: "mediavault-filter-row mediavault-filter-tag-row",
+        cls: "mediavault-filter-row mediavault-filter-sort-size-row",
       });
       this.renderSortControls(mobileControlsRow);
       this.renderPageSizeControl(mobileControlsRow);
@@ -846,6 +846,7 @@ export class LibraryView extends ItemView {
 
     if (this.screenTier !== "mobile") {
       this.renderSortControls(actions);
+      this.renderPageSizeControl(actions);
     }
 
     const filterGroup = actions.createDiv({
@@ -874,10 +875,6 @@ export class LibraryView extends ItemView {
       this.filterPanelOpen = !this.filterPanelOpen;
       void this.refresh();
     });
-
-    if (this.screenTier !== "mobile") {
-      this.renderPageSizeControl(actions);
-    }
 
     this.viewToggleEl = actions.createDiv({
       cls: "mediavault-library-view-toggle",

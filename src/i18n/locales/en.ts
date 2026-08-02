@@ -514,6 +514,7 @@ const en: TranslationDict = {
     createAndAdd: "Create + Add",
     title: "Add to List",
     newListName: "New list name",
+    alreadyInList: "In this list",
   },
   watchSession: {
     editReview: "Edit review",

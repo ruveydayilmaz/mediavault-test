@@ -4,6 +4,7 @@ import type { StorageService } from "../../services/storage";
 import { MediaItem } from "../../models/media";
 import { t } from "../../i18n";
 import { makeClearable } from "../components/clearable-input";
+import { renderListCard } from "../components/list-card";
 
 export class AddToListModal extends Modal {
   private storage: StorageService;
@@ -37,9 +38,12 @@ export class AddToListModal extends Modal {
       "h3",
     );
 
-    const lists = await this.storage.customLists.getAll();
+    const [lists, allMedia] = await Promise.all([
+      this.storage.customLists.getAll(),
+      this.storage.media.getAll(),
+    ]);
     const listEl = contentEl.createDiv({
-      cls: "mediavault-add-to-list-options",
+      cls: "mediavault-add-to-list-options mediavault-lists-grid",
     });
 
     if (lists.length === 0) {
@@ -50,31 +54,43 @@ export class AddToListModal extends Modal {
     }
 
     for (const list of lists) {
-      const row = listEl.createEl("label", {
-        cls: "mediavault-add-to-list-row",
-      });
-      const checkbox = row.createEl("input", { type: "checkbox" });
-      checkbox.checked = list.mediaIds.includes(this.media.id);
-      row.createSpan({ text: list.title });
-
-      checkbox.addEventListener("change", async () => {
-        if (checkbox.checked) {
-          await this.storage.customLists.addMedia(list.id, this.media.id);
-        } else {
+      const alreadyIn = list.mediaIds.includes(this.media.id);
+      const card = renderListCard(listEl, list, allMedia, (cardEl) => {
+        if (alreadyIn) {
           const confirmed = confirm(
             t("addToList.removeConfirm", {
               title: this.media.title,
               list: list.title,
             }),
           );
-          if (!confirmed) {
-            checkbox.checked = true;
-            return;
-          }
-          await this.storage.customLists.removeMedia(list.id, this.media.id);
+          if (!confirmed) return;
+          void this.storage.customLists
+            .removeMedia(list.id, this.media.id)
+            .then(async () => {
+              this.onChanged?.();
+              await this.render();
+            });
+          return;
         }
-        this.onChanged?.();
+
+        void this.storage.customLists
+          .addMedia(list.id, this.media.id)
+          .then(() => {
+            this.onChanged?.();
+            cardEl.addClass("is-added-flash");
+            window.setTimeout(() => {
+              cardEl.removeClass("is-added-flash");
+            }, 900);
+          });
       });
+
+      if (alreadyIn) {
+        card.addClass("is-in-list");
+        card.createDiv({
+          cls: "mediavault-list-card-in-badge",
+          text: t("addToList.alreadyInList"),
+        });
+      }
     }
 
     const createRow = contentEl.createDiv({

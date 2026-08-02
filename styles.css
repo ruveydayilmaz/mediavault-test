@@ -2753,6 +2753,43 @@ body.mediavault-android .mediavault-filter-panel select {
   color: var(--text-on-accent);
 }
 
+.mediavault-add-to-list-options {
+  margin: 8px 0 16px 0;
+}
+
+.mediavault-add-to-list-options .mediavault-list-card.is-in-list {
+  outline: 2px solid var(--interactive-accent);
+}
+
+.mediavault-add-to-list-options .mediavault-list-card-in-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.7em;
+  font-weight: 600;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.mediavault-add-to-list-options .mediavault-list-card.is-added-flash {
+  animation: mediavault-list-card-flash 0.9s ease;
+}
+
+@keyframes mediavault-list-card-flash {
+  0% {
+    box-shadow: 0 0 0 0 rgba(var(--interactive-accent-rgb, 0, 122, 255), 0.6);
+  }
+  30% {
+    box-shadow: 0 0 0 4px rgba(var(--interactive-accent-rgb, 0, 122, 255), 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(var(--interactive-accent-rgb, 0, 122, 255), 0);
+  }
+}
+
 /* List detail modal */
 .mediavault-list-detail-modal {
   width: min(800px, 92vw);
@@ -3029,11 +3066,8 @@ body.mediavault-android .mediavault-filter-panel select {
 }
 
 .mediavault-add-to-list-options {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
   margin: 10px 0;
-  max-height: 40vh;
+  max-height: 60vh;
   overflow-y: auto;
 }
 
@@ -3546,8 +3580,39 @@ body.mediavault-android .mediavault-filter-panel select {
   object-fit: cover;
 }
 
-.mediavault-actor-info h2 {
-  margin: 0 0 6px 0;
+.mediavault-actor-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.mediavault-actor-name {
+  margin: 0;
+  font-size: 1.3em;
+  line-height: 1.25;
+}
+
+.mediavault-actor-dates {
+  color: var(--text-muted);
+  font-size: 0.85em;
+  margin-bottom: 4px;
+}
+
+.mediavault-actor-biography {
+  margin: 4px 0 0 0;
+}
+
+.mediavault-actor-biography-text {
+  font-size: 0.85em;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.mediavault-actor-filmography-heading {
+  padding: 0 var(--p-spacing);
+  margin: 12px 0 8px 0;
 }
 
 .mediavault-actor-filmography-grid {
@@ -3766,16 +3831,44 @@ body.mediavault-android .mediavault-filter-panel select {
   flex-shrink: 0;
 }
 
-.is-phone .mediavault-filter-tag-row {
-  flex-direction: column;
-  align-items: stretch;
+.is-phone .mediavault-filter-sort-size-row {
+  flex-wrap: nowrap;
   gap: 8px;
 }
 
-.is-phone .mediavault-filter-tag-row input,
-.is-phone .mediavault-filter-tag-row .mediavault-autocomplete-wrap {
+.is-phone .mediavault-filter-sort-size-row .mediavault-library-sort-group,
+.is-phone .mediavault-filter-sort-size-row .mediavault-library-page-size {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.is-phone .mediavault-filter-sort-size-row .mediavault-library-sort,
+.is-phone .mediavault-filter-sort-size-row .mediavault-library-page-size {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Standalone inputs/selects on their own filter row take full width on mobile;
+   paired inputs (Min/Max, From/To) stay side by side inside their group. */
+.is-phone .mediavault-filter-row:not(.mediavault-filter-sort-size-row) {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.is-phone .mediavault-filter-row > select,
+.is-phone .mediavault-filter-row > input[type="text"] {
   width: 100%;
   box-sizing: border-box;
+}
+
+.is-phone .mediavault-filter-controls-group {
+  width: 100%;
+}
+
+.is-phone .mediavault-filter-controls-group .mediavault-filter-number-input {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
 }
 
 .is-phone .mediavault-autocomplete-wrap {

@@ -8,6 +8,7 @@ import { tmdbImageUrl } from "../../api/tmdb-normalize";
 import { buildMediaItemFromTMDB } from "../../services/media-import";
 import { MediaDetailModal } from "./media-detail-modal";
 import { t } from "../../i18n";
+import { renderExpandableText } from "../components/expandable-text";
 
 type FilmographyCategory = TMDBFilmographyItem["category"];
 
@@ -25,6 +26,7 @@ export class ActorDetailsModal extends Modal {
   private personId: number;
 
   private person: TMDBPersonDetails | null = null;
+  private biographyExpanded = false;
   private activeTab: FilmographyCategory | null = null;
   private visibleCountByTab: Record<FilmographyCategory, number> = {
     tv_series: 30,
@@ -71,6 +73,17 @@ export class ActorDetailsModal extends Modal {
       .querySelector<HTMLElement>(".mediavault-modal-header-title")
       ?.setText(this.person.name);
 
+    this.render(contentEl);
+  }
+
+  private render(contentEl: HTMLElement): void {
+    if (!this.person) return;
+    contentEl
+      .querySelectorAll(
+        ".mediavault-actor-header, .mediavault-actor-filmography-heading, .mediavault-detail-tabs, .mediavault-actor-filmography-grid, .mediavault-modal-hint",
+      )
+      .forEach((el) => el.remove());
+
     const header = contentEl.createDiv({ cls: "mediavault-actor-header" });
     const photoUrl = tmdbImageUrl(this.person.profilePath, "w342");
     if (photoUrl) {
@@ -80,26 +93,51 @@ export class ActorDetailsModal extends Modal {
       });
     }
     const info = header.createDiv({ cls: "mediavault-actor-info" });
+    info.createEl("h2", {
+      cls: "mediavault-actor-name",
+      text: this.person.name,
+    });
+
+    const dateParts: string[] = [];
     if (this.person.birthday) {
-      info.createDiv({
-        cls: "mediavault-detail-meta",
-        text: `Born ${this.person.birthday}`,
-      });
+      dateParts.push(
+        this.person.deathday
+          ? `Born ${this.person.birthday} · Died ${this.person.deathday}`
+          : `Born ${this.person.birthday}`,
+      );
+    } else if (this.person.deathday) {
+      dateParts.push(`Died ${this.person.deathday}`);
     }
     if (this.person.placeOfBirth) {
-      info.createDiv({
-        cls: "mediavault-detail-meta",
-        text: this.person.placeOfBirth,
-      });
+      dateParts.push(this.person.placeOfBirth);
     }
-    if (this.person.biography) {
+    if (dateParts.length > 0) {
       info.createDiv({
-        cls: "mediavault-detail-meta",
-        text: this.person.biography,
+        cls: "mediavault-actor-dates",
+        text: dateParts.join(" · "),
       });
     }
 
-    contentEl.createEl("h3", { text: t("detail.filmography") });
+    if (this.person.biography) {
+      renderExpandableText(
+        info,
+        this.person.biography,
+        this.biographyExpanded,
+        () => {
+          this.biographyExpanded = !this.biographyExpanded;
+          this.render(contentEl);
+        },
+        {
+          wrapperCls: "mediavault-actor-biography",
+          textCls: "mediavault-actor-biography-text",
+        },
+      );
+    }
+
+    contentEl.createEl("h3", {
+      cls: "mediavault-actor-filmography-heading",
+      text: t("detail.filmography"),
+    });
 
     if (this.person.filmography.length === 0) {
       contentEl.createDiv({

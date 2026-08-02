@@ -3,11 +3,7 @@ import type MediaVaultPlugin from "../../main";
 import { VIEW_TYPE_LISTS } from "../../constants";
 import { CustomList } from "../../models/list";
 import { MediaItem } from "../../models/media";
-import {
-  getListBannerPosters,
-  formatRelativeDate,
-} from "../../services/list-service";
-import { renderPoster } from "../components/media-render";
+import { renderListCard } from "../components/list-card";
 import { CreateListModal } from "../modals/create-list-modal";
 import { ListDetailModal } from "../modals/list-detail-modal";
 import { t } from "../../i18n";
@@ -86,47 +82,7 @@ export class ListsView extends ItemView {
   }
 
   private renderListCard(list: CustomList, allMedia: MediaItem[]): void {
-    const card = this.gridEl.createDiv({ cls: "mediavault-list-card" });
-
-    const bannerPosters = getListBannerPosters(list, allMedia);
-    const banner = card.createDiv({ cls: "mediavault-list-banner" });
-    for (let i = 0; i < 4; i++) {
-      const cell = banner.createDiv({ cls: "mediavault-list-banner-cell" });
-      const media = bannerPosters[i];
-      if (media) {
-        renderPoster(cell, media, "w200");
-      } else {
-        cell.addClass("is-empty");
-      }
-    }
-
-    const scrim = banner.createDiv({ cls: "mediavault-list-card-scrim" });
-    scrim.createDiv({ cls: "mediavault-list-card-title", text: list.title });
-    if (list.description) {
-      scrim.createDiv({
-        cls: "mediavault-list-card-description",
-        text: list.description,
-      });
-    }
-    const meta = scrim.createDiv({ cls: "mediavault-list-card-meta" });
-    meta.createSpan({
-      text: t("lists.itemCountN", {
-        count: list.mediaIds.length,
-        plural: list.mediaIds.length === 1 ? "" : "s",
-      }),
-    });
-    meta.createSpan({
-      text: t("lists.updated", { date: formatRelativeDate(list.updatedAt) }),
-    });
-    meta.createSpan({ text: list.owner ?? t("common.you") });
-    if (list.isImported) {
-      meta.createSpan({
-        cls: "mediavault-list-card-imported",
-        text: t("lists.imported"),
-      });
-    }
-
-    card.addEventListener("click", () => {
+    renderListCard(this.gridEl, list, allMedia, () => {
       new ListDetailModal(this.app, this.plugin, list).open();
     });
   }

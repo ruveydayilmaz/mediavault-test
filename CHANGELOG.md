@@ -2,6 +2,14 @@
 
 All notable changes to MediaVault are documented in this file.
 
+## [4.47.0] — Actor Details, List Selection UI, Library Filters & Explore Detail Sync
+
+- **Actor/Actress Details**: extracted the Movie/TV description's Show more/Show less logic into a shared `renderExpandableText()` component, now reused for the actor Biography (short bios render in full, long ones truncate with the same toggle). Redesigned the header section (photo, name, born/died/place-of-birth, biography) for cleaner spacing and alignment; Filmography untouched. Added `deathday` end-to-end (TMDB raw/normalized person types, `getPersonDetails()` mapping) to support showing it when present.
+- **Add to List Modal**: extracted the Lists page's card renderer into a shared `renderListCard()` component and reused it here. Replaced the checkbox list with clickable list cards matching the Lists page style — clicking an unlisted card adds immediately with a brief success flash; clicking a card the item is already in confirms removal. Quick-create list flow preserved.
+- **Library Filters**: Sort and Items-per-page selects are now adjacent in the same row on both desktop and mobile (previously a stray CSS rule stacked them vertically on phone). On mobile, standalone filter inputs/selects (Actor/Director/Studio, Runtime mode) now take the full row width, while paired inputs (Year Min/Max, Runtime Min/Max) remain side by side.
+- **Explore Detail Library State**: audited — `MediaDetailModal`'s preview "Add to Library" action and the Explore/Search/Recommendations card click handler both already re-check `storage.media.findByTmdbId()` live on every open/render rather than relying on any cached "owned" state, so the Detail modal always reflects the current library state regardless of entry point. No behavior change needed; confirmed no regression.
+- Verification: `tsc -noEmit -skipLibCheck` clean, `eslint src` clean (1 pre-existing unrelated warning in `main.ts`), production build succeeded. No `tests/` directory present (pre-existing gap, flagged previously); no new tests written, per standing instruction.
+
 ## [4.43.0] — Direct Close-Button Removal, Scoped Per-Modal
 
 - Replaced every prior CSS/global-observer/lifecycle-gate approach with the simplest correct fix: `modal.modalEl.querySelector(".modal-close-button")?.remove()` called immediately when each MediaVault modal builds its chrome, plus a `MutationObserver` scoped strictly to that modal's own `modalEl` (not `document.body`, not a shared/global observer) so the button is removed again after every re-render. Disconnected in a wrapped `onClose` to avoid leaking observers.

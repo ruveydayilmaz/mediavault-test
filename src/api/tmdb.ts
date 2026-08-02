@@ -223,6 +223,7 @@ export class TMDBService {
         name: raw.name,
         profilePath: raw.profile_path ?? null,
         birthday: raw.birthday ?? null,
+        deathday: raw.deathday ?? null,
         placeOfBirth: raw.place_of_birth ?? null,
         biography: raw.biography ?? null,
         filmography,

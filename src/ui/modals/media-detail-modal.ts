@@ -41,6 +41,7 @@ import {
   needsEpisodeSync,
 } from "../../services/episode-import";
 import { renderRatingEvolutionChart } from "../components/rating-chart";
+import { renderExpandableText } from "../components/expandable-text";
 import {
   statusLabel,
   formatRating,
@@ -613,33 +614,7 @@ export class MediaDetailModal extends Modal {
   }
 
   private renderDescription(container: HTMLElement, synopsis: string): void {
-    const SHORT_LENGTH = 220;
-
-    const wrapper = container.createDiv({
-      cls: "mediavault-detail-description",
-    });
-
-    const textEl = wrapper.createEl("p", {
-      cls: "mediavault-detail-synopsis",
-    });
-
-    const needsToggle = synopsis.length > SHORT_LENGTH;
-    const text =
-      needsToggle && !this.descriptionExpanded
-        ? synopsis.slice(0, SHORT_LENGTH).trimEnd() + "..."
-        : synopsis;
-
-    textEl.appendText(text);
-
-    if (!needsToggle) return;
-
-    const toggle = textEl.createSpan({
-      cls: "mediavault-detail-description-toggle",
-      text: this.descriptionExpanded ? " Show less" : " Show more",
-    });
-
-    toggle.addEventListener("click", (evt) => {
-      evt.stopPropagation();
+    renderExpandableText(container, synopsis, this.descriptionExpanded, () => {
       this.descriptionExpanded = !this.descriptionExpanded;
       this.render();
     });
