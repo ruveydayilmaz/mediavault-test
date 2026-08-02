@@ -568,7 +568,9 @@ export class LibraryView extends ItemView {
     onChange: () => void,
   ): void {
     if (genres.length === 0) return;
-    const row = panel.createDiv({ cls: "mediavault-filter-row" });
+    const row = panel.createDiv({
+      cls: "mediavault-filter-row mediavault-filter-genre-row",
+    });
     row.createSpan({
       cls: "mediavault-filter-label",
       text: t("library.genre"),

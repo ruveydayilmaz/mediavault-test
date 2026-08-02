@@ -4,7 +4,7 @@ import type { StorageService } from "../../services/storage";
 import { MediaItem } from "../../models/media";
 import { t } from "../../i18n";
 import { makeClearable } from "../components/clearable-input";
-import { renderListCard } from "../components/list-card";
+import { renderListCard, updateListCardBanner } from "../components/list-card";
 
 export class AddToListModal extends Modal {
   private storage: StorageService;
@@ -55,42 +55,49 @@ export class AddToListModal extends Modal {
 
     for (const list of lists) {
       const alreadyIn = list.mediaIds.includes(this.media.id);
-      const card = renderListCard(listEl, list, allMedia, (cardEl) => {
-        if (alreadyIn) {
-          const confirmed = confirm(
-            t("addToList.removeConfirm", {
-              title: this.media.title,
-              list: list.title,
-            }),
-          );
-          if (!confirmed) return;
+      renderListCard(
+        listEl,
+        list,
+        allMedia,
+        (cardEl) => {
+          const isSelected = cardEl.hasClass("is-selected");
+
+          if (isSelected) {
+            const confirmed = confirm(
+              t("addToList.removeConfirm", {
+                title: this.media.title,
+                list: list.title,
+              }),
+            );
+            if (!confirmed) return;
+            void this.storage.customLists
+              .removeMedia(list.id, this.media.id)
+              .then((updated) => {
+                this.onChanged?.();
+                cardEl.removeClass("is-selected");
+                if (updated) {
+                  updateListCardBanner(cardEl, updated, allMedia);
+                }
+              });
+            return;
+          }
+
           void this.storage.customLists
-            .removeMedia(list.id, this.media.id)
-            .then(async () => {
+            .addMedia(list.id, this.media.id)
+            .then((updated) => {
               this.onChanged?.();
-              await this.render();
+              cardEl.addClass("is-selected");
+              cardEl.addClass("is-added-flash");
+              window.setTimeout(() => {
+                cardEl.removeClass("is-added-flash");
+              }, 900);
+              if (updated) {
+                updateListCardBanner(cardEl, updated, allMedia);
+              }
             });
-          return;
-        }
-
-        void this.storage.customLists
-          .addMedia(list.id, this.media.id)
-          .then(() => {
-            this.onChanged?.();
-            cardEl.addClass("is-added-flash");
-            window.setTimeout(() => {
-              cardEl.removeClass("is-added-flash");
-            }, 900);
-          });
-      });
-
-      if (alreadyIn) {
-        card.addClass("is-in-list");
-        card.createDiv({
-          cls: "mediavault-list-card-in-badge",
-          text: t("addToList.alreadyInList"),
-        });
-      }
+        },
+        { selected: alreadyIn },
+      );
     }
 
     const createRow = contentEl.createDiv({
@@ -118,3 +125,4 @@ export class AddToListModal extends Modal {
     });
   }
 }
+

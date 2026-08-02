@@ -5,6 +5,7 @@ import {
   formatRelativeDate,
 } from "../../services/list-service";
 import { renderPoster } from "./media-render";
+import { setIcon } from "obsidian";
 import { t } from "../../i18n";
 
 /**
@@ -12,26 +13,28 @@ import { t } from "../../i18n";
  * grid, so any surface (Lists view, Add to List modal, etc.) shows lists
  * identically. `onClick` receives the card element so callers can add
  * transient state (e.g. a success flash) on top of it.
+ *
+ * `selected` renders a persistent "in this list" state (accent border +
+ * check badge).
  */
 export function renderListCard(
   container: HTMLElement,
   list: CustomList,
   allMedia: MediaItem[],
   onClick: (card: HTMLElement) => void,
+  opts?: { selected?: boolean },
 ): HTMLElement {
   const card = container.createDiv({ cls: "mediavault-list-card" });
+  card.dataset.listId = String(list.id);
 
-  const bannerPosters = getListBannerPosters(list, allMedia);
   const banner = card.createDiv({ cls: "mediavault-list-banner" });
-  for (let i = 0; i < 4; i++) {
-    const cell = banner.createDiv({ cls: "mediavault-list-banner-cell" });
-    const media = bannerPosters[i];
-    if (media) {
-      renderPoster(cell, media, "w200");
-    } else {
-      cell.addClass("is-empty");
-    }
-  }
+  const cells = banner.createDiv({ cls: "mediavault-list-banner-cells" });
+  renderListCardBannerCells(cells, list, allMedia);
+
+  const selectedBadge = banner.createDiv({
+    cls: "mediavault-list-card-selected-badge",
+  });
+  setIcon(selectedBadge, "check");
 
   const scrim = banner.createDiv({ cls: "mediavault-list-card-scrim" });
   scrim.createDiv({ cls: "mediavault-list-card-title", text: list.title });
@@ -59,7 +62,53 @@ export function renderListCard(
     });
   }
 
+  if (opts?.selected) {
+    card.addClass("is-selected");
+  }
+
   card.addEventListener("click", () => onClick(card));
 
   return card;
+}
+
+/** (Re)renders just the banner poster cells for a list card, in place. */
+export function renderListCardBannerCells(
+  cellsContainer: HTMLElement,
+  list: CustomList,
+  allMedia: MediaItem[],
+): void {
+  cellsContainer.empty();
+  const bannerPosters = getListBannerPosters(list, allMedia);
+  for (let i = 0; i < 4; i++) {
+    const cell = cellsContainer.createDiv({
+      cls: "mediavault-list-banner-cell",
+    });
+    const media = bannerPosters[i];
+    if (media) {
+      renderPoster(cell, media, "w200");
+    } else {
+      cell.addClass("is-empty");
+    }
+  }
+}
+
+/** Updates an already-rendered card's banner posters in place (no reopen). */
+export function updateListCardBanner(
+  card: HTMLElement,
+  list: CustomList,
+  allMedia: MediaItem[],
+): void {
+  const cells = card.querySelector<HTMLElement>(
+    ".mediavault-list-banner-cells",
+  );
+  if (!cells) return;
+  renderListCardBannerCells(cells, list, allMedia);
+}
+
+/** Marks a rendered list card as selected (in the list) or not, live. */
+export function setListCardSelected(
+  card: HTMLElement,
+  selected: boolean,
+): void {
+  card.toggleClass("is-selected", selected);
 }

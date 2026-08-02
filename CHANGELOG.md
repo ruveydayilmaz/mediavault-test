@@ -2,6 +2,14 @@
 
 All notable changes to MediaVault are documented in this file.
 
+## [4.48.0] — Add to List UI Polish & Mobile Filter Layout Fixes
+
+- **Add to List modal**: fixed the title sitting too low on cards — the modal's grid produced much wider (and thus taller, at fixed 16:9) banners than the Lists page's own grid, so the banner is now height-capped here to keep the title clearly readable, matching the Lists page's proportions. Added a persistent, live "selected" state (accent outline + check badge) driven by a shared `renderListCard`/`setListCardSelected` API — a list already containing the media shows selected the moment the modal opens, and clicking a list flips its selected state immediately (plus a brief confirmation flash) without a full re-render. Added `updateListCardBanner()` so a card's poster collage updates in place the instant media is added/removed, with no full-modal reopen needed.
+- **Mobile filter layout regression fixes**:
+  - Text inputs, the clearable-input wrapper, and range sliders now have their control height explicitly pinned on mobile — only width changes to 100%, matching the normal control height used everywhere else in MediaVault (previous update let them stretch to fill row height, making them oversized).
+  - Genre selector: the mobile "stack filter rows into a column" rule was catching the Genre row too, collapsing its horizontal-scroll flex-row layout and letting the genre carousel overflow past the panel edge. The Genre row is now excluded from that rule and keeps its original row layout, horizontal scroll, and containment.
+- Verification: `tsc -noEmit -skipLibCheck` clean, `eslint src` clean (1 pre-existing unrelated warning in `main.ts`), production build succeeded. No new tests written, per standing instruction.
+
 ## [4.47.0] — Actor Details, List Selection UI, Library Filters & Explore Detail Sync
 
 - **Actor/Actress Details**: extracted the Movie/TV description's Show more/Show less logic into a shared `renderExpandableText()` component, now reused for the actor Biography (short bios render in full, long ones truncate with the same toggle). Redesigned the header section (photo, name, born/died/place-of-birth, biography) for cleaner spacing and alignment; Filmography untouched. Added `deathday` end-to-end (TMDB raw/normalized person types, `getPersonDetails()` mapping) to support showing it when present.
