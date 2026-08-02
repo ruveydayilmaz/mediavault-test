@@ -513,12 +513,14 @@ export class LibraryView extends ItemView {
       },
     );
 
-    const favRow = panel.createDiv({ cls: "mediavault-filter-row" });
-    favRow.createSpan({
-      cls: "mediavault-filter-label",
-      text: t("library.favoriteOnly"),
+    const favRow = panel.createDiv({
+      cls: "mediavault-filter-row mediavault-filter-checkbox-row",
     });
-    const favCheckbox = favRow.createEl("input", { type: "checkbox" });
+    const favLabel = favRow.createEl("label", {
+      cls: "mediavault-filter-checkbox-label",
+    });
+    const favCheckbox = favLabel.createEl("input", { type: "checkbox" });
+    favLabel.createSpan({ text: t("library.favoriteOnly") });
     favCheckbox.checked = this.filterCriteria.favoritesOnly;
     favCheckbox.addEventListener("change", () => {
       this.filterCriteria.favoritesOnly = favCheckbox.checked;

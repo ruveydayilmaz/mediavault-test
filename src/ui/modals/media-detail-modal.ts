@@ -94,6 +94,8 @@ export class MediaDetailModal extends Modal {
   private activeTab: DetailTab = "episodes";
   private expandedSeasons = new Set<number>();
   private descriptionExpanded = false;
+  private heroImgEl: HTMLImageElement | null = null;
+  private heroImgUrl: string | null = null;
   private selectedEpisode: Episode | null = null;
   private tabBeforeEpisodeDetail: DetailTab = "episodes";
   private episodesScrollTop = 0;
@@ -253,10 +255,23 @@ export class MediaDetailModal extends Modal {
       "original",
     );
     if (bannerUrl) {
-      hero.createEl("img", {
-        cls: "mediavault-detail-banner-img",
-        attr: { src: bannerUrl, alt: "" },
-      });
+      if (this.heroImgEl && this.heroImgUrl === bannerUrl) {
+        // Re-attach the already-decoded <img> node instead of creating a
+        // fresh one for the same backdrop — recreating it forced a full
+        // re-fetch/re-decode/repaint on every re-render (most visible on
+        // Android's slower decode path), even though the data never changed.
+        hero.appendChild(this.heroImgEl);
+      } else {
+        const img = hero.createEl("img", {
+          cls: "mediavault-detail-banner-img",
+          attr: { src: bannerUrl, alt: "" },
+        });
+        this.heroImgEl = img;
+        this.heroImgUrl = bannerUrl;
+      }
+    } else {
+      this.heroImgEl = null;
+      this.heroImgUrl = null;
     }
     hero.createDiv({ cls: "mediavault-detail-banner-overlay" });
 
@@ -1918,7 +1933,10 @@ export class MediaDetailModal extends Modal {
     setIcon(deleteBtn, "trash-2");
     deleteBtn.setAttr("aria-label", t("detail.deleteThisWatch"));
     deleteBtn.addEventListener("click", async () => {
-      await deleteEpisodeWatch(this.storage, watch.id);
+      await deleteEpisodeWatch(this.storage, episode, watch.id);
+      this.plugin?.refreshLibraryViews();
+      this.plugin?.refreshListViews();
+      this.onChanged?.();
       await this.render();
     });
 

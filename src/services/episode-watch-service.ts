@@ -2,6 +2,7 @@ import type { StorageService } from "./storage";
 import { Episode, EpisodeWatch } from "../models/episode";
 import { MediaVaultId } from "../types/common";
 import { markEpisodeWatched } from "./episode-status-sync";
+import { recalculateAndPersistStatus } from "./status-service";
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -51,9 +52,22 @@ export async function updateEpisodeWatch(
 
 export async function deleteEpisodeWatch(
   storage: StorageService,
+  episode: Episode,
   watchId: MediaVaultId,
 ): Promise<void> {
   await storage.episodeWatches.delete(watchId);
+
+  const remaining = await storage.episodeWatches.findByEpisodeId(episode.id);
+  if (remaining.length === 0) {
+    // No watches left for this episode — bring episodeProgress back in
+    // sync (and let markEpisodeWatched handle status/series-completion
+    // recalculation) instead of leaving `watched: true` stranded with no
+    // backing watch record, which permanently blocked every future
+    // watch/rewatch action for the episode.
+    await markEpisodeWatched(storage, episode, false);
+  } else {
+    await recalculateAndPersistStatus(storage, episode.mediaId);
+  }
 }
 
 export function sortEpisodeWatchesChronological(
