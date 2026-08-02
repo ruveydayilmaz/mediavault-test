@@ -143,10 +143,10 @@ export class MediaDetailModal extends Modal {
   }
 
   private async initialize(): Promise<void> {
-    if (this.media.type === MediaType.TVShow && !this.isPreview) {
-      await this.maybeAutoSyncEpisodes();
-    }
     await this.render();
+    if (this.media.type === MediaType.TVShow && !this.isPreview) {
+      void this.maybeAutoSyncEpisodes();
+    }
   }
 
   private async maybeAutoSyncEpisodes(): Promise<void> {
@@ -161,6 +161,12 @@ export class MediaDetailModal extends Modal {
       const refreshed = await this.storage.media.findById(this.media.id);
       if (refreshed) this.media = refreshed;
       this.onChanged?.();
+      // The modal has already painted by this point — only refresh in place
+      // if the episodes tab is actually the one currently visible, instead
+      // of unconditionally rebuilding the whole modal a second time.
+      if (this.activeTab === "episodes") {
+        await this.rerenderPreservingEpisodesScroll();
+      }
     } catch {
       // The user can manually refresh episodes from the hero menu if they want to retry
     }
@@ -233,13 +239,19 @@ export class MediaDetailModal extends Modal {
       if (this.previewTmdbRating !== null) {
         detail.createDiv({
           cls: "mediavault-detail-rating",
-          text: `★ ${formatRating(this.previewTmdbRating)} on TMDB`,
+          text: t("detail.tmdbRatingLabel", {
+            rating: formatRating(this.previewTmdbRating),
+          }),
         });
       }
     } else if (this.media.averageRating !== null) {
       detail.createDiv({
         cls: "mediavault-detail-rating",
-        text: `★ ${formatRating(this.media.averageRating)} average across ${this.media.watchCount} watch${this.media.watchCount === 1 ? "" : "es"}`,
+        text: t("detail.averageRatingAcrossWatches", {
+          rating: formatRating(this.media.averageRating),
+          count: this.media.watchCount,
+          plural: this.media.watchCount === 1 ? "" : "es",
+        }),
       });
     }
     if (this.media.synopsis) {
@@ -474,14 +486,14 @@ export class MediaDetailModal extends Modal {
 
     menu.addItem((item) =>
       item
-        .setTitle("Edit poster")
+        .setTitle(t("detail.editPoster"))
         .setIcon("image")
         .onClick(() => this.openImagePicker("poster")),
     );
 
     menu.addItem((item) =>
       item
-        .setTitle("Edit banner")
+        .setTitle(t("detail.editBanner"))
         .setIcon("image")
         .onClick(() => this.openImagePicker("backdrop")),
     );
@@ -490,7 +502,9 @@ export class MediaDetailModal extends Modal {
 
     menu.addItem((item) =>
       item
-        .setTitle(this.media.notePath ? "Open note" : "Generate note")
+        .setTitle(
+          this.media.notePath ? t("detail.openNote") : t("detail.generateNote"),
+        )
         .setIcon("file-text")
         .onClick(async () => {
           const path = await generateMediaNote(
@@ -508,7 +522,7 @@ export class MediaDetailModal extends Modal {
 
     menu.addItem((item) =>
       item
-        .setTitle("Comfort profile")
+        .setTitle(t("comfort.profileTitle"))
         .setIcon("heart")
         .onClick(() => {
           new ComfortProfileModal(this.app, this.storage, this.media, () =>
@@ -519,7 +533,7 @@ export class MediaDetailModal extends Modal {
 
     menu.addItem((item) =>
       item
-        .setTitle("Add to list")
+        .setTitle(t("addToList.title"))
         .setIcon("list-plus")
         .onClick(() => {
           new AddToListModal(this.app, this.storage, this.media, () =>
@@ -544,7 +558,7 @@ export class MediaDetailModal extends Modal {
 
       menu.addItem((item) =>
         item
-          .setTitle("Mark as partially watched")
+          .setTitle(t("detail.markAsPartiallyWatched"))
           .setIcon("timer")
           .onClick(() => void this.openMoviePartialWatchModal()),
       );
@@ -552,7 +566,7 @@ export class MediaDetailModal extends Modal {
       if (this.media.status === MediaStatus.Dropped) {
         menu.addItem((item) =>
           item
-            .setTitle("Resume Watching")
+            .setTitle(t("detail.resumeWatching"))
             .setIcon("play")
             .onClick(async () => {
               await resumeMovie(this.storage, this.media.id);
@@ -568,7 +582,7 @@ export class MediaDetailModal extends Modal {
 
       menu.addItem((item) =>
         item
-          .setTitle("Refresh episodes from TMDB")
+          .setTitle(t("detail.refreshEpisodes"))
           .setIcon("refresh-cw")
           .onClick(() => void this.runEpisodeImport()),
       );
@@ -576,7 +590,7 @@ export class MediaDetailModal extends Modal {
       if (this.media.status === MediaStatus.Dropped) {
         menu.addItem((item) =>
           item
-            .setTitle("Resume Watching")
+            .setTitle(t("detail.resumeWatching"))
             .setIcon("play")
             .onClick(async () => {
               await resumeSeries(this.storage, this.media.id);
@@ -587,7 +601,7 @@ export class MediaDetailModal extends Modal {
       } else {
         menu.addItem((item) =>
           item
-            .setTitle("Mark as Dropped")
+            .setTitle(t("detail.markAsDropped"))
             .setIcon("x-circle")
             .onClick(() => {
               new DropSeriesModal(this.app, this.storage, {
@@ -709,13 +723,13 @@ export class MediaDetailModal extends Modal {
       cls: "mediavault-detail-section",
     });
     timelineSection.createEl("h3", {
-      text: `Watch history (${sessions.length})`,
+      text: t("detail.watchHistoryCount", { count: sessions.length }),
     });
 
     if (sessions.length === 0) {
       timelineSection.createDiv({
         cls: "mediavault-timeline-empty",
-        text: 'No watches logged yet. Click "Log a watch" to add your first review.',
+        text: t("detail.noWatchesLoggedYet"),
       });
     } else {
       const timeline = timelineSection.createDiv({
@@ -1046,7 +1060,10 @@ export class MediaDetailModal extends Modal {
       const footer = main.createDiv({ cls: "mediavault-comment-footer" });
       footer.createSpan({
         cls: "mediavault-comment-likes",
-        text: `👍 ${comment.likes} like${comment.likes === 1 ? "" : "s"}`,
+        text: t("detail.likesCount", {
+          count: comment.likes,
+          plural: comment.likes === 1 ? "" : "s",
+        }),
       });
 
       if (
@@ -1440,7 +1457,7 @@ export class MediaDetailModal extends Modal {
 
       menu.addItem((item) =>
         item
-          .setTitle("Mark season unwatched")
+          .setTitle(t("detail.markSeasonUnwatched"))
           .setIcon("rotate-ccw")
           .onClick(async () => {
             await markSeasonWatched(this.storage, episodes, false);
@@ -1745,7 +1762,10 @@ export class MediaDetailModal extends Modal {
 
     heroContent.createDiv({
       cls: "mediavault-detail-meta",
-      text: `Season ${episode.seasonNumber} • Episode ${episode.episodeNumber}`,
+      text: t("detail.seasonEpisodeLabel", {
+        season: episode.seasonNumber,
+        episode: episode.episodeNumber,
+      }),
     });
     heroContent.createDiv({
       cls: "mediavault-detail-meta",
@@ -1921,7 +1941,9 @@ export class MediaDetailModal extends Modal {
     const headerRow = card.createDiv({
       cls: "mediavault-episode-watch-card-header",
     });
-    headerRow.createEl("strong", { text: `Watch #${watchNumber}` });
+    headerRow.createEl("strong", {
+      text: t("detail.watchNumber", { n: watchNumber }),
+    });
     headerRow.createSpan({
       cls: "mediavault-detail-meta",
       text: watch.watchedAt,

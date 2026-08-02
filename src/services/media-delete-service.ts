@@ -1,4 +1,5 @@
 import type { App } from "obsidian";
+import { t } from "../i18n";
 import type { StorageService } from "./storage";
 import { MediaItem } from "../models/media";
 import { MediaType } from "../types/enums";
@@ -74,16 +75,20 @@ async function deleteMediaNote(app: App, media: MediaItem): Promise<boolean> {
 }
 
 export function describeDeletionScope(media: MediaItem): string[] {
-  const lines = ["Watch history", "Reviews", "Ratings"];
+  const lines = [
+    t("detail.deletionScopeWatchHistory"),
+    t("detail.deletionScopeReviews"),
+    t("detail.deletionScopeRatings"),
+  ];
   if (media.type === MediaType.TVShow) {
-    lines.push("Episode progress");
-    lines.push("Episode watch history");
+    lines.push(t("detail.deletionScopeEpisodeProgress"));
+    lines.push(t("detail.deletionScopeEpisodeWatchHistory"));
   }
   if (media.type === MediaType.Movie) {
-    lines.push("Partial watch progress");
+    lines.push(t("detail.deletionScopePartialWatchProgress"));
   }
-  lines.push("Favorites status");
-  if (media.notePath) lines.push("Generated note");
-  lines.push("References in any custom lists");
+  lines.push(t("detail.deletionScopeFavoritesStatus"));
+  if (media.notePath) lines.push(t("detail.deletionScopeGeneratedNote"));
+  lines.push(t("detail.deletionScopeListReferences"));
   return lines;
 }

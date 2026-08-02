@@ -204,7 +204,9 @@ export class ActorDetailsModal extends Modal {
     if (items.length > visibleCount) {
       const moreBtn = this.gridEl.createEl("button", {
         cls: "mediavault-actor-load-more",
-        text: `Load more (${items.length - visibleCount} remaining)`,
+        text: t("detail.loadMoreRemaining", {
+          count: items.length - visibleCount,
+        }),
       });
       moreBtn.addEventListener("click", () => {
         this.visibleCountByTab[activeTab] += 30;
@@ -235,7 +237,7 @@ export class ActorDetailsModal extends Modal {
     if (item.character) {
       info.createDiv({
         cls: "mediavault-detail-meta",
-        text: `as ${item.character}`,
+        text: t("detail.asCharacter", { character: item.character }),
       });
     }
 

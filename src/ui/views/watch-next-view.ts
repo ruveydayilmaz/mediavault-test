@@ -189,7 +189,11 @@ export class WatchNextView extends ItemView {
     info.createDiv({ cls: "mediavault-media-card-title", text: media.title });
     info.createDiv({
       cls: "mediavault-media-card-subtitle",
-      text: `S${episode.seasonNumber}E${episode.episodeNumber} — ${episode.title}`,
+      text: t("watchNext.episodeLabel", {
+        season: episode.seasonNumber,
+        episode: episode.episodeNumber,
+        title: episode.title,
+      }),
     });
 
     const meta = info.createDiv({ cls: "mediavault-media-card-meta" });
@@ -334,7 +338,11 @@ export class WatchNextView extends ItemView {
 
         info.createDiv({
           cls: "mediavault-media-card-subtitle",
-          text: `S${episode.seasonNumber}E${episode.episodeNumber} — ${episode.title}`,
+          text: t("watchNext.episodeLabel", {
+        season: episode.seasonNumber,
+        episode: episode.episodeNumber,
+        title: episode.title,
+      }),
         });
 
         const meta = info.createDiv({

@@ -1,4 +1,5 @@
 import { Modal, setIcon } from "obsidian";
+import { t } from "../../i18n";
 
 // --- Investigation -------------------------------------------------------
 // Older MediaVault versions never showed Obsidian's default close button
@@ -52,7 +53,7 @@ export function renderMobileBackButton(
   markMediaVaultModalShell(modal);
   const btn = container.createDiv({ cls: "mediavault-modal-back" });
   setIcon(btn, "arrow-left");
-  btn.setAttribute("aria-label", "Back");
+  btn.setAttribute("aria-label", t("common.back"));
   btn.setAttribute("role", "button");
   btn.addEventListener("click", (evt) => {
     evt.stopPropagation();
@@ -73,7 +74,7 @@ export function renderInlineBackButton(
     cls: "mediavault-modal-back mediavault-modal-back-inline",
   });
   setIcon(btn, "arrow-left");
-  btn.setAttribute("aria-label", "Back");
+  btn.setAttribute("aria-label", t("common.back"));
   btn.setAttribute("role", "button");
   btn.addEventListener("click", (evt) => {
     evt.stopPropagation();
@@ -92,7 +93,7 @@ export function renderModalHeader(
   const row = container.createDiv({ cls: "mediavault-modal-header-row" });
   const btn = row.createDiv({ cls: "mediavault-modal-back" });
   setIcon(btn, "arrow-left");
-  btn.setAttribute("aria-label", "Back");
+  btn.setAttribute("aria-label", t("common.back"));
   btn.setAttribute("role", "button");
   btn.addEventListener("click", (evt) => {
     evt.stopPropagation();

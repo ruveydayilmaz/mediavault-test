@@ -415,7 +415,7 @@ export class LibraryView extends ItemView {
     const yearMin = yearGroup.createEl("input", {
       cls: "mediavault-filter-number-input",
       type: "number",
-      attr: { placeholder: "Min" },
+      attr: { placeholder: t("library.min") },
     });
     yearMin.value = this.filterCriteria.yearMin?.toString() ?? "";
     yearMin.addEventListener("change", () => {
@@ -428,7 +428,7 @@ export class LibraryView extends ItemView {
     const yearMax = yearGroup.createEl("input", {
       cls: "mediavault-filter-number-input",
       type: "number",
-      attr: { placeholder: "Max" },
+      attr: { placeholder: t("library.max") },
     });
     yearMax.value = this.filterCriteria.yearMax?.toString() ?? "";
     yearMax.addEventListener("change", () => {
@@ -467,7 +467,7 @@ export class LibraryView extends ItemView {
     const runtimeMin = runtimeGroup.createEl("input", {
       cls: "mediavault-filter-number-input mediavault-filter-runtime-input",
       type: "number",
-      attr: { min: "0", step: "5", placeholder: "Min" },
+      attr: { min: "0", step: "5", placeholder: t("library.min") },
     });
     runtimeMin.value = this.filterCriteria.runtimeMin?.toString() ?? "";
     runtimeGroup.createSpan({
@@ -485,7 +485,7 @@ export class LibraryView extends ItemView {
     const runtimeMax = runtimeGroup.createEl("input", {
       cls: "mediavault-filter-number-input mediavault-filter-runtime-input",
       type: "number",
-      attr: { min: "0", step: "5", placeholder: "Max" },
+      attr: { min: "0", step: "5", placeholder: t("library.max") },
     });
     runtimeMax.value = this.filterCriteria.runtimeMax?.toString() ?? "";
     runtimeGroup.createSpan({
@@ -805,7 +805,10 @@ export class LibraryView extends ItemView {
     onChange: (v: number | undefined) => void,
   ): void {
     const row = panel.createDiv({ cls: "mediavault-filter-row" });
-    row.createSpan({ cls: "mediavault-filter-label", text: `${label} (min)` });
+    row.createSpan({
+      cls: "mediavault-filter-label",
+      text: t("library.minSuffix", { label }),
+    });
     const slider = row.createEl("input", {
       cls: "mediavault-filter-slider",
       type: "range",
@@ -829,7 +832,7 @@ export class LibraryView extends ItemView {
 
     const searchInput = toolbar.createEl("input", {
       type: "text",
-      placeholder: "Search your library...",
+      placeholder: t("library.searchLibraryPlaceholder"),
       cls: "mediavault-library-search",
     });
     this.toolbarSearchEl = searchInput;
@@ -908,7 +911,7 @@ export class LibraryView extends ItemView {
     getSortOptions().forEach((opt) => {
       sortSelect.createEl("option", {
         value: opt.value,
-        text: `Sort: ${opt.label}`,
+        text: t("library.sortPrefix", { label: opt.label }),
       });
     });
     sortSelect.value = this.query.sortField;
@@ -1229,7 +1232,7 @@ export class LibraryView extends ItemView {
 
     pagination.createSpan({
       cls: "mediavault-pagination-info",
-      text: `Page ${page} of ${totalPages} (${total} items)`,
+      text: t("library.paginationSummary", { page, totalPages, total }),
     });
 
     const nextBtn = pagination.createEl("button", {

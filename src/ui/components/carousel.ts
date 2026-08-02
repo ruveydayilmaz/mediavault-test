@@ -1,4 +1,5 @@
 import { Platform } from "obsidian";
+import { t } from "../../i18n";
 
 const SWIPE_HINT_SEEN_KEY = "mediavault-carousel-swipe-hint-seen";
 
@@ -73,14 +74,14 @@ export function createCarousel(container: HTMLElement): { track: HTMLElement } {
     cls: "mediavault-carousel-nav mediavault-carousel-nav-prev",
     text: "‹",
   });
-  prevBtn.setAttr("aria-label", "Scroll left");
+  prevBtn.setAttr("aria-label", t("carousel.scrollLeft"));
   container.insertBefore(prevBtn, track);
 
   const nextBtn = container.createEl("button", {
     cls: "mediavault-carousel-nav mediavault-carousel-nav-next",
     text: "›",
   });
-  nextBtn.setAttr("aria-label", "Scroll right");
+  nextBtn.setAttr("aria-label", t("carousel.scrollRight"));
 
   const scrollByOneItem = (direction: 1 | -1) => {
     const firstItem = track.firstElementChild as HTMLElement | null;

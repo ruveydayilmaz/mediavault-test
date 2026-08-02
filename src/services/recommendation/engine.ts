@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import type { StorageService } from "../storage";
 import type { TMDBService } from "../../api/tmdb";
 import { MediaItem } from "../../models/media";
@@ -137,7 +138,7 @@ async function buildSimilarToFavorites(
     posterPath: candidate.posterPath,
     score,
     reasons:
-      reasons.length > 0 ? reasons : ["Similar to your top-rated titles"],
+      reasons.length > 0 ? reasons : [t("recommendations.similarToTopRated")],
   }));
 }
 
@@ -160,7 +161,7 @@ async function buildHiddenGems(
     posterPath: candidate.posterPath,
     score,
     reasons:
-      reasons.length > 0 ? reasons : ["A lesser-known match for your taste"],
+      reasons.length > 0 ? reasons : [t("recommendations.lesserKnownMatch")],
   }));
 }
 
@@ -182,7 +183,7 @@ async function buildComfortRewatchPicks(
       year: item.media.year,
       posterPath: item.media.posterPath,
       score: match.score,
-      reasons: ["A familiar favorite you already love"],
+      reasons: [t("recommendations.familiarFavorite")],
     };
   });
 }
@@ -212,8 +213,8 @@ async function buildEnergyPicks(
       score: match.score,
       reasons: [
         category === "high_energy"
-          ? "High-energy pick from your library"
-          : "Easy, low-attention pick from your library",
+          ? t("recommendations.highEnergyPick")
+          : t("recommendations.lowAttentionPick"),
       ],
     };
   });

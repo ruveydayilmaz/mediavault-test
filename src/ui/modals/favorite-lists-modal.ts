@@ -1,4 +1,5 @@
 import { App, Modal } from "obsidian";
+import { t } from "../../i18n";
 import type MediaVaultPlugin from "../../main";
 import { CustomList } from "../../models/list";
 import { MediaItem } from "../../models/media";
@@ -56,7 +57,10 @@ export class FavoriteListsModal extends Modal {
     scrim.createDiv({ cls: "mediavault-list-card-title", text: list.title });
     const meta = scrim.createDiv({ cls: "mediavault-list-card-meta" });
     meta.createSpan({
-      text: `${list.mediaIds.length} item${list.mediaIds.length === 1 ? "" : "s"}`,
+      text: t("lists.itemCountN", {
+        count: list.mediaIds.length,
+        plural: list.mediaIds.length === 1 ? "" : "s",
+      }),
     });
 
     card.addEventListener("click", () => {

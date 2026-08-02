@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import {
   AffinityProfile,
   AffinityScoreBreakdown,
@@ -66,20 +67,20 @@ export function explainScore(
   const topGenre = candidate.genres.find(
     (g) => (profile.genre.get(g) ?? 0) > 0.5,
   );
-  if (topGenre) reasons.push(`You rate ${topGenre} highly`);
+  if (topGenre) reasons.push(t("recommendations.rateGenreHighly", { genre: topGenre }));
 
   const topActor = candidate.castNames.find(
     (a) => (profile.actor.get(a) ?? 0) > 0.5,
   );
-  if (topActor) reasons.push(`Features ${topActor}`);
+  if (topActor) reasons.push(t("recommendations.featuresActor", { actor: topActor }));
 
   const topDirector = candidate.directorNames.find(
     (d) => (profile.director.get(d) ?? 0) > 0.5,
   );
-  if (topDirector) reasons.push(`Directed by ${topDirector}`);
+  if (topDirector) reasons.push(t("recommendations.directedBy", { director: topDirector }));
 
   if (breakdown.comfortMatch !== undefined && breakdown.comfortMatch > 0.6) {
-    reasons.push("Matches your comfort preferences");
+    reasons.push(t("recommendations.matchesComfortPreferences"));
   }
 
   return reasons;

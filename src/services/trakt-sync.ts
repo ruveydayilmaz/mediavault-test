@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import type { StorageService } from "./storage";
 import type { TMDBService } from "../api/tmdb";
 import type { TraktService, TraktHistoryItem } from "../api/trakt";
@@ -117,7 +118,7 @@ async function pullMovieHistoryItem(
     mediaId: mediaItem.id,
     watchDate: item.watchedAt.slice(0, 10),
     rating: ratingByTmdbId.get(tmdbId) ?? null,
-    context: "Synced from Trakt",
+    context: t("watchSession.syncedFromTrakt"),
     externalSource: "trakt",
     externalRef,
   });

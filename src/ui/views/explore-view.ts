@@ -264,7 +264,7 @@ export class ExploreView extends ItemView {
 
     const yearMin = moreFilters.createEl("input", {
       type: "number",
-      attr: { placeholder: "Year from" },
+      attr: { placeholder: t("explore.yearFromPlaceholder") },
     });
     yearMin.value = this.browseFilters.yearMin?.toString() ?? "";
     yearMin.addEventListener("change", () => {
@@ -276,7 +276,7 @@ export class ExploreView extends ItemView {
 
     const yearMax = moreFilters.createEl("input", {
       type: "number",
-      attr: { placeholder: "Year to" },
+      attr: { placeholder: t("explore.yearToPlaceholder") },
     });
     yearMax.value = this.browseFilters.yearMax?.toString() ?? "";
     yearMax.addEventListener("change", () => {
@@ -288,7 +288,7 @@ export class ExploreView extends ItemView {
 
     const runtimeMin = moreFilters.createEl("input", {
       type: "number",
-      attr: { placeholder: "Runtime min" },
+      attr: { placeholder: t("explore.runtimeMinPlaceholder") },
     });
     runtimeMin.value = this.browseFilters.runtimeMin?.toString() ?? "";
     runtimeMin.addEventListener("change", () => {
@@ -300,7 +300,7 @@ export class ExploreView extends ItemView {
 
     const runtimeMax = moreFilters.createEl("input", {
       type: "number",
-      attr: { placeholder: "Runtime max" },
+      attr: { placeholder: t("explore.runtimeMaxPlaceholder") },
     });
     runtimeMax.value = this.browseFilters.runtimeMax?.toString() ?? "";
     runtimeMax.addEventListener("change", () => {
@@ -312,7 +312,7 @@ export class ExploreView extends ItemView {
 
     const ratingMin = moreFilters.createEl("input", {
       type: "number",
-      attr: { placeholder: "Rating min", step: "0.5", min: "0", max: "10" },
+      attr: { placeholder: t("explore.ratingMinPlaceholder"), step: "0.5", min: "0", max: "10" },
     });
     ratingMin.value = this.browseFilters.ratingMin?.toString() ?? "";
     ratingMin.addEventListener("change", () => {
@@ -324,7 +324,7 @@ export class ExploreView extends ItemView {
 
     const langInput = moreFilters.createEl("input", {
       type: "text",
-      attr: { placeholder: "Language (e.g. en)", maxlength: "2" },
+      attr: { placeholder: t("explore.languagePlaceholder"), maxlength: "2" },
     });
     langInput.value = this.browseFilters.language ?? "";
     makeClearable(langInput);

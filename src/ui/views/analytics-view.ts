@@ -81,11 +81,18 @@ export class AnalyticsView extends ItemView {
 
     const headline = root.createDiv({ cls: "mediavault-analytics-headline" });
     headline.createDiv({
-      text: `${stats.moviesWatchedCount} movies · ${stats.episodesWatchedCount} episodes watched`,
+      text: t("analytics.moviesEpisodesWatchedLine", {
+        movies: stats.moviesWatchedCount,
+        episodes: stats.episodesWatchedCount,
+      }),
     });
     headline.createDiv({
       cls: "mediavault-analytics-subline",
-      text: `${Math.floor(stats.totalRuntimeMinutes / 60)}h total · avg rating ${stats.averageRating?.toFixed(1) ?? "—"} · ${stats.completionRate}% completed`,
+      text: t("analytics.totalStatsLine", {
+        hours: Math.floor(stats.totalRuntimeMinutes / 60),
+        rating: stats.averageRating?.toFixed(1) ?? "—",
+        completion: stats.completionRate,
+      }),
     });
 
     const grid = root.createDiv({ cls: "mediavault-analytics-chart-grid" });
@@ -154,7 +161,7 @@ export class AnalyticsView extends ItemView {
         card,
         "bar",
         {
-          labels: ["First watches", "Rewatches"],
+          labels: [t("analytics.firstWatchesLabel"), t("analytics.rewatchesLabel")],
           datasets: [
             {
               data: [firstWatches, stats.rewatchCount],
