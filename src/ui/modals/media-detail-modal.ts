@@ -174,19 +174,29 @@ export class MediaDetailModal extends Modal {
 
   private async render(): Promise<void> {
     const { contentEl } = this;
-    contentEl.empty();
-    contentEl.addClass("mediavault-detail-modal");
-    renderMobileBackButton(this, contentEl, () => this.handleBack());
 
     const fresh = await this.storage.media.findById(this.media.id);
     if (fresh) this.media = fresh;
+
+    // Resolve everything the header needs (including the one network-bound
+    // call in this path, genre translation) *before* touching the DOM, so
+    // a slow/uncached TMDB lookup can never leave a half-built modal
+    // visible for a frame — the empty()+rebuild below now always happens
+    // as a single synchronous block once all data is in hand.
+    const localizedGenres = this.isPreview
+      ? this.media.genres
+      : await getLocalizedGenreNames(this.tmdb, this.media);
+
+    contentEl.empty();
+    contentEl.addClass("mediavault-detail-modal");
+    renderMobileBackButton(this, contentEl, () => this.handleBack());
 
     if (this.activeTab === "episode-detail" && this.selectedEpisode) {
       await this.renderEpisodeDetailTab(contentEl, this.selectedEpisode);
       return;
     }
 
-    await this.renderHeader(contentEl);
+    await this.renderHeader(contentEl, localizedGenres);
 
     this.renderTabBar(contentEl);
 
@@ -225,8 +235,11 @@ export class MediaDetailModal extends Modal {
     this.close();
   }
 
-  private async renderHeader(contentEl: HTMLElement): Promise<void> {
-    await this.renderHero(contentEl);
+  private async renderHeader(
+    contentEl: HTMLElement,
+    localizedGenres: string[],
+  ): Promise<void> {
+    await this.renderHero(contentEl, localizedGenres);
 
     const body = contentEl.createDiv({ cls: "mediavault-detail-body" });
 
@@ -259,7 +272,10 @@ export class MediaDetailModal extends Modal {
     }
   }
 
-  private async renderHero(contentEl: HTMLElement): Promise<void> {
+  private async renderHero(
+    contentEl: HTMLElement,
+    localizedGenres: string[],
+  ): Promise<void> {
     const hero = contentEl.createDiv({ cls: "mediavault-detail-hero" });
 
     const bannerUrl = tmdbImageUrl(
@@ -317,7 +333,6 @@ export class MediaDetailModal extends Modal {
         await this.render();
       });
     }
-    const localizedGenres = await getLocalizedGenreNames(this.tmdb, this.media);
     left.createDiv({
       cls: "mediavault-detail-meta",
       text: [this.media.year, localizedGenres.join(", ")]
@@ -1320,6 +1335,16 @@ export class MediaDetailModal extends Modal {
       progressRecords.map((p) => [p.episodeId, p]),
     );
 
+    const allWatches = await this.storage.episodeWatches.findByMediaId(
+      this.media.id,
+    );
+    const watchesByEpisodeId = new Map<string, EpisodeWatch[]>();
+    for (const watch of allWatches) {
+      const bucket = watchesByEpisodeId.get(watch.episodeId);
+      if (bucket) bucket.push(watch);
+      else watchesByEpisodeId.set(watch.episodeId, [watch]);
+    }
+
     const activeSeason = seasonNumbers.find((seasonNumber) => {
       const seasonEpisodes = episodes.filter(
         (e) => e.seasonNumber === seasonNumber,
@@ -1346,6 +1371,7 @@ export class MediaDetailModal extends Modal {
         seasonNumber,
         seasonEpisodes,
         progressByEpisodeId,
+        watchesByEpisodeId,
       );
     }
   }
@@ -1365,12 +1391,13 @@ export class MediaDetailModal extends Modal {
     fill.style.width = `${Math.min(100, Math.max(0, percent))}%`;
   }
 
-  private async renderSeason(
+  private renderSeason(
     container: HTMLElement,
     seasonNumber: number,
     episodes: Episode[],
     progressByEpisodeId: Map<string, EpisodeProgress>,
-  ): Promise<void> {
+    watchesByEpisodeId: Map<string, EpisodeWatch[]>,
+  ): void {
     const watchedCount = episodes.filter(
       (e) => progressByEpisodeId.get(e.id)?.watched,
     ).length;
@@ -1469,22 +1496,22 @@ export class MediaDetailModal extends Modal {
       menu.showAtMouseEvent(evt);
     });
 
-    await Promise.all(
-      episodes.map((ep) =>
-        this.renderEpisodeRow(
-          episodesEl,
-          ep,
-          progressByEpisodeId.get(ep.id) ?? null,
-        ),
-      ),
-    );
+    for (const ep of episodes) {
+      this.renderEpisodeRow(
+        episodesEl,
+        ep,
+        progressByEpisodeId.get(ep.id) ?? null,
+        watchesByEpisodeId.get(ep.id) ?? [],
+      );
+    }
   }
 
-  private async renderEpisodeRow(
+  private renderEpisodeRow(
     container: HTMLElement,
     episode: Episode,
     progress: EpisodeProgress | null,
-  ): Promise<void> {
+    episodeWatches: EpisodeWatch[],
+  ): void {
     const row = container.createDiv({
       cls: "mediavault-episode-row is-clickable",
     });
@@ -1513,9 +1540,7 @@ export class MediaDetailModal extends Modal {
         .join(" · "),
     });
 
-    const watches = sortEpisodeWatchesChronological(
-      await this.storage.episodeWatches.findByEpisodeId(episode.id),
-    );
+    const watches = sortEpisodeWatchesChronological(episodeWatches);
 
     const watchBtn = row.createEl("button", {
       cls:

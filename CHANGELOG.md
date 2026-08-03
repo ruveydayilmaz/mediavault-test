@@ -2,6 +2,13 @@
 
 All notable changes to MediaVault are documented in this file.
 
+## [4.54.0] — Fix Detail Modal Re-render After Watch History Exists
+
+- **Root cause (genre translation blocking mid-render)**: `renderHero()` awaited the TMDB genre-translation lookup *after* the title/favorite button were already appended to the live DOM. When that lookup wasn't yet cached (a real network call), the browser could paint a half-built modal before the rest of the header arrived a frame later. Fixed by resolving genre names before any DOM mutation begins — `render()` now gathers all header data first, then performs `contentEl.empty()` + full rebuild as a single synchronous block, so the header can never be split across two paint frames.
+- **Root cause (per-episode-row async fragmentation)**: `renderEpisodesTab` rendered every episode row via `Promise.all`, with each row individually awaiting its own `episodeWatches.findByEpisodeId()` call — a separate async suspension point per row. For a show with zero watched episodes no season auto-expands, so this was invisible; but once any episode is marked watched, its season auto-expands on open, making a whole season's worth of individually-fragmented row renders visible at once. Fixed by batch-fetching all of a show's `EpisodeWatch` records once via `findByMediaId`, grouping them into a map, and making `renderSeason`/`renderEpisodeRow` fully synchronous — no per-row awaits remain in the render path.
+- Together these remove every unnecessary async gap between modal-open and full content paint, so the presence (or size) of a title's watch history no longer affects how the detail modal opens.
+- Verification: `tsc -noEmit -skipLibCheck` clean, `eslint src` clean, production build succeeded. No new tests written, per standing instruction.
+
 ## [4.49.0] — Filter Layout, Android Banner Stability, List Banner Fill & Episode Rewatch Crash
 
 - **Filter layout**: Genre filter now always displays its title on its own row with the horizontal-scroll carousel below it (previously title and carousel shared a row and could wrap unpredictably); horizontal scrolling and containment are unchanged. Favorites Only checkbox is now wrapped with its label in a single `<label>` element so the checkbox sits immediately next to the text on the same row, instead of being pushed away by the shared filter-label's fixed minimum width.
