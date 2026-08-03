@@ -26,6 +26,7 @@ export class MediaRepository extends BaseRepository<MediaItem> {
       year: null,
       releaseDate: null,
       genres: [],
+      genreIds: [],
       runtime: null,
       posterPath: null,
       backdropPath: null,

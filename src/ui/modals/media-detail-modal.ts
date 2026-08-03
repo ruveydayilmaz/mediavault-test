@@ -65,6 +65,7 @@ import { DropSeriesModal } from "./drop-series-modal";
 import { addDestructiveMenuItem } from "../components/destructive-menu-item";
 import { makeClearable } from "../components/clearable-input";
 import { t } from "../../i18n";
+import { getLocalizedGenreNames } from "../../services/genre-labels";
 
 type DetailTab =
   | "history"
@@ -315,9 +316,10 @@ export class MediaDetailModal extends Modal {
         await this.render();
       });
     }
+    const localizedGenres = await getLocalizedGenreNames(this.tmdb, this.media);
     left.createDiv({
       cls: "mediavault-detail-meta",
-      text: [this.media.year, this.media.genres.join(", ")]
+      text: [this.media.year, localizedGenres.join(", ")]
         .filter(Boolean)
         .join(" · "),
     });

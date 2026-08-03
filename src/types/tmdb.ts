@@ -143,6 +143,7 @@ export interface TMDBNormalizedDetails {
   releaseDate: string | null;
   runtime: number | null;
   genres: string[];
+  genreIds: number[];
   posterPath: string | null;
   backdropPath: string | null;
   overview: string;

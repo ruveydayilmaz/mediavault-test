@@ -30,6 +30,7 @@ export function buildMediaItemFromTMDB(
     year: details.year,
     releaseDate: details.releaseDate,
     genres: details.genres,
+    genreIds: details.genreIds,
     runtime: details.runtime,
     posterPath: details.posterPath,
     backdropPath: details.backdropPath,

@@ -2,6 +2,8 @@ import { ItemView, WorkspaceLeaf, setIcon, Platform } from "obsidian";
 import type MediaVaultPlugin from "../../main";
 import { VIEW_TYPE_LIBRARY } from "../../constants";
 import { t } from "../../i18n";
+import { getLocalizedGenreNames, getLocalizedGenreName } from "../../services/genre-labels";
+import { MediaType } from "../../types/enums";
 import { MediaItem } from "../../models/media";
 import {
   LibraryFilter,
@@ -575,7 +577,8 @@ export class LibraryView extends ItemView {
     const grid = row.createDiv({ cls: "mediavault-genre-grid" });
     const settings = this.plugin.storage.settings.get();
     const cache = settings.genreImageCache;
-    const toResolve: string[] = [];
+    const toResolveImages: string[] = [];
+    const toResolveLabels: string[] = [];
 
     genres.forEach((genre) => {
       const card = grid.createDiv({ cls: "mediavault-genre-card" });
@@ -584,14 +587,20 @@ export class LibraryView extends ItemView {
         this.filterCriteria.genres.includes(genre),
       );
 
-      const cachedUrl = cache[genre];
+      const cacheKey = this.genreCacheKey(genre, all);
+      const cachedUrl = cache[cacheKey] ?? cache[genre];
       if (cachedUrl) {
         card.style.backgroundImage = `url(${cachedUrl})`;
       } else {
-        toResolve.push(genre);
+        toResolveImages.push(genre);
       }
       card.createDiv({ cls: "mediavault-genre-card-overlay" });
-      card.createDiv({ cls: "mediavault-genre-card-name", text: genre });
+      const nameEl = card.createDiv({
+        cls: "mediavault-genre-card-name",
+        text: genre,
+      });
+      nameEl.dataset.genreKey = genre;
+      toResolveLabels.push(genre);
 
       card.addEventListener("click", () => {
         const idx = this.filterCriteria.genres.indexOf(genre);
@@ -605,9 +614,64 @@ export class LibraryView extends ItemView {
       });
     });
 
-    if (toResolve.length > 0) {
-      void this.resolveGenreImages(toResolve, all, grid);
+    if (toResolveImages.length > 0) {
+      void this.resolveGenreImages(toResolveImages, all, grid);
     }
+    void this.resolveGenreLabels(toResolveLabels, all, grid);
+  }
+
+  private genreCacheKey(genre: string, all: MediaItem[]): string {
+    for (const m of all) {
+      const idx = m.genres.indexOf(genre);
+      if (idx >= 0 && m.genreIds?.[idx] !== undefined) {
+        return `id:${m.genreIds[idx]}`;
+      }
+    }
+    return genre;
+  }
+
+  private async resolveGenreLabels(
+    genresNeeded: string[],
+    all: MediaItem[],
+    grid: HTMLElement,
+  ): Promise<void> {
+    const updates: Record<string, string> = {};
+
+    for (const genre of genresNeeded) {
+      let genreId: number | undefined;
+      let kind: "movie" | "tv" | undefined;
+      for (const m of all) {
+        const idx = m.genres.indexOf(genre);
+        if (idx >= 0 && m.genreIds?.[idx] !== undefined) {
+          genreId = m.genreIds[idx];
+          kind =
+            m.type === MediaType.Movie
+              ? "movie"
+              : m.type === MediaType.TVShow
+                ? "tv"
+                : undefined;
+          break;
+        }
+      }
+      if (genreId === undefined || !kind) continue;
+
+      const localized = await getLocalizedGenreName(
+        this.plugin.tmdb,
+        kind,
+        genreId,
+        genre,
+      );
+      if (localized !== genre) updates[genre] = localized;
+    }
+
+    if (Object.keys(updates).length === 0) return;
+
+    grid
+      .querySelectorAll<HTMLElement>(".mediavault-genre-card-name")
+      .forEach((nameEl) => {
+        const key = nameEl.dataset.genreKey;
+        if (key && updates[key]) nameEl.setText(updates[key]);
+      });
   }
 
   private async resolveGenreImages(
@@ -616,6 +680,7 @@ export class LibraryView extends ItemView {
     grid: HTMLElement,
   ): Promise<void> {
     const updates: Record<string, string> = {};
+    const keyByGenre: Record<string, string> = {};
     for (const genre of genresNeeded) {
       const source = all.find(
         (m) => m.genres.includes(genre) && (m.backdropPath || m.posterPath),
@@ -625,7 +690,10 @@ export class LibraryView extends ItemView {
         source.backdropPath ?? source.posterPath,
         "w500",
       );
-      if (url) updates[genre] = url;
+      if (!url) continue;
+      const key = this.genreCacheKey(genre, all);
+      updates[key] = url;
+      keyByGenre[genre] = key;
     }
     if (Object.keys(updates).length === 0) return;
 
@@ -638,11 +706,11 @@ export class LibraryView extends ItemView {
       grid.querySelectorAll<HTMLElement>(".mediavault-genre-card"),
     );
     cards.forEach((card) => {
-      const name = card.querySelector(
+      const name = card.querySelector<HTMLElement>(
         ".mediavault-genre-card-name",
-      )?.textContent;
-      if (name && updates[name])
-        card.style.backgroundImage = `url(${updates[name]})`;
+      )?.dataset.genreKey;
+      const key = name ? keyByGenre[name] : undefined;
+      if (key && updates[key]) card.style.backgroundImage = `url(${updates[key]})`;
     });
   }
 
@@ -1109,11 +1177,18 @@ export class LibraryView extends ItemView {
 
     const info = row.createDiv({ cls: "mediavault-list-info" });
     info.createDiv({ cls: "mediavault-list-title", text: item.title });
-    info.createDiv({
+    const meta = info.createDiv({
       cls: "mediavault-list-meta",
       text: [item.year, item.genres.join(", "), formatRuntime(item.runtime)]
         .filter(Boolean)
         .join(" · "),
+    });
+    void getLocalizedGenreNames(this.plugin.tmdb, item).then((names) => {
+      meta.setText(
+        [item.year, names.join(", "), formatRuntime(item.runtime)]
+          .filter(Boolean)
+          .join(" · "),
+      );
     });
 
     row.createDiv({

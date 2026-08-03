@@ -26,6 +26,7 @@ export interface MediaItem {
   releaseDate: string | null;
 
   genres: string[];
+  genreIds: number[];
 
   runtime: number | null;
 

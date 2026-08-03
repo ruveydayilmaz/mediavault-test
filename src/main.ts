@@ -12,7 +12,7 @@ import {
 } from "./constants";
 import { StorageService } from "./services/storage";
 import { StatisticsService } from "./services/statistics-service";
-import { TMDBService } from "./api/tmdb";
+import { TMDBService, tmdbLanguageFor } from "./api/tmdb";
 import { AddMediaModal } from "./ui/modals/add-media-modal";
 import { LibraryView } from "./ui/views/library-view";
 import { AnalyticsView } from "./ui/views/analytics-view";
@@ -66,6 +66,7 @@ export default class MediaVaultPlugin extends Plugin {
       getCacheDurationMinutes: () =>
         this.storage.settings.get().cacheDurationMinutes,
       getShowAdultContent: () => this.storage.settings.get().showAdultContent,
+      getLanguage: () => tmdbLanguageFor(this.storage.settings.get().language),
     });
 
     this.trakt = new TraktService({

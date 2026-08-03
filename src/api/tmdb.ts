@@ -34,6 +34,15 @@ export interface TMDBServiceConfig {
   getShowAdultContent?: () => boolean;
 }
 
+const PLUGIN_LOCALE_TO_TMDB_LANGUAGE: Record<string, string> = {
+  en: "en-US",
+  tr: "tr-TR",
+};
+
+export function tmdbLanguageFor(pluginLocale: string): string {
+  return PLUGIN_LOCALE_TO_TMDB_LANGUAGE[pluginLocale] ?? "en-US";
+}
+
 export class TMDBService {
   private http: TMDBHttpClient;
   private cache: TTLCache<unknown>;
@@ -389,6 +398,29 @@ export class TMDBService {
       );
       return raw.genres;
     });
+  }
+
+  async getGenreMap(kind: "movie" | "tv"): Promise<Map<number, string>> {
+    const localized = await this.getGenres(kind);
+    const map = new Map<number, string>();
+    for (const g of localized) map.set(g.id, g.name);
+
+    if (this.language !== "en-US") {
+      const hasGaps = localized.some((g) => !g.name);
+      if (hasGaps || localized.length === 0) {
+        const key = `genres:${kind}:en-US`;
+        const english = await this.cached(key, async () => {
+          const raw = await this.http.get<{ genres: TMDBRawGenre[] }>(
+            `/genre/${kind}/list`,
+            { params: { language: "en-US" } },
+          );
+          return raw.genres;
+        });
+        for (const g of english) if (!map.has(g.id)) map.set(g.id, g.name);
+      }
+    }
+
+    return map;
   }
 
   async getImages(
