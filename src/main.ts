@@ -1,6 +1,25 @@
 import { Notice, Plugin, WorkspaceLeaf } from "obsidian";
 import { MediaVaultSettings } from "./settings/settings";
 import { MediaVaultSettingTab } from "./settings/settings-tab";
+
+const COMMAND_NAME_KEYS: Record<string, string> = {
+  "mediavault-add-media": "command.addMedia",
+  "mediavault-open-library": "command.openLibrary",
+  "mediavault-open-lists": "command.openLists",
+  "mediavault-open-watch-next": "command.openWatchNext",
+  "mediavault-open-explore": "command.openExplore",
+  "mediavault-show-notifications": "command.showNotifications",
+  "mediavault-check-notifications-now": "command.checkNotificationsNow",
+  "mediavault-import-watch-history": "command.importWatchHistory",
+  "mediavault-recommendations": "command.recommendations",
+  "mediavault-comfort-finder": "command.comfortFinder",
+  "mediavault-view-stats": "command.viewStats",
+  "mediavault-view-stats-quick": "command.viewStatsQuick",
+  "mediavault-regenerate-all-notes": "command.regenerateAllNotes",
+  "mediavault-trakt-sync-now": "command.traktSyncNow",
+  "mediavault-trakt-regenerate-note": "command.traktRegenerateNote",
+  "mediavault-test-tmdb-connection": "command.testTmdbConnection",
+};
 import {
   PLUGIN_NAME,
   RIBBON_ICON,
@@ -49,6 +68,9 @@ export default class MediaVaultPlugin extends Plugin {
   statistics!: StatisticsService;
   private syncIntervalHandle: number | null = null;
   private notificationCheckIntervalHandle: number | null = null;
+  private unsubscribeLocaleChange: (() => void) | null = null;
+  private localeAwareModals: Set<{ rerenderForLocaleChange: () => void }> =
+    new Set();
 
   async onload() {
     console.log(`Loading ${PLUGIN_NAME}`);
@@ -58,6 +80,7 @@ export default class MediaVaultPlugin extends Plugin {
     this.storage = new StorageService(this);
     await this.storage.initialize();
     i18n.setLocale(this.storage.settings.get().language);
+    this.unsubscribeLocaleChange = i18n.onChange(() => this.onLocaleChanged());
     this.statistics = new StatisticsService(this.storage);
     await seedBuiltInPresets(this.storage);
 
@@ -364,8 +387,36 @@ export default class MediaVaultPlugin extends Plugin {
   async setLanguage(language: "en" | "tr"): Promise<void> {
     await this.storage.settings.update({ language });
     i18n.setLocale(language);
+  }
+
+  private onLocaleChanged(): void {
+    this.tmdb.clearCache();
     this.refreshLibraryViews();
     this.refreshListViews();
+    this.refreshExploreViews();
+    this.refreshCommandNames();
+    this.localeAwareModals.forEach((modal) => modal.rerenderForLocaleChange());
+  }
+
+  private refreshCommandNames(): void {
+    const registry = (this.app as any).commands?.commands as
+      | Record<string, { name: string }>
+      | undefined;
+    if (!registry) return;
+    for (const [id, nameKey] of Object.entries(COMMAND_NAME_KEYS)) {
+      const command = registry[`${this.manifest.id}:${id}`];
+      if (command) command.name = t(nameKey);
+    }
+  }
+
+  registerLocaleAwareModal(modal: { rerenderForLocaleChange: () => void }): void {
+    this.localeAwareModals.add(modal);
+  }
+
+  unregisterLocaleAwareModal(modal: {
+    rerenderForLocaleChange: () => void;
+  }): void {
+    this.localeAwareModals.delete(modal);
   }
 
   refreshLibraryViews(options?: { skipWatchNext?: boolean }): void {
@@ -638,6 +689,7 @@ export default class MediaVaultPlugin extends Plugin {
 
   async onunload() {
     console.log(`Unloading ${PLUGIN_NAME}`);
+    this.unsubscribeLocaleChange?.();
     await this.storage.flush();
   }
 

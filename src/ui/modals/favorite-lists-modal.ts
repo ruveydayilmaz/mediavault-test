@@ -20,6 +20,20 @@ export class FavoriteListsModal extends Modal {
   }
 
   async onOpen(): Promise<void> {
+    this.plugin.registerLocaleAwareModal(this);
+    await this.render();
+  }
+
+  onClose(): void {
+    this.plugin.unregisterLocaleAwareModal(this);
+    this.contentEl.empty();
+  }
+
+  rerenderForLocaleChange(): void {
+    void this.render();
+  }
+
+  private async render(): Promise<void> {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("mediavault-favorite-lists-modal");

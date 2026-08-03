@@ -14,7 +14,17 @@ export class NotificationHistoryModal extends Modal {
   }
 
   async onOpen(): Promise<void> {
+    this.plugin.registerLocaleAwareModal(this);
+    await this.renderAll();
+  }
+
+  rerenderForLocaleChange(): void {
+    void this.renderAll();
+  }
+
+  private async renderAll(): Promise<void> {
     const { contentEl } = this;
+    contentEl.empty();
     contentEl.addClass("mediavault-notification-history-modal");
     renderModalHeader(this, contentEl, t("notifications.title"), "h3");
 
@@ -69,6 +79,7 @@ export class NotificationHistoryModal extends Modal {
   }
 
   onClose(): void {
+    this.plugin.unregisterLocaleAwareModal(this);
     this.contentEl.empty();
   }
 }

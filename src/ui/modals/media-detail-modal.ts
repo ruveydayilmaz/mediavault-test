@@ -140,6 +140,7 @@ export class MediaDetailModal extends Modal {
 
   onOpen(): void {
     this.modalEl.addClass("mediavault-detail-modal");
+    this.plugin?.registerLocaleAwareModal(this);
     void this.initialize();
   }
 
@@ -2132,6 +2133,11 @@ export class MediaDetailModal extends Modal {
   }
 
   onClose(): void {
+    this.plugin?.unregisterLocaleAwareModal(this);
     this.contentEl.empty();
+  }
+
+  rerenderForLocaleChange(): void {
+    void this.render();
   }
 }

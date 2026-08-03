@@ -53,6 +53,16 @@ export class ListDetailModal extends Modal {
   }
 
   onOpen(): void {
+    this.plugin.registerLocaleAwareModal(this);
+    void this.render();
+  }
+
+  onClose(): void {
+    this.plugin.unregisterLocaleAwareModal(this);
+    this.contentEl.empty();
+  }
+
+  rerenderForLocaleChange(): void {
     void this.render();
   }
 
