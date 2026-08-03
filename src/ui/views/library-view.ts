@@ -376,7 +376,7 @@ export class LibraryView extends ItemView {
     this.renderGenreSelector(panel, options.genres, all, applyAndRefresh);
     this.renderMultiCheckGroup(
       panel,
-      "Tags",
+      t("library.tags"),
       options.tags,
       this.filterCriteria.tags,
       applyAndRefresh,
@@ -384,21 +384,21 @@ export class LibraryView extends ItemView {
 
     this.renderTagInput(
       panel,
-      "Actor",
+      t("library.actor"),
       options.actors,
       this.filterCriteria.actors,
       applyAndRefresh,
     );
     this.renderTagInput(
       panel,
-      "Director",
+      t("library.director"),
       options.directors,
       this.filterCriteria.directors,
       applyAndRefresh,
     );
     this.renderTagInput(
       panel,
-      "Studio",
+      t("library.studios"),
       options.studios,
       this.filterCriteria.studios,
       applyAndRefresh,
@@ -446,9 +446,9 @@ export class LibraryView extends ItemView {
     const runtimeModeSelect = runtimeRow.createEl("select");
     (
       [
-        { value: "movie", label: "Movie Runtime" },
-        { value: "episode", label: "Episode Runtime" },
-        { value: "total", label: "Total Series Runtime" },
+        { value: "movie", label: t("library.movieRuntime") },
+        { value: "episode", label: t("library.episodeRuntime") },
+        { value: "total", label: t("library.totalSeriesRuntime") },
       ] as { value: RuntimeMode; label: string }[]
     ).forEach((opt) => {
       runtimeModeSelect.createEl("option", {
@@ -470,10 +470,7 @@ export class LibraryView extends ItemView {
       attr: { min: "0", step: "5", placeholder: t("library.min") },
     });
     runtimeMin.value = this.filterCriteria.runtimeMin?.toString() ?? "";
-    runtimeGroup.createSpan({
-      cls: "mediavault-filter-runtime-unit",
-      text: t("library.minUnit"),
-    });
+
     runtimeMin.addEventListener("change", () => {
       const parsed = parseInt(runtimeMin.value, 10);
       const v = Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
@@ -488,10 +485,7 @@ export class LibraryView extends ItemView {
       attr: { min: "0", step: "5", placeholder: t("library.max") },
     });
     runtimeMax.value = this.filterCriteria.runtimeMax?.toString() ?? "";
-    runtimeGroup.createSpan({
-      cls: "mediavault-filter-runtime-unit",
-      text: t("library.minUnit"),
-    });
+
     runtimeMax.addEventListener("change", () => {
       const parsed = parseInt(runtimeMax.value, 10);
       const v = Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
@@ -911,7 +905,7 @@ export class LibraryView extends ItemView {
     getSortOptions().forEach((opt) => {
       sortSelect.createEl("option", {
         value: opt.value,
-        text: t("library.sortPrefix", { label: opt.label }),
+        text: opt.label
       });
     });
     sortSelect.value = this.query.sortField;

@@ -50,7 +50,7 @@ export function getNextEpisodes(
     const watchedIds = new Set(
       progress.filter((p) => p.watched).map((p) => p.episodeId),
     );
-    if (watchedIds.size === 0) continue; // hasn't actually started
+    if (watchedIds.size === 0) continue;
 
     const nextUp = episodes
       .filter((e) => isReleased(e, now) && !watchedIds.has(e.id))

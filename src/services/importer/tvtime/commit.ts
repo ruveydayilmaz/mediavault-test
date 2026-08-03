@@ -423,7 +423,6 @@ async function applyReview(
     return;
   }
 
-  // Episode comment
   if (review.seasonNumber === undefined || review.episodeNumber === undefined) {
     report.skipped++;
     trackSkip(report, "Comment missing season/episode number");
@@ -442,7 +441,7 @@ async function applyReview(
   }
   const progress = await storage.episodeProgress.findByEpisodeId(episode.id);
   if (progress && progress.review) {
-    report.skipped++; // never overwrite an existing episode review
+    report.skipped++;
     trackSkip(report, "Episode already has a review");
     return;
   }
@@ -551,7 +550,7 @@ async function applyRating(
         review: "",
       });
     } else {
-      report.skipped++; // never overwrite
+      report.skipped++;
       trackSkip(report, "Movie already fully rated");
       return;
     }
@@ -604,7 +603,7 @@ async function applyRating(
   }
 
   if (progress && progress.rating !== null) {
-    report.skipped++; // never overwrite
+    report.skipped++;
     trackSkip(report, "Episode already rated");
     return;
   }

@@ -87,7 +87,7 @@ const GDPR_RELATIONAL_FILES = new Set([
   // Status / favorites
   "user_show_special_status.csv",
   "user_tv_show_data.csv",
-  // Custom lists (Go map format)
+  // Custom lists
   "lists-prod-lists.csv",
 ]);
 

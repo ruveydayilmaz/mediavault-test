@@ -161,9 +161,7 @@ export class MediaDetailModal extends Modal {
       const refreshed = await this.storage.media.findById(this.media.id);
       if (refreshed) this.media = refreshed;
       this.onChanged?.();
-      // The modal has already painted by this point — only refresh in place
-      // if the episodes tab is actually the one currently visible, instead
-      // of unconditionally rebuilding the whole modal a second time.
+
       if (this.activeTab === "episodes") {
         await this.rerenderPreservingEpisodesScroll();
       }
@@ -268,10 +266,6 @@ export class MediaDetailModal extends Modal {
     );
     if (bannerUrl) {
       if (this.heroImgEl && this.heroImgUrl === bannerUrl) {
-        // Re-attach the already-decoded <img> node instead of creating a
-        // fresh one for the same backdrop — recreating it forced a full
-        // re-fetch/re-decode/repaint on every re-render (most visible on
-        // Android's slower decode path), even though the data never changed.
         hero.appendChild(this.heroImgEl);
       } else {
         const img = hero.createEl("img", {
@@ -708,7 +702,7 @@ export class MediaDetailModal extends Modal {
     ) as (RatingEvolutionPoint & { rating: number })[];
 
     if (rated.length > 1) {
-      // TODO: fix later. this still shows the chart if there is only one rating
+      // TODO: this still shows the chart if there is only one rating
       const chartSection = contentEl.createDiv({
         cls: "mediavault-detail-section",
       });
@@ -902,7 +896,7 @@ export class MediaDetailModal extends Modal {
       comments = await fetchComments();
     } catch (err) {
       loading.setText(
-        `Couldn't load comments from Trakt — ${describeTraktError(err)}`,
+        `Couldn't load comments from Trakt: ${describeTraktError(err)}`,
       );
       return;
     }
@@ -926,7 +920,7 @@ export class MediaDetailModal extends Modal {
     try {
       cast = await this.tmdb.getCredits(this.media.tmdbId, mediaKind);
     } catch (err) {
-      loading.setText(`Couldn't load cast — ${(err as Error).message}`);
+      loading.setText(`Couldn't load cast: ${(err as Error).message}`);
       return;
     }
     loading.remove();
@@ -992,7 +986,7 @@ export class MediaDetailModal extends Modal {
         cls: "mediavault-modal-hint",
         text:
           rawComments.length > 0
-            ? "No comments in your configured languages yet — see Settings to add more."
+            ? "No comments in your configured languages yet. See Settings to add more."
             : "No comments yet on Trakt.",
       });
       return;

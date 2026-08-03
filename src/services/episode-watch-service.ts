@@ -59,11 +59,6 @@ export async function deleteEpisodeWatch(
 
   const remaining = await storage.episodeWatches.findByEpisodeId(episode.id);
   if (remaining.length === 0) {
-    // No watches left for this episode — bring episodeProgress back in
-    // sync (and let markEpisodeWatched handle status/series-completion
-    // recalculation) instead of leaving `watched: true` stranded with no
-    // backing watch record, which permanently blocked every future
-    // watch/rewatch action for the episode.
     await markEpisodeWatched(storage, episode, false);
   } else {
     await recalculateAndPersistStatus(storage, episode.mediaId);

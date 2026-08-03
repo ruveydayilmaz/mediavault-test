@@ -6,6 +6,7 @@ import {
   DEFAULT_COMFORT_FLAGS,
 } from "../../models/comfort";
 import { MediaVaultId } from "../../types/common";
+import { t } from "../../i18n";
 
 export class ComfortRepository extends BaseRepository<ComfortProfile> {
   private mediaIndexCache = {
@@ -78,8 +79,8 @@ export class ComfortPresetRepository extends BaseRepository<ComfortPreset> {
 
 export const BUILT_IN_COMFORT_PRESETS: Omit<ComfortPreset, "id">[] = [
   {
-    name: "Bedtime",
-    description: "Low energy, low attention, nothing upsetting before sleep.",
+    name: t("comfort.bedTime"),
+    description: t("comfort.bedTimeDescription"),
     energyMax: 4,
     attentionMax: 4,
     emotionalHeavinessMax: 3,
@@ -90,9 +91,8 @@ export const BUILT_IN_COMFORT_PRESETS: Omit<ComfortPreset, "id">[] = [
     isBuiltIn: true,
   },
   {
-    name: "Background noise",
-    description:
-      "Something to have on while doing chores — low attention required.",
+    name: t("comfort.backgroundNoise"),
+    description: t("comfort.backgroundNoiseDescription"),
     attentionMax: 4,
     requiredFlags: ["goodForBackgroundNoise"],
     excludedTriggers: [],
@@ -100,8 +100,8 @@ export const BUILT_IN_COMFORT_PRESETS: Omit<ComfortPreset, "id">[] = [
     isBuiltIn: true,
   },
   {
-    name: "Emotional recovery",
-    description: "Safe, low-conflict, familiar favorites for hard days.",
+    name: t("comfort.emotionalRecovery"),
+    description: t("comfort.emotionalRecoveryDescription"),
     emotionalHeavinessMax: 3,
     comfortScoreMin: 7,
     requiredFlags: ["safeWhenAnxious", "lowConflict"],
@@ -110,8 +110,8 @@ export const BUILT_IN_COMFORT_PRESETS: Omit<ComfortPreset, "id">[] = [
     isBuiltIn: true,
   },
   {
-    name: "Cozy winter",
-    description: "Rewatchable comfort picks with a winter/Christmas feel.",
+    name: t("comfort.cozyWinter"),
+    description: t("comfort.cozyWinterDescription"),
     rewatchabilityMin: 7,
     requiredFlags: ["cozy"],
     excludedTriggers: [],

@@ -1,7 +1,7 @@
 import type { StorageService } from "./storage";
 import { refreshAccessToken } from "../api/trakt-auth";
 
-const REFRESH_BUFFER_MS = 5 * 60 * 1000; // refresh 5 minutes before actual expiry
+const REFRESH_BUFFER_MS = 5 * 60 * 1000; // 5 min
 
 export async function ensureValidTraktToken(
   storage: StorageService,

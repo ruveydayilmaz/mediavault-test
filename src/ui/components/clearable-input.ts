@@ -1,12 +1,6 @@
 import { setIcon } from "obsidian";
 import { t } from "../../i18n";
 
-/**
- * Wraps a text input/textarea with a clear (×) button that only shows when
- * the field has a value. Moves the field's existing classes onto the new
- * wrapper so any layout/sizing CSS keyed off those classes keeps working,
- * and gives the field itself a generic class to fill the wrapper.
- */
 export function makeClearable(
   input: HTMLInputElement | HTMLTextAreaElement,
 ): HTMLElement {

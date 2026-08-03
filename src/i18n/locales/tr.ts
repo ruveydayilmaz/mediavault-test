@@ -51,6 +51,7 @@ const tr: TranslationDict = {
     currentBadge: "Mevcut",
     inLibrary: "Kitaplıkta",
     addToLibrary: "+ Ekle",
+    confirmWithLabel: "{label} onaylansın mı?",
   },
   status: {
     currently_watching: "Şu An İzleniyor",
@@ -133,9 +134,14 @@ const tr: TranslationDict = {
     min: "Min",
     max: "Maks",
     minSuffix: "{label} (min)",
-    sortPrefix: "Sırala: {label}",
     paginationSummary: "Sayfa {page} / {totalPages} ({total} öğe)",
     searchLibraryPlaceholder: "Kitaplığınızda arayın...",
+    actors: "Oyuncular",
+    directors: "Yönetmenler",
+    studios: "Stüdyolar",
+    movieRuntime: "Film Süresi",
+    episodeRuntime: "Bölüm Süresi",
+    totalSeriesRuntime: "Toplam Dizi Süresi",
   },
   stats: {
     moviesWatchedLabel: "{count} film izlendi",
@@ -161,16 +167,18 @@ const tr: TranslationDict = {
     noDescription: "Açıklama yok",
     sortBy: "Sırala",
     isEmpty: "Bu liste boş",
-    emptySystemHint: "Burada görmek için filmleri veya dizileri favori olarak işaretleyin.",
+    emptySystemHint:
+      "Burada görmek için filmleri veya dizileri favori olarak işaretleyin.",
     emptyCustomHint: "Medya eklemek için yukarıdaki ⋮ menüsünü kullanın.",
     editTitleDesc: "Başlığı ve açıklamayı düzenle",
     addMedia: "Medya ekle",
     duplicateList: "Listeyi kopyala",
     deleteList: "Listeyi sil",
     descPlaceholder: "Bir açıklama ekleyin...",
-    everyItemAlreadyInList: "MediaVault: kitaplığınızdaki her öğe zaten bu listede.",
-    duplicatedNotice: "MediaVault: \"{title}\" kopyalandı.",
-    deletedNotice: "MediaVault: \"{title}\" silindi.",
+    everyItemAlreadyInList:
+      "MediaVault: kitaplığınızdaki her öğe zaten bu listede.",
+    duplicatedNotice: 'MediaVault: "{title}" kopyalandı.',
+    deletedNotice: 'MediaVault: "{title}" silindi.',
     removeFromList: "Listeden kaldır",
     sortRecent: "Son",
     sortManual: "Manuel (sürükleyerek sırala)",
@@ -184,7 +192,8 @@ const tr: TranslationDict = {
     itemCountN: "{count} öğe",
     customLists: "Özel Listeler",
     newList: "+ Yeni Liste",
-    emptyState: "Henüz liste yok — bir tane oluşturun ya da TV Time özel listelerini içe aktarın.",
+    emptyState:
+      "Henüz liste yok — bir tane oluşturun ya da TV Time özel listelerini içe aktarın.",
     updated: "Güncellendi: {date}",
     imported: "İçe aktarıldı",
     title: "Listeler",
@@ -199,14 +208,17 @@ const tr: TranslationDict = {
     lastUpdated: "Son güncelleme {date}",
     owner: "Sahip",
     deleteListConfirmTitle: "Liste silinsin mi?",
-    deleteListConfirmBody: "Bu, \"{name}\" listesini kalıcı olarak silecek. Medya öğelerinin kendisi silinmeyecek.",
+    deleteListConfirmBody:
+      'Bu, "{name}" listesini kalıcı olarak silecek. Medya öğelerinin kendisi silinmeyecek.',
     emptyTitle: "Henüz liste yok",
     emptyBody: "Medyanızı düzenlemek için bir liste oluşturun.",
+    favoriteLists: "Favori Listeler",
   },
   watchNext: {
     displayName: "Sırada İzlenecek",
     upcoming: "Yaklaşan",
-    emptyQueue: "Sırada bir şey yok — burada görmek için bir diziyi izlemeye başlayın.",
+    emptyQueue:
+      "Sırada bir şey yok — burada görmek için bir diziyi izlemeye başlayın.",
     tabEpisodes: "Bölümler",
     tabMovies: "Filmler",
     noUpcomingEpisodes: "Henüz planlanan bir bölüm yok.",
@@ -228,25 +240,29 @@ const tr: TranslationDict = {
     recommendedForYouTitle: "Size özel öneriler",
     buildingRecs: "Öneriler oluşturuluyor...",
     failedToBuildRecs: "Öneriler oluşturulamadı — {error}",
-    notEnoughData: "Henüz yeterli veri yok — önerileri görmek için birkaç izlemeyi puanlayın ve bazı rahatlık profilleri oluşturun.",
+    notEnoughData:
+      "Henüz yeterli veri yok — önerileri görmek için birkaç izlemeyi puanlayın ve bazı rahatlık profilleri oluşturun.",
     becauseYouLoved: "Şunu sevdiğiniz için...",
     hiddenGems: "Sizin için gizli hazineler",
     comfortRewatches: "Rahatlatıcı yeniden izlemeler",
     highEnergyPicks: "Yüksek enerjili seçimler",
     lowAttentionPicks: "Az dikkat gerektiren seçimler",
     addMediaSearchPlaceholder: "TMDB'de bir film veya dizi ara...",
-    emptyStateText: "Sonuç yok. Yazmaya devam edin ya da ayarlardan TMDB API anahtarınızı kontrol edin.",
+    emptyStateText:
+      "Sonuç yok. Yazmaya devam edin ya da ayarlardan TMDB API anahtarınızı kontrol edin.",
     addMediaSearchFailed: "MediaVault: TMDB araması başarısız oldu — {error}",
     kindMovie: " · Film",
     kindTv: " · Dizi",
     failedToAddMedia: "MediaVault: medya eklenemedi — {error}",
     displayName: "Keşfet",
-    addTmdbKeyHint: "Keşfet'i kullanmak için ayarlardan bir TMDB API anahtarı ekleyin.",
+    addTmdbKeyHint:
+      "Keşfet'i kullanmak için ayarlardan bir TMDB API anahtarı ekleyin.",
     loading: "Yükleniyor...",
     buildingRecommendations: "Öneriler oluşturuluyor...",
     failedToLoad: "Keşfet yüklenemedi — {error}",
     couldNotBuildRecs: "Öneriler oluşturulamadı — {error}",
-    rateFewWatchesHint: "Burada size özel öneriler görmek için birkaç izlemeyi puanlayın.",
+    rateFewWatchesHint:
+      "Burada size özel öneriler görmek için birkaç izlemeyi puanlayın.",
     anyGenre: "Herhangi bir tür",
     moreFilters: "Daha fazla filtre",
     noResultsForFilters: "Bu filtrelerle sonuç yok.",
@@ -286,14 +302,16 @@ const tr: TranslationDict = {
     topStudios: "En çok izlenen stüdyolar",
     monthlyTrendModal: "Aylık izleme eğilimi",
     displayName: "MediaVault Analizler",
-    emptyState: "İstatistiklerinizi görmek için bir şeyler ekleyin ve birkaç izleme kaydedin.",
+    emptyState:
+      "İstatistiklerinizi görmek için bir şeyler ekleyin ve birkaç izleme kaydedin.",
     watchActivity: "İzleme etkinliği — {year}",
     genreBreakdown: "Tür dağılımı",
     monthlyTrend: "Aylık izleme eğilimi",
     rewatchFrequency: "Yeniden izleme sıklığı",
     topActorsCard: "En çok izlenen oyuncular",
     moviesEpisodesWatchedLine: "{movies} film · {episodes} bölüm izlendi",
-    totalStatsLine: "{hours} sa toplam · ort. puan {rating} · %{completion} tamamlandı",
+    totalStatsLine:
+      "{hours} sa toplam · ort. puan {rating} · %{completion} tamamlandı",
     firstWatchesLabel: "İlk izlemeler",
     rewatchesLabel: "Yeniden izlemeler",
   },
@@ -319,7 +337,8 @@ const tr: TranslationDict = {
     flagNoCharacterDeath: "Önemli karakter ölümü yok",
     flagLowConflict: "Düşük çatışma",
     flagFamiliarFavorite: "Tanıdık favori",
-    emptyNoProfiles: "Henüz hiçbir şeyin rahatlık profili yok — önce bir medya öğesinin detay görünümünü açıp bir tane oluşturun.",
+    emptyNoProfiles:
+      "Henüz hiçbir şeyin rahatlık profili yok — önce bir medya öğesinin detay görünümünü açıp bir tane oluşturun.",
     quickFilter: "Hızlı filtre",
     advancedFilter: "Gelişmiş filtre",
     results: "Sonuçlar",
@@ -332,17 +351,31 @@ const tr: TranslationDict = {
     saveAsPreset: "Hazır ayar olarak kaydet...",
     noResults: "Henüz hiçbir şey eşleşmiyor — bir filtreyi gevşetmeyi deneyin.",
     namePresetPrompt: "Bu hazır ayara bir ad verin:",
-    savedPreset: "MediaVault: \"{name}\" hazır ayarı kaydedildi.",
+    savedPreset: 'MediaVault: "{name}" hazır ayarı kaydedildi.',
     failedSavePreset: "MediaVault: hazır ayar kaydedilemedi — {error}",
     title: "Rahatlatıcı İçerik Bulucu",
+    bedTime: "Yatmadan Önce",
+    backgroundNoise: "Arka Plan Sesi",
+    emotionalRecovery: "Duygusal İyileşme",
+    cozyWinter: "Rahat Kış",
+    bedTimeDescription:
+      "Düşük enerji, düşük dikkat, uyumadan önce rahatsız edici bir şey yok.",
+    backgroundNoiseDescription:
+      "Ev işleri yaparken açılacak bir şey, düşük dikkat gerektirir.",
+    emotionalRecoveryDescription:
+      "Zor günler için güvenli, düşük çatışmalı, tanıdık favoriler.",
+    cozyWinterDescription:
+      "Kış havası olan yeniden izlenebilir rahatlatıcı seçimler.",
   },
   notifications: {
-    seriesReturnedMsg: "\"{title}\" yeni bölümlerle geri döndü.",
-    newSeasonMsg: "\"{title}\" için yeni bir sezon var (Sezon {season}).",
-    newEpisodeMsg: "\"{title}\" için yeni bir bölüm mevcut.",
-    movieReleasedMsg: "\"{title}\" yayınlandı.",
-    watchlistReminderMsg: "\"{title}\" bir süredir izlenecekler listenizde — hâlâ ilgileniyor musunuz?",
-    continueWatchingReminderMsg: "\"{title}\" dizisine bir süredir devam etmediniz.",
+    seriesReturnedMsg: '"{title}" yeni bölümlerle geri döndü.',
+    newSeasonMsg: '"{title}" için yeni bir sezon var (Sezon {season}).',
+    newEpisodeMsg: '"{title}" için yeni bir bölüm mevcut.',
+    movieReleasedMsg: '"{title}" yayınlandı.',
+    watchlistReminderMsg:
+      '"{title}" bir süredir izlenecekler listenizde — hâlâ ilgileniyor musunuz?',
+    continueWatchingReminderMsg:
+      '"{title}" dizisine bir süredir devam etmediniz.',
     title: "Bildirimler",
     markAllRead: "Tümünü okundu işaretle",
     checkNow: "Şimdi kontrol et",
@@ -364,16 +397,20 @@ const tr: TranslationDict = {
     edit: "Yorumu Düzenle",
     delete: "Yorumu Sil",
     deleteConfirm: "Bu yorum silinsin mi?",
-    postFailedRetry: "Yorumunuz gönderildi ancak liste yenilenemedi. Tekrar denensin mi?",
+    postFailedRetry:
+      "Yorumunuz gönderildi ancak liste yenilenemedi. Tekrar denensin mi?",
     authError: "Yorum yapabilmek için Trakt hesabınızı bağlamanız gerekir.",
-    rateLimitError: "Trakt istek sınırına ulaşıldı. Kısa süre sonra tekrar deneyin.",
-    validationError: "Yorum gönderilemedi. Lütfen içeriği kontrol edip tekrar deneyin.",
+    rateLimitError:
+      "Trakt istek sınırına ulaşıldı. Kısa süre sonra tekrar deneyin.",
+    validationError:
+      "Yorum gönderilemedi. Lütfen içeriği kontrol edip tekrar deneyin.",
   },
   detail: {
     choosePoster: "Bir poster seç",
     chooseBanner: "Bir afiş seç",
     loadingImages: "TMDB'den görseller yükleniyor...",
-    couldNotLoadImages: "TMDB'den görseller yüklenemedi. API anahtarınızı ve bağlantınızı kontrol edin.",
+    couldNotLoadImages:
+      "TMDB'den görseller yüklenemedi. API anahtarınızı ve bağlantınızı kontrol edin.",
     noImagesAvailable: "Bu başlık için görsel mevcut değil.",
     posterUpdated: "MediaVault: poster güncellendi.",
     bannerUpdated: "MediaVault: afiş güncellendi.",
@@ -385,7 +422,7 @@ const tr: TranslationDict = {
     tvSeries: "Diziler",
     tvPrograms: "TV Programları",
     movies: "Filmler",
-    couldNotLoadItem: "MediaVault: \"{title}\" yüklenemedi — {error}",
+    couldNotLoadItem: 'MediaVault: "{title}" yüklenemedi — {error}',
     watchHistory: "İzleme Geçmişi",
     episodes: "Bölümler",
     markAsDropped: "Bırakıldı Olarak İşaretle",
@@ -422,10 +459,13 @@ const tr: TranslationDict = {
     postComment: "Yorum Gönder",
     posting: "Gönderiliyor...",
     refreshing: "Yenileniyor...",
-    refreshFailedHint: "Yorumunuz başarıyla yayınlandı, ancak yorum listesi yenilenemedi.",
+    refreshFailedHint:
+      "Yorumunuz başarıyla yayınlandı, ancak yorum listesi yenilenemedi.",
     retry: "Tekrar dene",
-    addToLibraryHint: "Bu dizinin bölümlerine göz atmak ve takip etmek için kitaplığınıza ekleyin.",
-    noEpisodeDataYet: "Henüz bölüm verisi yok. Takibe başlamak için TMDB'den bölüm meta verilerini içe aktarın.",
+    addToLibraryHint:
+      "Bu dizinin bölümlerine göz atmak ve takip etmek için kitaplığınıza ekleyin.",
+    noEpisodeDataYet:
+      "Henüz bölüm verisi yok. Takibe başlamak için TMDB'den bölüm meta verilerini içe aktarın.",
     importEpisodesFromTmdb: "Bölümleri TMDB'den içe aktar",
     season: "{n}. Sezon",
     seasonOptions: "Sezon seçenekleri",
@@ -434,7 +474,8 @@ const tr: TranslationDict = {
     markWatched: "İzlendi olarak işaretle",
     watchedNTimes: "{n} kez izlendi, yeniden izleme ekle",
     removeOneWatchConfirm: "Bu bölümden bir izleme kaldırılsın mı?",
-    previousEpisodesPrompt: "Önceki bölümleri izlendi olarak işaretlemediniz.\n\nÖnceki tüm bölümleri izlendi olarak işaretlemek ister misiniz?",
+    previousEpisodesPrompt:
+      "Önceki bölümleri izlendi olarak işaretlemediniz.\n\nÖnceki tüm bölümleri izlendi olarak işaretlemek ister misiniz?",
     previous: "Önceki",
     next: "Sonraki",
     previousEpisode: "Önceki bölüm",
@@ -451,21 +492,26 @@ const tr: TranslationDict = {
     howWasIt: "Nasıldı?",
     loadingCrew: "Ekip yükleniyor...",
     crew: "Ekip",
-    deleteCommentConfirm: "Bu yorum Trakt'tan silinsin mi? Bu işlem geri alınamaz.",
+    deleteCommentConfirm:
+      "Bu yorum Trakt'tan silinsin mi? Bu işlem geri alınamaz.",
     commentEmptyError: "MediaVault: yorum boş olamaz.",
-    commentTooLong: "MediaVault: yorum çok uzun (Trakt sınırı {limit} karakter).",
+    commentTooLong:
+      "MediaVault: yorum çok uzun (Trakt sınırı {limit} karakter).",
     writeSomethingFirst: "MediaVault: göndermeden önce bir şeyler yazın.",
-    deleteConfirmBodyWithScope: "\"{title}\" silinsin mi?\n\nBu şunları kalıcı olarak silecek:\n{scope}\n\nBu işlem geri alınamaz.",
+    deleteConfirmBodyWithScope:
+      '"{title}" silinsin mi?\n\nBu şunları kalıcı olarak silecek:\n{scope}\n\nBu işlem geri alınamaz.',
     openNote: "Notu aç",
     generateNote: "Not oluştur",
     markAsPartiallyWatched: "Kısmen izlendi olarak işaretle",
     markSeasonUnwatched: "Sezonu izlenmedi olarak işaretle",
     watchHistoryCount: "İzleme geçmişi ({count})",
-    noWatchesLoggedYet: "Henüz izleme kaydedilmedi. İlk incelemenizi eklemek için \"İzlemeyi kaydet\"e tıklayın.",
+    noWatchesLoggedYet:
+      'Henüz izleme kaydedilmedi. İlk incelemenizi eklemek için "İzlemeyi kaydet"e tıklayın.',
     seasonEpisodeLabel: "Sezon {season} • Bölüm {episode}",
     watchNumber: "İzleme #{n}",
     tmdbRatingLabel: "★ TMDB'de {rating}",
-    averageRatingAcrossWatches: "★ {count} izleme{plural} genelinde ortalama {rating}",
+    averageRatingAcrossWatches:
+      "★ {count} izleme{plural} genelinde ortalama {rating}",
     likesCount: "👍 {count} beğeni{plural}",
     deletionScopeWatchHistory: "İzleme geçmişi",
     deletionScopeReviews: "İncelemeler",
@@ -478,10 +524,10 @@ const tr: TranslationDict = {
     deletionScopeListReferences: "Herhangi bir özel listedeki referanslar",
   },
   notice: {
-    couldNotLoad: "MediaVault: \"{title}\" yüklenemedi — {error}",
+    couldNotLoad: 'MediaVault: "{title}" yüklenemedi — {error}',
     failedToAdd: "MediaVault: eklenemedi — {error}",
     enterListName: "MediaVault: önce bir liste adı girin.",
-    markedDropped: "MediaVault: \"{title}\" bırakıldı olarak işaretlendi.",
+    markedDropped: 'MediaVault: "{title}" bırakıldı olarak işaretlendi.',
     enterMinutesStopped: "MediaVault: kaçıncı dakikada bıraktığınızı girin.",
     savedProgress: "MediaVault: ilerleme {minute}. dakikada kaydedildi.",
     setWatchDate: "MediaVault: lütfen bir izleme tarihi belirleyin.",
@@ -489,11 +535,16 @@ const tr: TranslationDict = {
     reviewUpdated: "MediaVault: yorum güncellendi.",
     watchLogged: "MediaVault: izleme kaydedildi.",
     saveFailed: "MediaVault: kaydedilemedi — {error}",
-    addTmdbKeyBeforeImporting: "MediaVault: içe aktarmadan önce ayarlardan bir TMDB API anahtarı ekleyin.",
-    addTmdbKeyFirst: "MediaVault: önce ayarlardan bir TMDB API anahtarı ekleyin.",
-    addTmdbKeyBeforeSearching: "MediaVault: aramadan önce ayarlardan bir TMDB API anahtarı ekleyin.",
-    traktHistoryRegenerated: "MediaVault: Trakt Puan Geçmişi notu yeniden oluşturuldu.",
-    tmdbOk: "MediaVault: TMDB tamam — \"Interstellar\" için {count} sonuç bulundu.",
+    addTmdbKeyBeforeImporting:
+      "MediaVault: içe aktarmadan önce ayarlardan bir TMDB API anahtarı ekleyin.",
+    addTmdbKeyFirst:
+      "MediaVault: önce ayarlardan bir TMDB API anahtarı ekleyin.",
+    addTmdbKeyBeforeSearching:
+      "MediaVault: aramadan önce ayarlardan bir TMDB API anahtarı ekleyin.",
+    traktHistoryRegenerated:
+      "MediaVault: Trakt Puan Geçmişi notu yeniden oluşturuldu.",
+    tmdbOk:
+      'MediaVault: TMDB tamam — "Interstellar" için {count} sonuç bulundu.',
     tmdbRequestFailed: "MediaVault: TMDB isteği başarısız oldu — {error}",
     noteUpdated: "MediaVault: not güncellendi — {path}",
     noteGenerationFailed: "MediaVault: not oluşturulamadı — {error}",
@@ -503,14 +554,17 @@ const tr: TranslationDict = {
     libraryEmpty: "MediaVault: kitaplığınız boş — önce bir şey ekleyin.",
     connectTraktFirst: "MediaVault: önce ayarlardan Trakt hesabınızı bağlayın.",
     syncingWithTrakt: "MediaVault: Trakt ile senkronize ediliyor...",
-    traktConnectionInvalid: "MediaVault: Trakt bağlantısı artık geçerli değil — ayarlardan yeniden bağlanın.",
-    traktSyncComplete: "MediaVault: Trakt senkronizasyonu tamamlandı — {movies} film + {episodes} bölüm çekildi, {pushed} gönderildi{errorSuffix}",
+    traktConnectionInvalid:
+      "MediaVault: Trakt bağlantısı artık geçerli değil — ayarlardan yeniden bağlanın.",
+    traktSyncComplete:
+      "MediaVault: Trakt senkronizasyonu tamamlandı — {movies} film + {episodes} bölüm çekildi, {pushed} gönderildi{errorSuffix}",
     traktSyncErrorSuffix: " · {count} hata, konsola bakın",
-    traktSyncFailed: "MediaVault: Trakt senkronizasyonu başarısız oldu — {error}",
-    alreadyInLibrary: "MediaVault: \"{title}\" zaten kitaplığınızda.",
-    addedToLibrary: "MediaVault: \"{title}\" kitaplığınıza eklendi.",
-    couldNotAdd: "MediaVault: \"{title}\" eklenemedi — {error}",
-    markedFinished: "MediaVault: \"{title}\" tamamlandı olarak işaretlendi.",
+    traktSyncFailed:
+      "MediaVault: Trakt senkronizasyonu başarısız oldu — {error}",
+    alreadyInLibrary: 'MediaVault: "{title}" zaten kitaplığınızda.',
+    addedToLibrary: 'MediaVault: "{title}" kitaplığınıza eklendi.',
+    couldNotAdd: 'MediaVault: "{title}" eklenemedi — {error}',
+    markedFinished: 'MediaVault: "{title}" tamamlandı olarak işaretlendi.',
     watchEntryDeleted: "MediaVault: izleme kaydı silindi.",
     commentDeleted: "MediaVault: yorum silindi.",
     couldNotDeleteComment: "MediaVault: yorum silinemedi — {error}",
@@ -519,14 +573,18 @@ const tr: TranslationDict = {
     commentPosted: "MediaVault: yorum gönderildi.",
     couldNotPostComment: "MediaVault: yorum gönderilemedi — {error}",
     markedSeasonWatched: "MediaVault: {n}. sezon izlendi olarak işaretlendi.",
-    markedSeasonUnwatched: "MediaVault: {n}. sezon izlenmedi olarak işaretlendi.",
-    markedPrevEpisodesWatched: "MediaVault: {n} önceki bölüm de izlendi olarak işaretlendi.",
-    markedEpisodeWatched: "MediaVault: \"{title}\" izlendi olarak işaretlendi.",
-    importingEpisodes: "MediaVault: \"{title}\" için bölümler içe aktarılıyor...",
-    importedEpisodes: "MediaVault: {seasons} sezonda {added} yeni bölüm içe aktarıldı.",
-    episodeImportFailed: "MediaVault: bölüm içe aktarma başarısız oldu — {error}",
+    markedSeasonUnwatched:
+      "MediaVault: {n}. sezon izlenmedi olarak işaretlendi.",
+    markedPrevEpisodesWatched:
+      "MediaVault: {n} önceki bölüm de izlendi olarak işaretlendi.",
+    markedEpisodeWatched: 'MediaVault: "{title}" izlendi olarak işaretlendi.',
+    importingEpisodes: 'MediaVault: "{title}" için bölümler içe aktarılıyor...',
+    importedEpisodes:
+      "MediaVault: {seasons} sezonda {added} yeni bölüm içe aktarıldı.",
+    episodeImportFailed:
+      "MediaVault: bölüm içe aktarma başarısız oldu — {error}",
     itemNoLongerExists: "MediaVault: bu öğe artık mevcut değil.",
-    mediaDeleted: "MediaVault: \"{title}\" silindi.",
+    mediaDeleted: 'MediaVault: "{title}" silindi.',
   },
   movieProgress: {
     title: "İzlemeyi nerede bıraktınız?",
@@ -534,13 +592,13 @@ const tr: TranslationDict = {
   },
   dropSeries: {
     title: "İzlemeyi neden bıraktınız?",
-    hint: "İsteğe bağlı — \"{title}\" için. Söylemek istemiyorsanız boş bırakın.",
+    hint: 'İsteğe bağlı — "{title}" için. Söylemek istemiyorsanız boş bırakın.',
     placeholder: "ör. 3. Sezon'dan sonra ilgimi kaybettim.",
     dropSeries: "Diziyi Bırak",
   },
   createList: {
     newList: "Yeni liste",
-    titlePlaceholder: "Başlık, ör. \"Rahat Anime\"",
+    titlePlaceholder: 'Başlık, ör. "Rahat Anime"',
     descPlaceholder: "Açıklama (isteğe bağlı)",
     title: "Liste Oluştur",
     namePlaceholder: "Liste adı",
@@ -548,7 +606,8 @@ const tr: TranslationDict = {
   addToList: {
     addToListTitle: "Listeye ekle",
     noListsYet: "Henüz hiç listeniz yok.",
-    removeConfirm: "\"{title}\", \"{list}\" listesinden kaldırılsın mı?\n\nBu yalnızca listeden kaldırır — öğe kitaplığınızda kalır, izleme geçmişiniz/favorileriniz etkilenmez.",
+    removeConfirm:
+      '"{title}", "{list}" listesinden kaldırılsın mı?\n\nBu yalnızca listeden kaldırır — öğe kitaplığınızda kalır, izleme geçmişiniz/favorileriniz etkilenmez.',
     newListPlaceholder: "Yeni liste adı...",
     createAndAdd: "Oluştur + Ekle",
     title: "Listeye Ekle",
@@ -558,14 +617,15 @@ const tr: TranslationDict = {
   watchSession: {
     editReview: "Yorumu düzenle",
     logWatch: "İzleme kaydet",
-    newSessionHint: "Bu, yeni bir izleme oturumu oluşturur. Geçmiş yorumların üzerine asla yazılmaz.",
+    newSessionHint:
+      "Bu, yeni bir izleme oturumu oluşturur. Geçmiş yorumların üzerine asla yazılmaz.",
     watchDate: "İzleme tarihi",
     rating: "Puan (0-10)",
     ratingPlaceholder: "ör. 8.5",
     mood: "Ruh hali",
     watchSource: "İzleme kaynağı",
     context: "Bağlam",
-    contextDesc: "ör. \"yağmurlu bir Pazar\", \"aileyle izlendi\"",
+    contextDesc: 'ör. "yağmurlu bir Pazar", "aileyle izlendi"',
     review: "Yorum",
     saveChanges: "Değişiklikleri kaydet",
     logWatchBtn: "İzlemeyi kaydet",
@@ -588,7 +648,8 @@ const tr: TranslationDict = {
   },
   episode: {
     markSeasonWatched: "Sezonu İzlendi Olarak İşaretle",
-    unwatchedPrecedingPrompt: "Bu dizide bundan önce izlenmemiş bölümler var. Hepsi izlendi olarak işaretlensin mi?",
+    unwatchedPrecedingPrompt:
+      "Bu dizide bundan önce izlenmemiş bölümler var. Hepsi izlendi olarak işaretlensin mi?",
     previous: "Önceki Bölüm",
     next: "Sonraki Bölüm",
     rewatchHistory: "Yeniden İzleme Geçmişi",
@@ -596,7 +657,8 @@ const tr: TranslationDict = {
   },
   settings: {
     connectTrakt: "Trakt'a Bağlan",
-    needClientCredentials: "Önce yukarıdan Trakt istemci kimliğinizi ve istemci sırrınızı ekleyin, ardından bu iletişim kutusunu yeniden açın.",
+    needClientCredentials:
+      "Önce yukarıdan Trakt istemci kimliğinizi ve istemci sırrınızı ekleyin, ardından bu iletişim kutusunu yeniden açın.",
     requestingDeviceCode: "Cihaz kodu isteniyor...",
     goTo: "Şuraya gidin:",
     enterThisCode: "Ve bu kodu girin:",
@@ -604,7 +666,8 @@ const tr: TranslationDict = {
     copyCode: "Kodu kopyala",
     codeCopied: "Kod panoya kopyalandı",
     failedToStartAuth: "Trakt yetkilendirmesi başlatılamadı — {error}",
-    codeExpired: "Kodun süresi doldu — tekrar denemek için bu iletişim kutusunu yeniden açın.",
+    codeExpired:
+      "Kodun süresi doldu — tekrar denemek için bu iletişim kutusunu yeniden açın.",
     traktConnectedNotice: "MediaVault: Trakt bağlandı.",
     authDenied: "Yetkilendirme reddedildi.",
     errorPrefix: "Hata: {error}",
@@ -613,10 +676,12 @@ const tr: TranslationDict = {
     languageDesc: "MediaVault için görüntüleme dilini seçin.",
     tmdbSection: "TMDB",
     tmdbApiKey: "TMDB API anahtarı",
-    tmdbApiKeyDesc: "Film/dizi meta verilerini aramak ve içe aktarmak için gerekli.",
+    tmdbApiKeyDesc:
+      "Film/dizi meta verilerini aramak ve içe aktarmak için gerekli.",
     tmdbApiKeyPlaceholder: "TMDB API anahtarınızı girin",
     cacheDuration: "Önbellek süresi (dakika)",
-    cacheDurationDesc: "TMDB API yanıtlarının yeniden alınmadan önce ne kadar önbelleğe alınacağı.",
+    cacheDurationDesc:
+      "TMDB API yanıtlarının yeniden alınmadan önce ne kadar önbelleğe alınacağı.",
     episodeSyncInterval: "Bölüm senkronizasyon aralığı (saat)",
     episodeSyncIntervalDesc:
       "İzlenmekte olan bir dizinin bölümlerinin TMDB'den ne sıklıkla otomatik yenileneceği. Henüz bölüm içe aktarılmamış diziler ilk açılışta her zaman senkronize edilir; Tamamlanan/Bırakılan/İzlenecek diziler asla otomatik yenilenmez.",
@@ -637,9 +702,11 @@ const tr: TranslationDict = {
     autoSyncOnStartup: "Başlangıçta",
     autoSyncInterval: "Her X dakikada bir",
     syncIntervalMinutes: "Senkronizasyon aralığı (dakika)",
-    syncIntervalMinutesDesc: "Sadece otomatik senkronizasyon 'Her X dakikada bir' olduğunda kullanılır.",
+    syncIntervalMinutesDesc:
+      "Sadece otomatik senkronizasyon 'Her X dakikada bir' olduğunda kullanılır.",
     historyNotePath: "Geçmiş notu yolu",
-    historyNotePathDesc: "Oluşturulan Trakt Puan Geçmişi notunun yazıldığı yer.",
+    historyNotePathDesc:
+      "Oluşturulan Trakt Puan Geçmişi notunun yazıldığı yer.",
     syncNow: "Şimdi senkronize et",
     lastSynced: "Son senkronizasyon: {date}",
     neverSyncedYet: "Henüz senkronize edilmedi.",
@@ -648,7 +715,8 @@ const tr: TranslationDict = {
       "Trakt yorumları yalnızca bu dillerde, öncelik sırasına göre gösterilir. ISO 639-1 kodlarını kullanın (ör. en, ja, de).",
     primaryLanguage: "Birincil dil",
     additionalLanguages: "Ek diller",
-    additionalLanguagesDesc: "Virgülle ayrılmış, öncelik sırasına göre (ör. ja, de).",
+    additionalLanguagesDesc:
+      "Virgülle ayrılmış, öncelik sırasına göre (ör. ja, de).",
     vaultIntegrationSection: "Vault Entegrasyonu",
     mediaFolderPath: "Medya klasörü yolu",
     mediaFolderPathDesc: "Oluşturulan medya notlarının saklanacağı klasör.",
@@ -678,7 +746,8 @@ const tr: TranslationDict = {
     notifWatchlistReminderDesc:
       "Bir süredir izlenecekler listenizde bekleyen başlıklar hakkında hatırlatma.",
     notifContinueWatching: "İzlemeye devam et hatırlatıcısı",
-    notifContinueWatchingDesc: "Yarım bıraktığınız diziler hakkında hatırlatma.",
+    notifContinueWatchingDesc:
+      "Yarım bıraktığınız diziler hakkında hatırlatma.",
     notificationTime: "Bildirim saati",
     notificationTimeDesc:
       "Günlük kontrol, bu yerel saatte veya sonrasında günde bir kez çalışır (24 saat, SS:dd).",
@@ -697,18 +766,24 @@ const tr: TranslationDict = {
   },
   import: {
     title: "TV Time'dan İçe Aktar",
-    readingFile: "\"{name}\" okunuyor — büyük dışa aktarımlar için biraz zaman alabilir...",
-    selectFileHint: "Bir TV Time JSON veya CSV dışa aktarımı ya da tam bir GDPR ZIP dışa aktarımı seçin. Biçim ve kategori otomatik olarak algılanır. Onaylayana kadar hiçbir şey yazılmaz.",
-    importingLarge: "İçe aktarılıyor — büyük dosyalar için biraz zaman alabilir...",
+    readingFile:
+      '"{name}" okunuyor — büyük dışa aktarımlar için biraz zaman alabilir...',
+    selectFileHint:
+      "Bir TV Time JSON veya CSV dışa aktarımı ya da tam bir GDPR ZIP dışa aktarımı seçin. Biçim ve kategori otomatik olarak algılanır. Onaylayana kadar hiçbir şey yazılmaz.",
+    importingLarge:
+      "İçe aktarılıyor — büyük dosyalar için biraz zaman alabilir...",
     starting: "Başlıyor...",
-    couldNotParse: "MediaVault: \"{name}\" ayrıştırılamadı — {error}",
-    couldNotRead: "MediaVault: \"{name}\" okunamadı — {error}",
+    couldNotParse: 'MediaVault: "{name}" ayrıştırılamadı — {error}',
+    couldNotRead: 'MediaVault: "{name}" okunamadı — {error}',
     scanningFiles: "Dosyalar taranıyor",
     detected: "Algılandı:",
-    unsupportedList: "Özel listeler tanınıyor ancak henüz içe aktarılamıyor — bu, gelecek bir güncellemede geliyor. Bu dosyadan hiçbir veri içe aktarılmayacak.",
-    unsupportedGeneric: "MediaVault bu dosyanın yapısını henüz tanımıyor. Hiçbir şey içe aktarılmayacak.",
+    unsupportedList:
+      "Özel listeler tanınıyor ancak henüz içe aktarılamıyor — bu, gelecek bir güncellemede geliyor. Bu dosyadan hiçbir veri içe aktarılmayacak.",
+    unsupportedGeneric:
+      "MediaVault bu dosyanın yapısını henüz tanımıyor. Hiçbir şey içe aktarılmayacak.",
     gdprExport: "TV Time GDPR Dışa Aktarımı",
-    filesRecognized: "{recognized} dosya tanındı, {unsupported} desteklenmiyor.",
+    filesRecognized:
+      "{recognized} dosya tanındı, {unsupported} desteklenmiyor.",
     preview: "Önizleme",
     watchEvents: "{count} izleme olayı",
     comments: "{count} yorum",
@@ -720,7 +795,8 @@ const tr: TranslationDict = {
     newTitles: "{count} yeni başlık TMDB'de aranacak",
     willBeSkipped: "{count} satır atlanacak (içe aktarma sonrası rapora bakın)",
     nothingImportable: "İçe aktarılabilecek bir şey bulunamadı.",
-    neverOverwrittenHint: "Mevcut yorumların, puanların ve beğenilerin üzerine asla yazılmaz — yalnızca eksik olanlar doldurulur.",
+    neverOverwrittenHint:
+      "Mevcut yorumların, puanların ve beğenilerin üzerine asla yazılmaz — yalnızca eksik olanlar doldurulur.",
     importing: "İçe aktarılıyor...",
     confirmImport: "İçe aktarmayı onayla",
     importComplete: "İçe aktarma tamamlandı",
@@ -751,7 +827,8 @@ const tr: TranslationDict = {
     andNMoreConsole: "...ve {n} tane daha (konsola bakın).",
     otherErrors: "Diğer hatalar",
     done: "Tamam",
-    importCompleteNotice: "MediaVault: içe aktarma tamamlandı — {count} başlık içe aktarıldı, {merged} birleştirildi.",
+    importCompleteNotice:
+      "MediaVault: içe aktarma tamamlandı — {count} başlık içe aktarıldı, {merged} birleştirildi.",
     importFailed: "MediaVault: içe aktarma başarısız oldu — {error}",
   },
   toasts: {
@@ -761,6 +838,37 @@ const tr: TranslationDict = {
     mediaDeleted: "Kitaplıktan silindi",
     episodesSynced: "Bölümler senkronize edildi",
     settingsSaved: "Ayarlar kaydedildi",
+  },
+  statistics: {
+    minutes: "dk",
+    hours: "sa",
+    days: "g",
+    months: "ay",
+    years: "y",
+    season: "S",
+    episode: "B",
+  },
+  month: {
+    jan: "Ocak",
+    feb: "Şub",
+  },
+  command: {
+    addMedia: "Film veya dizi ekle",
+    openLibrary: "Kitaplığı aç",
+    openLists: "Listeleri aç",
+    openWatchNext: "Sırada Olanları Aç",
+    openExplore: "Keşfet",
+    showNotifications: "Bildirimleri Göster",
+    checkNotificationsNow: "Yeni bölümleri, sezonları ve sürümleri şimdi kontrol et",
+    importWatchHistory: "İzleme geçmişini içe aktar (TV Time / JSON / CSV)",
+    recommendations: "Keşfet",
+    comfortFinder: "Rahatlatıcı medya bul",
+    viewStats: "Analiz panosunu aç",
+    viewStatsQuick: "Hızlı istatistik özet",
+    regenerateAllNotes: "Tüm medya notlarını yeniden oluştur",
+    traktSyncNow: "Trakt ile senkronize et",
+    traktRegenerateNote: "Trakt Puanlama Geçmiş notunu yeniden oluştur",
+    testTmdbConnection: "TMDB bağlantısını test et",
   },
 };
 

@@ -34,13 +34,13 @@ export function getProgressTabs(): { value: ProgressTab; label: string }[] {
 }
 
 export const PROGRESS_TABS: { value: ProgressTab; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "watching", label: "Watching" },
-  { value: "up_to_date", label: "Up To Date" },
-  { value: "plan_to_watch", label: "Plan to Watch" },
-  { value: "finished", label: "Finished" },
-  { value: "waiting_for_new_season", label: "Waiting for New Season" },
-  { value: "dropped", label: "Dropped" },
+  { value: "all", label: t("library.tabAll") },
+  { value: "watching", label: t("library.tabWatching") },
+  { value: "up_to_date", label: t("library.tabUpToDate") },
+  { value: "plan_to_watch", label: t("library.tabPlanToWatch") },
+  { value: "finished", label: t("library.tabFinished") },
+  { value: "waiting_for_new_season", label: t("library.tabWaiting") },
+  { value: "dropped", label: t("library.tabDropped") },
 ];
 
 const PROGRESS_TAB_STATUSES: Partial<Record<ProgressTab, MediaStatus[]>> = {

@@ -8,15 +8,6 @@ import { renderPoster } from "./media-render";
 import { setIcon } from "obsidian";
 import { t } from "../../i18n";
 
-/**
- * Renders a list card using the same banner+scrim style as the Lists page
- * grid, so any surface (Lists view, Add to List modal, etc.) shows lists
- * identically. `onClick` receives the card element so callers can add
- * transient state (e.g. a success flash) on top of it.
- *
- * `selected` renders a persistent "in this list" state (accent border +
- * check badge).
- */
 export function renderListCard(
   container: HTMLElement,
   list: CustomList,
@@ -71,7 +62,6 @@ export function renderListCard(
   return card;
 }
 
-/** (Re)renders just the banner poster cells for a list card, in place. */
 export function renderListCardBannerCells(
   cellsContainer: HTMLElement,
   list: CustomList,
@@ -92,7 +82,6 @@ export function renderListCardBannerCells(
   }
 }
 
-/** Updates an already-rendered card's banner posters in place (no reopen). */
 export function updateListCardBanner(
   card: HTMLElement,
   list: CustomList,
@@ -105,7 +94,6 @@ export function updateListCardBanner(
   renderListCardBannerCells(cells, list, allMedia);
 }
 
-/** Marks a rendered list card as selected (in the list) or not, live. */
 export function setListCardSelected(
   card: HTMLElement,
   selected: boolean,

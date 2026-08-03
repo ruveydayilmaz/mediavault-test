@@ -23,7 +23,7 @@ export class FavoriteListsModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("mediavault-favorite-lists-modal");
-    renderModalHeader(this, contentEl, "Favorite Lists", "h3");
+    renderModalHeader(this, contentEl, t("lists.favoriteLists"), "h3");
 
     const allMedia = await this.plugin.storage.media.getAll();
     const lists = getSystemFavoriteLists(

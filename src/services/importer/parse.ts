@@ -89,7 +89,7 @@ export function parseJSON(content: string): unknown {
   }
 
   throw new Error(
-    "Unrecognized JSON structure — expected an array of records, a single record object, or a {movies, episodes, ...} wrapper object.",
+    "Unrecognized JSON structure: expected an array of records, a single record object, or a {movies, episodes, ...} wrapper object.",
   );
 }
 

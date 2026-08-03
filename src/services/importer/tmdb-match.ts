@@ -110,7 +110,7 @@ async function gatherCandidates(
       const result = await searchFn(trimmed, 1, year);
       for (const item of result.items) pool.set(item.tmdbId, item);
     } catch {
-      // network hiccup, rate limit, etc
+      // Ignore errors
     }
   }
 

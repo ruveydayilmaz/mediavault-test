@@ -1,6 +1,7 @@
 import type { App } from "obsidian";
 import type { StorageService } from "./storage";
 import { MediaType } from "../types/enums";
+import { t } from "i18n/i18n-service";
 
 export async function generateTraktHistoryNote(
   app: App,
@@ -33,7 +34,7 @@ export async function generateTraktHistoryNote(
     const ratingText = p.rating !== null ? ` — ${p.rating}/10` : "";
     entries.push({
       date: p.watchedDate.slice(0, 10),
-      line: `[[${item.title}]] — S${String(p.seasonNumber).padStart(2, "0")}E${String(p.episodeNumber).padStart(2, "0")}${ratingText}`,
+      line: `[[${item.title}]] — ${t("statistics.season")}${String(p.seasonNumber).padStart(2, "0")}${t("statistics.episode")}${String(p.episodeNumber).padStart(2, "0")}${ratingText}`,
     });
   }
 

@@ -39,7 +39,6 @@ import {
 } from "./services/notification-service";
 import type { MediaItem } from "./models/media";
 import type { Episode } from "./models/episode";
-import { MediaType } from "./types/enums";
 import { applyAndroidBodyClass } from "./utils/platform";
 import { i18n, t } from "./i18n";
 
@@ -97,7 +96,7 @@ export default class MediaVaultPlugin extends Plugin {
 
     this.addCommand({
       id: "mediavault-add-media",
-      name: "Add movie or TV show",
+      name: t("command.addMedia"),
       callback: () => {
         this.openAddMediaModal();
       },
@@ -105,7 +104,7 @@ export default class MediaVaultPlugin extends Plugin {
 
     this.addCommand({
       id: "mediavault-open-library",
-      name: "Open library",
+      name: t("command.openLibrary"),
       callback: () => {
         void this.activateLibraryView();
       },
@@ -113,7 +112,7 @@ export default class MediaVaultPlugin extends Plugin {
 
     this.addCommand({
       id: "mediavault-open-lists",
-      name: "Open lists",
+      name: t("command.openLists"),
       callback: () => {
         void this.activateListsView();
       },
@@ -121,7 +120,7 @@ export default class MediaVaultPlugin extends Plugin {
 
     this.addCommand({
       id: "mediavault-open-watch-next",
-      name: "Open Watch Next sidebar",
+      name: t("command.openWatchNext"),
       callback: () => {
         void this.activateWatchNextView();
       },
@@ -129,7 +128,7 @@ export default class MediaVaultPlugin extends Plugin {
 
     this.addCommand({
       id: "mediavault-open-explore",
-      name: "Open Explore",
+      name: t("command.openExplore"),
       callback: () => {
         void this.activateExploreView();
       },
@@ -137,7 +136,7 @@ export default class MediaVaultPlugin extends Plugin {
 
     this.addCommand({
       id: "mediavault-show-notifications",
-      name: "Show notifications",
+      name: t("command.showNotifications"),
       callback: () => {
         new NotificationHistoryModal(this.app, this).open();
       },
@@ -145,7 +144,7 @@ export default class MediaVaultPlugin extends Plugin {
 
     this.addCommand({
       id: "mediavault-check-notifications-now",
-      name: "Check for new episodes, seasons, and releases now",
+      name: t("command.checkNotificationsNow"),
       callback: () => {
         void this.runNotificationCheckNow();
       },
@@ -153,7 +152,7 @@ export default class MediaVaultPlugin extends Plugin {
 
     this.addCommand({
       id: "mediavault-import-watch-history",
-      name: "Import watch history (TV Time / JSON / CSV)",
+      name: t("command.importWatchHistory"),
       callback: () => {
         if (!this.storage.settings.get().tmdbApiKey) {
           new Notice(t("notice.addTmdbKeyBeforeImporting"));
@@ -168,7 +167,7 @@ export default class MediaVaultPlugin extends Plugin {
 
     this.addCommand({
       id: "mediavault-recommendations",
-      name: "Discover recommendations",
+      name: t("command.recommendations"),
       callback: () => {
         if (!this.storage.settings.get().tmdbApiKey) {
           new Notice(t("notice.addTmdbKeyFirst"));
@@ -185,7 +184,7 @@ export default class MediaVaultPlugin extends Plugin {
 
     this.addCommand({
       id: "mediavault-comfort-finder",
-      name: "Find comfort media",
+      name: t("command.comfortFinder"),
       callback: () => {
         new ComfortFinderModal(this.app, this.storage, this.tmdb).open();
       },
@@ -193,7 +192,7 @@ export default class MediaVaultPlugin extends Plugin {
 
     this.addCommand({
       id: "mediavault-view-stats",
-      name: "Open analytics dashboard",
+      name: t("command.viewStats"),
       callback: () => {
         void this.activateAnalyticsView();
       },
@@ -201,7 +200,7 @@ export default class MediaVaultPlugin extends Plugin {
 
     this.addCommand({
       id: "mediavault-view-stats-quick",
-      name: "Quick stats summary",
+      name: t("command.viewStatsQuick"),
       callback: () => {
         new AnalyticsSummaryModal(this.app, this.storage).open();
       },
@@ -209,7 +208,7 @@ export default class MediaVaultPlugin extends Plugin {
 
     this.addCommand({
       id: "mediavault-regenerate-all-notes",
-      name: "Regenerate all media notes",
+      name: t("command.regenerateAllNotes"),
       callback: () => {
         void this.regenerateAllNotes();
       },
@@ -217,7 +216,7 @@ export default class MediaVaultPlugin extends Plugin {
 
     this.addCommand({
       id: "mediavault-trakt-sync-now",
-      name: "Sync with Trakt now",
+      name: t("command.traktSyncNow"),
       callback: () => {
         void this.runTraktSync();
       },
@@ -225,7 +224,7 @@ export default class MediaVaultPlugin extends Plugin {
 
     this.addCommand({
       id: "mediavault-trakt-regenerate-note",
-      name: "Regenerate Trakt Rating History note",
+      name: t("command.traktRegenerateNote"),
       callback: async () => {
         await generateTraktHistoryNote(
           this.app,
@@ -238,7 +237,7 @@ export default class MediaVaultPlugin extends Plugin {
 
     this.addCommand({
       id: "mediavault-test-tmdb-connection",
-      name: "Test TMDB connection",
+      name: t("command.testTmdbConnection"),
       callback: async () => {
         if (!this.storage.settings.get().tmdbApiKey) {
           new Notice(t("notice.addTmdbKeyFirst"));
@@ -629,7 +628,7 @@ export default class MediaVaultPlugin extends Plugin {
     });
 
     if (!settings.notificationSilent) {
-      fired.forEach((n) => new Notice(`MediaVault: ${n.message}`)); // notification messages localized at generation time
+      fired.forEach((n) => new Notice(`MediaVault: ${n.message}`));
     }
     if (fired.length > 0) {
       this.refreshLibraryViews();

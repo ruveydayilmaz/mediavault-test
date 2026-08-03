@@ -1,5 +1,6 @@
 import { WatchSession } from "../../models/review";
 import { EpisodeProgress } from "../../models/episode";
+import { t } from "i18n/i18n-service";
 
 export function computeDailyWatchCounts(
   sessions: WatchSession[],
@@ -22,18 +23,18 @@ export function computeDailyWatchCounts(
 }
 
 const MONTH_NAMES = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
+  t("month.jan"),
+  t("month.feb"),
+  t("month.mar"),
+  t("month.apr"),
+  t("month.may"),
+  t("month.jun"),
+  t("month.jul"),
+  t("month.aug"),
+  t("month.sep"),
+  t("month.oct"),
+  t("month.nov"),
+  t("month.dec"),
 ];
 
 export function renderCalendarHeatmap(

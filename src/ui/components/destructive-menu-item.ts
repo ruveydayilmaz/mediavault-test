@@ -1,3 +1,4 @@
+import { t } from "i18n/i18n-service";
 import { Menu } from "obsidian";
 
 export function addDestructiveMenuItem(
@@ -16,7 +17,7 @@ export function addDestructiveMenuItem(
   menu.addItem((item) => {
     item.setTitle(
       options.confirming
-        ? (options.confirmLabel ?? `Confirm ${options.label}`)
+        ? (options.confirmLabel ?? t("common.confirmWithLabel", { label: options.label }))
         : options.label,
     );
     item.setIcon(

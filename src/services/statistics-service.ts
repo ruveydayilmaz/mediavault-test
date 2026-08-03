@@ -3,14 +3,13 @@ import { WatchSession } from "../models/review";
 import { Episode, EpisodeProgress } from "../models/episode";
 import { MediaType } from "../types/enums";
 import type { StorageService } from "./storage";
-
+import { t } from "i18n/i18n-service";
 export interface DashboardStatistics {
   movieCount: number;
   movieRuntimeMinutes: number;
   episodeCount: number;
   episodeRuntimeMinutes: number;
 }
-
 export interface StatisticsInput {
   media: MediaItem[];
   sessions: WatchSession[];
@@ -56,7 +55,6 @@ export function computeStatistics(input: StatisticsInput): DashboardStatistics {
     episodeRuntimeMinutes,
   };
 }
-
 export class StatisticsService {
   constructor(private storage: StorageService) {}
 
@@ -92,7 +90,7 @@ export class StatisticsService {
 }
 
 export function formatWatchTime(totalMinutes: number): string {
-  if (totalMinutes <= 0) return "0m";
+  if (totalMinutes <= 0) return `0${t("statistics.minutes")}`;
 
   const totalHours = Math.floor(totalMinutes / 60);
   const totalDays = Math.floor(totalHours / 24);
@@ -104,18 +102,20 @@ export function formatWatchTime(totalMinutes: number): string {
       (totalDays - totalYears * 365.25) / 30.44,
     );
     return remainingMonths > 0
-      ? `${totalYears}y ${remainingMonths}mo`
-      : `${totalYears}y`;
+      ? `${totalYears}${t("statistics.years")} ${remainingMonths}${t("statistics.months")}`
+      : `${totalYears}${t("statistics.years")}`;
   }
   if (totalMonths > 0) {
     const remainingDays = Math.floor(totalDays - totalMonths * 30.44);
     return remainingDays > 0
-      ? `${totalMonths}mo ${remainingDays}d`
-      : `${totalMonths}mo`;
+      ? `${totalMonths}${t("statistics.months")} ${remainingDays}${t("statistics.days")}`
+      : `${totalMonths}${t("statistics.months")}`;
   }
   const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
   const minutes = totalMinutes % 60;
-  if (totalDays > 0) return `${totalDays}d ${hours}h`;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  return `${minutes}m`;
+  if (totalDays > 0)
+    return `${totalDays}${t("statistics.days")} ${hours}${t("statistics.hours")}`;
+  if (hours > 0)
+    return `${hours}${t("statistics.hours")} ${minutes}${t("statistics.minutes")}`;
+  return `${minutes}${t("statistics.minutes")}`;
 }

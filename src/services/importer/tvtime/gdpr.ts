@@ -69,7 +69,7 @@ export function parseGdprArchive(
     if (looksLikeYearNotSeason(season)) {
       bundleFor("tracking-prod-records-v2.csv").warnings.push({
         row: index + 2,
-        reason: `"${title}": entry isn't organized into real TV seasons (season field looks like a year, ${season}) — TV Time tracks this as an anthology/collection, which has no TMDB episode equivalent. Skipped.`,
+        reason: `"${title}": entry isn't organized into real TV seasons (season field looks like a year, ${season}). TV Time tracks this as an anthology/collection, which has no TMDB episode equivalent. Skipped.`,
       });
       continue;
     }
@@ -115,7 +115,7 @@ export function parseGdprArchive(
       if (looksLikeYearNotSeason(season)) {
         bundleFor("tracking-prod-records.csv").warnings.push({
           row: index + 2,
-          reason: `"${clean(row.series_name)}": entry isn't organized into real TV seasons (season field looks like a year, ${season}) — TV Time tracks this as an anthology/collection, which has no TMDB episode equivalent. Skipped.`,
+          reason: `"${clean(row.series_name)}": entry isn't organized into real TV seasons (season field looks like a year, ${season}). TV Time tracks this as an anthology/collection, which has no TMDB episode equivalent. Skipped.`,
         });
         continue;
       }

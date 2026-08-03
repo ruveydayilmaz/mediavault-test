@@ -195,7 +195,6 @@ export class ComfortFinderModal extends Modal {
         slider
           .setLimits(1, 10, 1)
           .setValue(this.criteria[minField] ?? 1)
-          .setDynamicTooltip()
           .onChange((v) => {
             this.criteria = { ...this.criteria, [minField]: v };
             this.runQuery();
@@ -205,7 +204,6 @@ export class ComfortFinderModal extends Modal {
         slider
           .setLimits(1, 10, 1)
           .setValue(this.criteria[maxField] ?? 10)
-          .setDynamicTooltip()
           .onChange((v) => {
             this.criteria = { ...this.criteria, [maxField]: v };
             this.runQuery();
@@ -222,7 +220,6 @@ export class ComfortFinderModal extends Modal {
       slider
         .setLimits(1, 10, 1)
         .setValue(this.criteria[field] ?? 10)
-        .setDynamicTooltip()
         .onChange((v) => {
           this.criteria = { ...this.criteria, [field]: v };
           this.runQuery();

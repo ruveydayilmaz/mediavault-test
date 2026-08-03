@@ -3986,7 +3986,7 @@ body.mediavault-android .mediavault-explore-filter-bar select {
 .is-phone .mediavault-filter-slider {
   flex: none;
   width: 100%;
-  height: 20px;
+  height: 10px;
 }
 
 .is-phone .mediavault-autocomplete-wrap {
