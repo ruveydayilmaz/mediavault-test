@@ -127,7 +127,7 @@ export class AnalyticsView extends ItemView {
           labels: recent.map((t) => t.period),
           datasets: [
             {
-              label: "Watches",
+              label: t("analytics.watchesDatasetLabel"),
               data: recent.map((t) => t.count),
               borderColor: colors.accent,
               backgroundColor: colors.accent,

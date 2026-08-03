@@ -3943,9 +3943,6 @@ body.mediavault-android .mediavault-explore-filter-bar select {
   min-width: 0;
 }
 
-/* Standalone inputs/selects on their own filter row take full width on mobile;
-   paired inputs (Min/Max, From/To) stay side by side inside their group.
-   The genre carousel and the Favorites checkbox row keep their own layout. */
 .is-phone
   .mediavault-filter-row:not(.mediavault-filter-sort-size-row):not(
     .mediavault-filter-genre-row
@@ -3991,6 +3988,21 @@ body.mediavault-android .mediavault-explore-filter-bar select {
 
 .is-phone .mediavault-autocomplete-wrap {
   width: 100%;
+  height: auto;
+  min-height: 0;
+}
+
+.is-phone .mediavault-autocomplete-list {
+  min-height: 0;
+}
+
+.is-phone .mediavault-filter-chips {
+  min-height: 0;
+  margin-bottom: 0;
+}
+
+datalist {
+  display: none;
 }
 
 body.mediavault-android .mediavault-pagination {

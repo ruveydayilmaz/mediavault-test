@@ -1,9 +1,9 @@
 {
 	"id": "mediavault",
 	"name": "MediaVault",
-	"version": "4.54.0",
+	"version": "4.57.0",
 	"minAppVersion": "1.4.0",
-	"description": "Track movies, TV shows, reviews, rewatches, and mood-based comfort media — all inside your vault.",
+	"description": "Track movies, TV shows, reviews, rewatches, and mood-based comfort media \u2014 all inside your vault.",
 	"author": "You",
 	"authorUrl": "",
 	"isDesktopOnly": false

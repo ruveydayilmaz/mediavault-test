@@ -66,7 +66,11 @@ export function renderCalendarHeatmap(
       });
       cell.setAttr(
         "title",
-        `${dateStr}: ${count} watch${count === 1 ? "" : "es"}`,
+        t("common.heatmapDayTooltip", {
+          date: dateStr,
+          count,
+          plural: count === 1 ? "" : "es",
+        }),
       );
     }
   }

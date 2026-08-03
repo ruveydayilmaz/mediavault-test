@@ -28,6 +28,8 @@ import {
   markSeasonWatched,
   findUnwatchedPrecedingEpisodes,
   removeOneEpisodeWatch,
+  addSeasonRewatch,
+  removeOneSeasonWatch,
 } from "../../services/episode-status-sync";
 import {
   addEpisodeWatch,
@@ -451,8 +453,12 @@ export class MediaDetailModal extends Modal {
 
     const label =
       progress.totalRuntime > 0
-        ? `Resume from ${progress.currentMinute} min (${progress.currentMinute} / ${progress.totalRuntime} min · ${Math.round(percent)}%)`
-        : `Resume from ${progress.currentMinute} min`;
+        ? t("detail.resumeFromMinuteFull", {
+            minute: progress.currentMinute,
+            total: progress.totalRuntime,
+            percent: Math.round(percent),
+          })
+        : t("detail.resumeFromMinute", { minute: progress.currentMinute });
     wrap.createDiv({
       cls: "mediavault-detail-meta mediavault-movie-progress-label",
       text: label,
@@ -668,17 +674,27 @@ export class MediaDetailModal extends Modal {
         ? [
             ...(this.isPreview
               ? []
-              : [{ id: "history" as DetailTab, label: "Watch History" }]),
-            { id: "episodes", label: "Episodes" },
-            { id: "cast", label: "Cast" },
-            { id: "comments", label: "Comments" },
+              : [
+                  {
+                    id: "history" as DetailTab,
+                    label: t("detail.watchHistory"),
+                  },
+                ]),
+            { id: "episodes", label: t("detail.episodes") },
+            { id: "cast", label: t("detail.cast") },
+            { id: "comments", label: t("detail.comments") },
           ]
         : [
             ...(this.isPreview
               ? []
-              : [{ id: "history" as DetailTab, label: "Watch History" }]),
-            { id: "cast", label: "Cast" },
-            { id: "comments", label: "Comments" },
+              : [
+                  {
+                    id: "history" as DetailTab,
+                    label: t("detail.watchHistory"),
+                  },
+                ]),
+            { id: "cast", label: t("detail.cast") },
+            { id: "comments", label: t("detail.comments") },
           ];
 
     tabs.forEach((tab) => {
@@ -768,8 +784,8 @@ export class MediaDetailModal extends Modal {
     });
     const watchLabel =
       session.rewatchNumber === 0
-        ? "First watch"
-        : `Rewatch #${session.rewatchNumber}`;
+        ? t("detail.firstWatch")
+        : t("detail.rewatchNumber", { n: session.rewatchNumber });
     entryHeader.createSpan({
       cls: "mediavault-timeline-watch-label",
       text: watchLabel,
@@ -938,7 +954,9 @@ export class MediaDetailModal extends Modal {
     try {
       cast = await this.tmdb.getCredits(this.media.tmdbId, mediaKind);
     } catch (err) {
-      loading.setText(`Couldn't load cast: ${(err as Error).message}`);
+      loading.setText(
+        t("detail.couldNotLoadCast", { error: (err as Error).message }),
+      );
       return;
     }
     loading.remove();
@@ -1004,8 +1022,8 @@ export class MediaDetailModal extends Modal {
         cls: "mediavault-modal-hint",
         text:
           rawComments.length > 0
-            ? "No comments in your configured languages yet. See Settings to add more."
-            : "No comments yet on Trakt.",
+            ? t("comments.emptyFilteredLanguages")
+            : t("comments.emptyTrakt"),
       });
       return;
     }
@@ -1442,59 +1460,81 @@ export class MediaDetailModal extends Modal {
     });
 
     const actions = header.createDiv({ cls: "mediavault-season-actions" });
-    const seasonWatched = total > 0 && watchedCount === total;
+    const seasonWatchCount =
+      total > 0
+        ? Math.min(
+            ...episodes.map((e) => watchesByEpisodeId.get(e.id)?.length ?? 0),
+          )
+        : 0;
+    const seasonWatched = watchedCount === total && seasonWatchCount > 0;
 
     const toggleWatchBtn = actions.createEl("button", {
-      cls: "clickable-icon",
+      cls:
+        seasonWatchCount === 0
+          ? "mediavault-detail-log-btn mediavault-episode-watch-btn mediavault-episode-watch-btn-unwatched"
+          : "mediavault-detail-log-btn mod-cta mediavault-episode-watch-btn",
     });
-    setIcon(toggleWatchBtn, seasonWatched ? "rotate-ccw" : "check-check");
-    toggleWatchBtn.setAttr(
-      "aria-label",
-      seasonWatched ? t("detail.seasonOptions") : t("detail.markSeasonWatched"),
-    );
+    if (!seasonWatched) {
+      setIcon(toggleWatchBtn, "check-check");
+      toggleWatchBtn.setAttr("aria-label", t("detail.markSeasonWatched"));
+    } else {
+      toggleWatchBtn.setText(`\u00d7${seasonWatchCount}`);
+      toggleWatchBtn.setAttr(
+        "aria-label",
+        t("detail.watchedNTimes", {
+          n: seasonWatchCount,
+          plural: seasonWatchCount === 1 ? "" : "s",
+        }),
+      );
+    }
 
     toggleWatchBtn.addEventListener("click", async (evt) => {
       evt.stopPropagation();
-
-      if (!seasonWatched) {
-        await markSeasonWatched(this.storage, episodes, true);
-
-        new Notice(t("notice.markedSeasonWatched", { n: seasonNumber }));
-
-        await this.rerenderPreservingEpisodesScroll();
-        this.onChanged?.();
+      if (toggleWatchBtn.dataset.longPressed) {
+        delete toggleWatchBtn.dataset.longPressed;
         return;
       }
 
-      const menu = new Menu();
+      if (!seasonWatched) {
+        await markSeasonWatched(this.storage, episodes, true);
+        new Notice(t("notice.markedSeasonWatched", { n: seasonNumber }));
+      } else {
+        await addSeasonRewatch(this.storage, episodes);
+        this.plugin?.refreshLibraryViews();
+        this.plugin?.refreshListViews();
+      }
 
-      menu.addItem((item) =>
-        item
-          .setTitle(t("detail.logSeasonRewatch"))
-          .setIcon("history")
-          .onClick(() => {
-            // TODO: Implement season rewatch
-          }),
-      );
-
-      menu.addSeparator();
-
-      menu.addItem((item) =>
-        item
-          .setTitle(t("detail.markSeasonUnwatched"))
-          .setIcon("rotate-ccw")
-          .onClick(async () => {
-            await markSeasonWatched(this.storage, episodes, false);
-
-            new Notice(t("notice.markedSeasonUnwatched", { n: seasonNumber }));
-
-            await this.rerenderPreservingEpisodesScroll();
-            this.onChanged?.();
-          }),
-      );
-
-      menu.showAtMouseEvent(evt);
+      this.onChanged?.();
+      await this.rerenderPreservingEpisodesScroll();
     });
+
+    if (seasonWatched) {
+      const LONG_PRESS_MS = 550;
+      let longPressTimer: number | null = null;
+      const clearTimer = () => {
+        if (longPressTimer !== null) {
+          window.clearTimeout(longPressTimer);
+          longPressTimer = null;
+        }
+      };
+      toggleWatchBtn.addEventListener("pointerdown", (evt) => {
+        if (evt.button !== undefined && evt.button !== 0) return;
+        clearTimer();
+        longPressTimer = window.setTimeout(async () => {
+          longPressTimer = null;
+          toggleWatchBtn.dataset.longPressed = "1";
+          if (!confirm(t("detail.removeOneSeasonWatchConfirm"))) return;
+          await removeOneSeasonWatch(this.storage, episodes);
+          this.plugin?.refreshLibraryViews();
+          this.plugin?.refreshListViews();
+          this.onChanged?.();
+          await this.rerenderPreservingEpisodesScroll();
+        }, LONG_PRESS_MS);
+      });
+      toggleWatchBtn.addEventListener("pointerup", clearTimer);
+      toggleWatchBtn.addEventListener("pointercancel", clearTimer);
+      toggleWatchBtn.addEventListener("pointerleave", clearTimer);
+    }
 
     for (const ep of episodes) {
       this.renderEpisodeRow(

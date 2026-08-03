@@ -2,6 +2,7 @@ import type { TranslationDict } from "../types";
 
 const tr: TranslationDict = {
   common: {
+    heatmapDayTooltip: "{date}: {count} izleme",
     noRatingsYet: "Henüz puan yok.",
     onlyOneRatedWatch: "Şimdiye kadar sadece bir puanlanmış izleme: {rating}",
     addToLibraryAria: "Kitaplığa ekle",
@@ -307,6 +308,7 @@ const tr: TranslationDict = {
     watchActivity: "İzleme etkinliği — {year}",
     genreBreakdown: "Tür dağılımı",
     monthlyTrend: "Aylık izleme eğilimi",
+    watchesDatasetLabel: "İzlemeler",
     rewatchFrequency: "Yeniden izleme sıklığı",
     topActorsCard: "En çok izlenen oyuncular",
     moviesEpisodesWatchedLine: "{movies} film · {episodes} bölüm izlendi",
@@ -392,6 +394,8 @@ const tr: TranslationDict = {
     loading: "Yorumlar yükleniyor...",
     retry: "Tekrar dene",
     empty: "Henüz yorum yok",
+    emptyFilteredLanguages: "Yapılandırdığınız dillerde henüz yorum yok. Daha fazla eklemek için Ayarlar'a bakın.",
+    emptyTrakt: "Trakt'ta henüz yorum yok.",
     placeholder: "Bir yorum yazın...",
     publish: "Yorum Gönder",
     edit: "Yorumu Düzenle",
@@ -425,8 +429,13 @@ const tr: TranslationDict = {
     couldNotLoadItem: 'MediaVault: "{title}" yüklenemedi — {error}',
     watchHistory: "İzleme Geçmişi",
     episodes: "Bölümler",
+    firstWatch: "İlk izleme",
+    rewatchNumber: "Yeniden izleme #{n}",
+    couldNotLoadCast: "Oyuncu kadrosu yüklenemedi: {error}",
     markAsDropped: "Bırakıldı Olarak İşaretle",
     resumeWatching: "İzlemeye Devam Et",
+    resumeFromMinuteFull: "{minute}. dakikadan devam et ({minute} / {total} dk · %{percent})",
+    resumeFromMinute: "{minute}. dakikadan devam et",
     editPoster: "Posteri Düzenle",
     editBanner: "Afişi Düzenle",
     refreshEpisodes: "Bölümleri TMDB'den yenile",
@@ -474,6 +483,7 @@ const tr: TranslationDict = {
     markWatched: "İzlendi olarak işaretle",
     watchedNTimes: "{n} kez izlendi, yeniden izleme ekle",
     removeOneWatchConfirm: "Bu bölümden bir izleme kaldırılsın mı?",
+    removeOneSeasonWatchConfirm: "Bu sezondan bir izleme kaldırılsın mı?",
     previousEpisodesPrompt:
       "Önceki bölümleri izlendi olarak işaretlemediniz.\n\nÖnceki tüm bölümleri izlendi olarak işaretlemek ister misiniz?",
     previous: "Önceki",

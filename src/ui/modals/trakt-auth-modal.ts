@@ -58,19 +58,14 @@ export class TraktAuthModal extends Modal {
       setIcon(copyBtn, "copy");
       copyBtn.setAttr("aria-label", t("settings.copyCode"));
       copyBtn.addEventListener("click", async () => {
+        if (!navigator.clipboard?.writeText) {
+          new Notice(
+            t("settings.errorPrefix", { error: t("settings.copyCode") }),
+          );
+          return;
+        }
         try {
-          if (navigator.clipboard?.writeText) {
-            await navigator.clipboard.writeText(device.userCode);
-          } else {
-            const temp = document.createElement("textarea");
-            temp.value = device.userCode;
-            temp.style.position = "fixed";
-            temp.style.opacity = "0";
-            document.body.appendChild(temp);
-            temp.select();
-            document.execCommand("copy");
-            temp.remove();
-          }
+          await navigator.clipboard.writeText(device.userCode);
           new Notice(t("settings.codeCopied"));
         } catch {
           new Notice(

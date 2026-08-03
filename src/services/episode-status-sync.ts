@@ -171,6 +171,45 @@ export async function markSeasonWatched(
   return results;
 }
 
+export async function addSeasonRewatch(
+  storage: StorageService,
+  episodes: Episode[],
+): Promise<void> {
+  if (episodes.length === 0) return;
+  const mediaId = episodes[0].mediaId;
+  const watchedAt = today();
+
+  for (const episode of episodes) {
+    await storage.episodeWatches.create({
+      mediaId: episode.mediaId,
+      episodeId: episode.id,
+      watchedAt,
+      rating: null,
+      emotion: null,
+      review: null,
+      notes: null,
+    });
+    await storage.episodeProgress.markWatched(episode, true, watchedAt);
+  }
+
+  await touchMediaActivity(storage, mediaId);
+  await recalculateAndPersistStatus(storage, mediaId);
+}
+
+export async function removeOneSeasonWatch(
+  storage: StorageService,
+  episodes: Episode[],
+): Promise<void> {
+  if (episodes.length === 0) return;
+  const mediaId = episodes[0].mediaId;
+
+  for (const episode of episodes) {
+    await removeOneEpisodeWatch(storage, episode);
+  }
+
+  await recalculateAndPersistStatus(storage, mediaId);
+}
+
 export async function isSeriesFullyWatched(
   storage: StorageService,
   mediaId: MediaVaultId,
