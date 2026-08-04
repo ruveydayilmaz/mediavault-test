@@ -434,6 +434,7 @@ const en: TranslationDict = {
     watchEntryOptions: "Watch entry options",
     writeComment: "Write a comment",
     loadingComments: "Loading comments from Trakt...",
+    couldNotLoadComments: "Couldn't load comments from Trakt. {error}",
     cast: "Cast",
     loadingCast: "Loading cast...",
     noCastInfo: "No cast information available.",

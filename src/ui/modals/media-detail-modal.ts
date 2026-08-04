@@ -999,10 +999,7 @@ export class MediaDetailModal extends Modal {
       comments = await fetchComments();
     } catch (err) {
       loading.setText(
-        t("detail.couldNotLoadItem", {
-          title: "comments from Trakt",
-          error: (err as Error).message,
-        }),
+        t("detail.couldNotLoadComments", { error: (err as Error).message }),
       );
       return;
     }
