@@ -143,7 +143,23 @@ export class MediaDetailModal extends Modal {
   onOpen(): void {
     this.modalEl.addClass("mediavault-detail-modal");
     this.plugin?.registerLocaleAwareModal(this);
+    this.attachDismissKeyboardOnOutsideTap();
     void this.initialize();
+  }
+
+  // Focus management: tapping anywhere outside the currently focused
+  // input/textarea blurs it (dismissing the mobile keyboard) without
+  // interfering with scrolling or normal button clicks — the listener
+  // only ever calls blur(), never preventDefault(), so native scroll and
+  // click handling continue exactly as before.
+  private attachDismissKeyboardOnOutsideTap(): void {
+    this.contentEl.addEventListener("pointerdown", (evt) => {
+      const active = document.activeElement;
+      if (!(active instanceof HTMLElement)) return;
+      if (active.tagName !== "TEXTAREA" && active.tagName !== "INPUT") return;
+      if (evt.target instanceof Node && active.contains(evt.target)) return;
+      active.blur();
+    });
   }
 
   private async initialize(): Promise<void> {
@@ -174,6 +190,10 @@ export class MediaDetailModal extends Modal {
     }
   }
 
+  // Re-renders only the episodes tab's own content — not the header, hero,
+  // or tab bar — so a background episode sync (which can legitimately run
+  // on every open while a show is "Watching") never causes the whole modal
+  // to visibly rebuild. Only the section that actually changed updates.
   private async refreshEpisodesTabContent(): Promise<void> {
     const container = this.contentEl.querySelector<HTMLElement>(
       ".mediavault-detail-episodes-tab-content",
@@ -199,6 +219,11 @@ export class MediaDetailModal extends Modal {
     const fresh = await this.storage.media.findById(this.media.id);
     if (fresh) this.media = fresh;
 
+    // Resolve everything the header needs (including the one network-bound
+    // call in this path, genre translation) *before* touching the DOM, so
+    // a slow/uncached TMDB lookup can never leave a half-built modal
+    // visible for a frame — the empty()+rebuild below now always happens
+    // as a single synchronous block once all data is in hand.
     const localizedGenres = this.isPreview
       ? this.media.genres
       : await getLocalizedGenreNames(this.tmdb, this.media);
@@ -337,20 +362,18 @@ export class MediaDetailModal extends Modal {
 
     titleRow.createEl("h2", { text: this.media.title });
     if (!this.isPreview) {
-      const favBtn = titleRow.createEl("button", {
-        cls: `clickable-icon mediavault-fav-btn ${this.media.isFavorite ? "is-favorite" : ""}`,
-        text: this.media.isFavorite ? "★" : "☆",
-      });
-      favBtn.setAttr("aria-label", t("detail.toggleFavorite"));
-      favBtn.addEventListener("click", async (evt) => {
-        evt.stopPropagation();
-        const updated = await this.storage.media.update(this.media.id, {
-          isFavorite: !this.media.isFavorite,
-        });
-        if (updated) this.media = updated;
-        this.onChanged?.();
-        await this.render();
-      });
+      this.renderFavoriteButton(
+        titleRow,
+        this.media.isFavorite,
+        t("detail.toggleFavorite"),
+        async () => {
+          const updated = await this.storage.media.update(this.media.id, {
+            isFavorite: !this.media.isFavorite,
+          });
+          if (updated) this.media = updated;
+          this.onChanged?.();
+        },
+      );
     }
     left.createDiv({
       cls: "mediavault-detail-meta",
@@ -391,6 +414,35 @@ export class MediaDetailModal extends Modal {
     } else {
       await this.renderMoviePartialProgress(hero);
     }
+  }
+
+  // Shared favorite-star button used by both the Movie/TV hero and the
+  // Episode Detail hero, so favorites look and behave identically
+  // everywhere in MediaVault. Updates its own icon/class immediately
+  // (optimistic UI) instead of waiting on a full modal re-render.
+  private renderFavoriteButton(
+    container: HTMLElement,
+    isFavorite: boolean,
+    ariaLabel: string,
+    onToggle: () => Promise<void>,
+  ): HTMLButtonElement {
+    const btn = container.createEl("button", {
+      cls: `clickable-icon mediavault-fav-btn ${isFavorite ? "is-favorite" : ""}`,
+    });
+    setIcon(btn, "star");
+    btn.setAttr("aria-label", ariaLabel);
+    btn.addEventListener("click", async (evt) => {
+      evt.stopPropagation();
+      const nowFavorite = !btn.hasClass("is-favorite");
+      btn.toggleClass("is-favorite", nowFavorite);
+      btn.disabled = true;
+      try {
+        await onToggle();
+      } finally {
+        btn.disabled = false;
+      }
+    });
+    return btn;
   }
 
   private async renderAddToLibraryAction(
@@ -947,7 +999,7 @@ export class MediaDetailModal extends Modal {
       comments = await fetchComments();
     } catch (err) {
       loading.setText(
-        t("detail.couldNotLoadItem", { title: "comments from Trakt", error: (err as Error).message })
+        `Couldn't load comments from Trakt: ${describeTraktError(err)}`,
       );
       return;
     }
@@ -1707,12 +1759,12 @@ export class MediaDetailModal extends Modal {
     contentEl: HTMLElement,
     episode: Episode,
   ): Promise<void> {
-    this.renderEpisodeHero(contentEl, episode);
-    await this.renderEpisodeNavRow(contentEl, episode);
-
     const progress = await this.storage.episodeProgress.findByEpisodeId(
       episode.id,
     );
+    this.renderEpisodeHero(contentEl, episode, progress?.isFavorite ?? false);
+    await this.renderEpisodeNavRow(contentEl, episode);
+
     const watches = sortEpisodeWatchesChronological(
       await this.storage.episodeWatches.findByEpisodeId(episode.id),
     );
@@ -1783,7 +1835,11 @@ export class MediaDetailModal extends Modal {
     }
   }
 
-  private renderEpisodeHero(contentEl: HTMLElement, episode: Episode): void {
+  private renderEpisodeHero(
+    contentEl: HTMLElement,
+    episode: Episode,
+    isFavorite: boolean,
+  ): void {
     const hero = contentEl.createDiv({
       cls: "mediavault-detail-hero mediavault-episode-hero",
     });
@@ -1802,52 +1858,60 @@ export class MediaDetailModal extends Modal {
     const heroContent = hero.createDiv({
       cls: "mediavault-detail-hero-content",
     });
-    const titleRow = heroContent.createDiv({
+    const left = heroContent.createDiv({ cls: "mediavault-detail-hero-main" });
+    const titleRow = left.createDiv({
       cls: "mediavault-detail-title-row",
     });
-    titleRow.createEl("h2", {
-      cls: "mediavault-episode-hero-title",
-      text: episode.title,
-    });
+    titleRow.createEl("h2", { text: episode.title });
 
-    const favBtn = titleRow.createEl("button", {
-      cls: "clickable-icon mediavault-fav-btn",
-    });
-    favBtn.setAttr("aria-label", t("detail.toggleFavoriteEpisode"));
-    void this.storage.episodeProgress
-      .findByEpisodeId(episode.id)
-      .then((progress) => {
-        favBtn.toggleClass("is-favorite", !!progress?.isFavorite);
-        favBtn.setText(progress?.isFavorite ? "★" : "☆");
-      });
-    favBtn.addEventListener("click", async (evt) => {
-      evt.stopPropagation();
-      const current = await this.storage.episodeProgress.findByEpisodeId(
-        episode.id,
-      );
-      if (current) {
-        await this.storage.episodeProgress.update(current.id, {
-          isFavorite: !current.isFavorite,
-        });
-      } else {
-        const created = await markEpisodeWatched(this.storage, episode, false);
-        await this.storage.episodeProgress.update(created.id, {
-          isFavorite: true,
-        });
-      }
-      this.onChanged?.();
-      await this.render();
-    });
+    this.renderFavoriteButton(
+      titleRow,
+      isFavorite,
+      t("detail.toggleFavoriteEpisode"),
+      async () => {
+        const current = await this.storage.episodeProgress.findByEpisodeId(
+          episode.id,
+        );
+        if (current) {
+          await this.storage.episodeProgress.update(current.id, {
+            isFavorite: !current.isFavorite,
+          });
+        } else {
+          const created = await markEpisodeWatched(
+            this.storage,
+            episode,
+            false,
+          );
+          await this.storage.episodeProgress.update(created.id, {
+            isFavorite: true,
+          });
+        }
+        this.onChanged?.();
+      },
+    );
 
-    heroContent.createDiv({
-      cls: "mediavault-detail-meta",
+    const metaRow = left.createDiv({
+      cls: "mediavault-detail-meta mediavault-episode-meta-row",
+    });
+    const leftMeta = metaRow.createDiv({
+      cls: "mediavault-episode-meta-left",
+    });
+    leftMeta.createSpan({
+      cls: "mediavault-episode-meta-full",
       text: t("detail.seasonEpisodeLabel", {
         season: episode.seasonNumber,
         episode: episode.episodeNumber,
       }),
     });
-    heroContent.createDiv({
-      cls: "mediavault-detail-meta",
+    leftMeta.createSpan({
+      cls: "mediavault-episode-meta-short",
+      text: t("detail.seasonEpisodeLabelShort", {
+        season: episode.seasonNumber,
+        episode: episode.episodeNumber,
+      }),
+    });
+    metaRow.createDiv({
+      cls: "mediavault-episode-meta-right",
       text: [formatEpisodeRuntime(episode.runtime), episode.airDate]
         .filter(Boolean)
         .join(" • "),

@@ -533,6 +533,7 @@ const tr: TranslationDict = {
     deletionScopeFavoritesStatus: "Favori durumu",
     deletionScopeGeneratedNote: "Oluşturulan not",
     deletionScopeListReferences: "Herhangi bir özel listedeki referanslar",
+    seasonEpisodeLabelShort: "S{season} • B{episode}",
   },
   notice: {
     couldNotLoad: 'MediaVault: "{title}" yüklenemedi — {error}',

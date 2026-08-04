@@ -425,16 +425,26 @@
   min-width: 0;
 }
 
-.mediavault-episode-hero .mediavault-detail-hero-content {
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: flex-end;
+.mediavault-episode-meta-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-.mediavault-episode-hero-title {
-  color: #fff;
-  margin: 0 0 4px 0;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+.mediavault-episode-meta-row .mediavault-episode-meta-short {
+  display: none;
+}
+
+@media (max-width: 380px) {
+  .mediavault-episode-meta-row .mediavault-episode-meta-full {
+    display: none;
+  }
+
+  .mediavault-episode-meta-row .mediavault-episode-meta-short {
+    display: inline;
+  }
 }
 
 .mediavault-episode-review-card {
@@ -1211,13 +1221,24 @@
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 1.5em;
   color: var(--text-muted);
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mediavault-fav-btn svg {
+  width: 20px;
+  height: 20px;
 }
 
 .mediavault-fav-btn.is-favorite {
   color: var(--text-accent);
+}
+
+.mediavault-fav-btn.is-favorite svg {
+  fill: currentColor;
 }
 
 .mediavault-episode-empty {
@@ -2828,6 +2849,11 @@ body.mediavault-android .mediavault-filter-panel select {
   margin: 8px 0 16px 0;
 }
 
+/* Modal cards render much wider than Lists-page grid columns (single
+   column at typical modal width), which stretched the 16:9 banner tall
+   enough to push the title far from the visible fold. Cap the banner
+   height here so the title stays clearly readable, matching how it
+   reads on the Lists page. */
 .mediavault-add-to-list-options.mediavault-lists-grid {
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 10px;

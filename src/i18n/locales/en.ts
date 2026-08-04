@@ -502,6 +502,7 @@ const en: TranslationDict = {
     deletionScopeFavoritesStatus: "Favorites status",
     deletionScopeGeneratedNote: "Generated note",
     deletionScopeListReferences: "References in any custom lists",
+    seasonEpisodeLabelShort: "S{season} • E{episode}",
   },
   notice: {
     couldNotLoad: "MediaVault: couldn't load \"{title}\" — {error}",
