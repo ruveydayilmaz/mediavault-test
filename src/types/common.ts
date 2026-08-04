@@ -4,6 +4,7 @@ export type ISODateString = string;
 export interface CastMember {
   tmdbPersonId: number;
   name: string;
+  originalName: string | null;
   character: string;
   profilePath: string | null;
   order: number;
@@ -12,6 +13,7 @@ export interface CastMember {
 export interface CrewMember {
   tmdbPersonId: number;
   name: string;
+  originalName: string | null;
   job: string;
   department: string;
   profilePath: string | null;

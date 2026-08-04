@@ -40,6 +40,7 @@ export interface TMDBRawProductionCompany {
 export interface TMDBRawCastMember {
   id: number;
   name: string;
+  original_name?: string;
   character: string;
   profile_path: string | null;
   order: number;
@@ -48,6 +49,7 @@ export interface TMDBRawCastMember {
 export interface TMDBRawCrewMember {
   id: number;
   name: string;
+  original_name?: string;
   job: string;
   department: string;
   profile_path: string | null;
@@ -158,6 +160,7 @@ export interface TMDBNormalizedDetails {
   cast: {
     tmdbPersonId: number;
     name: string;
+    originalName: string | null;
     character: string;
     profilePath: string | null;
     order: number;
@@ -165,6 +168,7 @@ export interface TMDBNormalizedDetails {
   crew: {
     tmdbPersonId: number;
     name: string;
+    originalName: string | null;
     job: string;
     department: string;
     profilePath: string | null;
@@ -238,6 +242,7 @@ export interface TMDBRawPersonDetails {
   birthday?: string | null;
   deathday?: string | null;
   place_of_birth?: string | null;
+  also_known_as?: string[];
   combined_credits?: {
     cast?: TMDBRawCombinedCreditItem[];
   };
@@ -257,6 +262,7 @@ export interface TMDBFilmographyItem {
 export interface TMDBPersonDetails {
   tmdbPersonId: number;
   name: string;
+  originalName: string | null;
   biography: string;
   profilePath: string | null;
   birthday: string | null;

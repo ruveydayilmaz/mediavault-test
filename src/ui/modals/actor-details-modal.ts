@@ -116,6 +116,20 @@ export class ActorDetailsModal extends Modal {
       });
     }
 
+    if (this.person.originalName) {
+      const originalNameRow = info.createDiv({
+        cls: "mediavault-actor-original-name",
+      });
+      originalNameRow.createSpan({
+        cls: "mediavault-actor-original-name-label",
+        text: t("detail.originalName"),
+      });
+      originalNameRow.createSpan({
+        cls: "mediavault-actor-original-name-value",
+        text: this.person.originalName,
+      });
+    }
+
     if (this.person.biography) {
       renderExpandableText(
         info,
@@ -128,6 +142,8 @@ export class ActorDetailsModal extends Modal {
         {
           wrapperCls: "mediavault-actor-biography",
           textCls: "mediavault-actor-biography-text",
+          maxLength: 300,
+          sentenceAware: true,
         },
       );
     }

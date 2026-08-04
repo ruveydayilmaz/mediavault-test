@@ -421,6 +421,7 @@ const tr: TranslationDict = {
     posterUpdated: "MediaVault: poster güncellendi.",
     bannerUpdated: "MediaVault: afiş güncellendi.",
     loadingActorDetails: "Oyuncu bilgileri yükleniyor...",
+    originalName: "Orijinal ad",
     filmography: "Filmografi",
     noFilmography: "Filmografi mevcut değil.",
     loadMoreRemaining: "Daha fazla göster ({count} kaldı)",

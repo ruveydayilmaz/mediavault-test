@@ -33,6 +33,7 @@ export class ExploreView extends ItemView {
   private browseKind: "movie" | "tv" = "movie";
   private browseFilters: DiscoverFilters = {};
   private browseGenres: { id: number; name: string }[] = [];
+  private browseGenresLocale: string | null = null;
 
   private searchQuery = "";
   private searchDebounce: ReturnType<typeof setTimeout> | null = null;
@@ -202,8 +203,13 @@ export class ExploreView extends ItemView {
   }
 
   private async renderBrowseTab(body: HTMLElement): Promise<void> {
-    if (this.browseGenres.length === 0) {
+    const currentLocale = this.plugin.storage.settings.get().language;
+    if (
+      this.browseGenres.length === 0 ||
+      this.browseGenresLocale !== currentLocale
+    ) {
       this.browseGenres = await this.plugin.tmdb.getGenres(this.browseKind);
+      this.browseGenresLocale = currentLocale;
     }
 
     const filterBar = body.createDiv({ cls: "mediavault-explore-filter-bar" });

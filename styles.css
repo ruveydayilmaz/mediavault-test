@@ -3720,6 +3720,21 @@ body.mediavault-android .mediavault-explore-filter-bar select {
   margin-bottom: 4px;
 }
 
+.mediavault-actor-original-name {
+  display: flex;
+  gap: 6px;
+  font-size: 0.85em;
+  margin-bottom: 4px;
+}
+
+.mediavault-actor-original-name-label {
+  color: var(--text-muted);
+}
+
+.mediavault-actor-original-name-value {
+  color: var(--text-normal);
+}
+
 .mediavault-actor-biography {
   margin: 4px 0 0 0;
 }
@@ -4026,7 +4041,22 @@ body.mediavault-android .mediavault-explore-filter-bar select {
 }
 
 body.mediavault-android .mediavault-pagination {
-  padding-bottom: max(0px, env(safe-area-inset-bottom));
+  padding-bottom: max(
+    0px,
+    env(safe-area-inset-bottom),
+    var(--mediavault-android-bottom-inset, 0px)
+  );
+}
+
+body.mediavault-android.is-phone .mediavault-library-root {
+  padding-bottom: calc(
+    var(--mobile-toolbar-height, 48px) +
+      max(
+        16px,
+        env(safe-area-inset-bottom),
+        var(--mediavault-android-bottom-inset, 0px)
+      )
+  );
 }
 
 body.mediavault-android

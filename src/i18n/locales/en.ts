@@ -399,6 +399,7 @@ const en: TranslationDict = {
     posterUpdated: "MediaVault: poster updated.",
     bannerUpdated: "MediaVault: banner updated.",
     loadingActorDetails: "Loading actor details...",
+    originalName: "Original name",
     filmography: "Filmography",
     noFilmography: "No filmography available.",
     loadMoreRemaining: "Load more ({count} remaining)",

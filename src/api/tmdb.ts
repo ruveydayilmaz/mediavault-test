@@ -5,6 +5,7 @@ import {
   normalizeMovieDetails,
   normalizeTVDetails,
   normalizeEpisode,
+  isLatinish as isPersonNameLatinish,
 } from "./tmdb-normalize";
 import {
   TMDBRawSearchResponse,
@@ -194,6 +195,34 @@ export class TMDBService {
         },
       );
 
+      let biography = raw.biography ?? "";
+      if (!biography && this.language !== "en-US") {
+        const englishKey = `person:${personId}:en-US:biography`;
+        biography = await this.cached(englishKey, async () => {
+          const englishRaw = await this.http.get<TMDBRawPersonDetails>(
+            `/person/${personId}`,
+            { params: { language: "en-US" } },
+          );
+          return englishRaw.biography ?? "";
+        });
+      }
+
+      // TMDB's canonical `name` is sometimes stored in native script for
+      // people whose romanized name has no dedicated translation entry.
+      // `also_known_as` frequently contains a romanized alternative in
+      // that case, so fall back to the first Latin-ish entry there.
+      let displayName = raw.name;
+      let originalName: string | null = null;
+      if (!isPersonNameLatinish(raw.name)) {
+        const romanizedAlt = (raw.also_known_as ?? []).find((alt) =>
+          isPersonNameLatinish(alt),
+        );
+        if (romanizedAlt) {
+          displayName = romanizedAlt;
+          originalName = raw.name;
+        }
+      }
+
       const TV_PROGRAM_GENRE_IDS = new Set([10767, 10764, 99, 10763]);
 
       const filmography = (raw.combined_credits?.cast ?? [])
@@ -229,12 +258,13 @@ export class TMDBService {
 
       return {
         tmdbPersonId: raw.id,
-        name: raw.name,
+        name: displayName,
+        originalName,
         profilePath: raw.profile_path ?? null,
         birthday: raw.birthday ?? null,
         deathday: raw.deathday ?? null,
         placeOfBirth: raw.place_of_birth ?? null,
-        biography: raw.biography ?? null,
+        biography,
         filmography,
       };
     });

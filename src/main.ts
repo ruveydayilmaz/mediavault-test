@@ -58,7 +58,7 @@ import {
 } from "./services/notification-service";
 import type { MediaItem } from "./models/media";
 import type { Episode } from "./models/episode";
-import { applyAndroidBodyClass } from "./utils/platform";
+import { applyAndroidBodyClass, setupAndroidSafeArea, teardownAndroidSafeArea } from "./utils/platform";
 import { i18n, t } from "./i18n";
 
 export default class MediaVaultPlugin extends Plugin {
@@ -76,6 +76,7 @@ export default class MediaVaultPlugin extends Plugin {
     console.log(`Loading ${PLUGIN_NAME}`);
 
     applyAndroidBodyClass();
+    setupAndroidSafeArea();
 
     this.storage = new StorageService(this);
     await this.storage.initialize();
@@ -690,6 +691,7 @@ export default class MediaVaultPlugin extends Plugin {
   async onunload() {
     console.log(`Unloading ${PLUGIN_NAME}`);
     this.unsubscribeLocaleChange?.();
+    teardownAndroidSafeArea();
     await this.storage.flush();
   }
 
