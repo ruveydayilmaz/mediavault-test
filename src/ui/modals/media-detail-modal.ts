@@ -167,10 +167,29 @@ export class MediaDetailModal extends Modal {
       this.onChanged?.();
 
       if (this.activeTab === "episodes") {
-        await this.rerenderPreservingEpisodesScroll();
+        await this.refreshEpisodesTabContent();
       }
     } catch {
       // The user can manually refresh episodes from the hero menu if they want to retry
+    }
+  }
+
+  private async refreshEpisodesTabContent(): Promise<void> {
+    const container = this.contentEl.querySelector<HTMLElement>(
+      ".mediavault-detail-episodes-tab-content",
+    );
+    if (!container) {
+      await this.rerenderPreservingEpisodesScroll();
+      return;
+    }
+
+    const scrollTop = this.contentEl.scrollTop;
+    container.empty();
+    await this.renderEpisodesTab(container);
+    if (scrollTop > 0) {
+      requestAnimationFrame(() => {
+        this.contentEl.scrollTop = scrollTop;
+      });
     }
   }
 
@@ -180,11 +199,6 @@ export class MediaDetailModal extends Modal {
     const fresh = await this.storage.media.findById(this.media.id);
     if (fresh) this.media = fresh;
 
-    // Resolve everything the header needs (including the one network-bound
-    // call in this path, genre translation) *before* touching the DOM, so
-    // a slow/uncached TMDB lookup can never leave a half-built modal
-    // visible for a frame — the empty()+rebuild below now always happens
-    // as a single synchronous block once all data is in hand.
     const localizedGenres = this.isPreview
       ? this.media.genres
       : await getLocalizedGenreNames(this.tmdb, this.media);
@@ -203,7 +217,10 @@ export class MediaDetailModal extends Modal {
     this.renderTabBar(contentEl);
 
     if (this.activeTab === "episodes" && this.media.type === MediaType.TVShow) {
-      await this.renderEpisodesTab(contentEl);
+      const episodesContainer = contentEl.createDiv({
+        cls: "mediavault-detail-episodes-tab-content",
+      });
+      await this.renderEpisodesTab(episodesContainer);
       if (this.episodesScrollTop > 0) {
         const restoreTarget = this.episodesScrollTop;
         this.episodesScrollTop = 0;
@@ -930,7 +947,7 @@ export class MediaDetailModal extends Modal {
       comments = await fetchComments();
     } catch (err) {
       loading.setText(
-        `Couldn't load comments from Trakt: ${describeTraktError(err)}`,
+        t("detail.couldNotLoadItem", { title: "comments from Trakt", error: (err as Error).message })
       );
       return;
     }

@@ -143,6 +143,7 @@ const en: TranslationDict = {
     movieRuntime: "Movie Runtime",
     episodeRuntime: "Episode Runtime",
     totalSeriesRuntime: "Total Series Runtime",
+    addTagPlaceholder: "Add {label}...",
   },
   stats: {
     moviesWatchedLabel: "{count} movies watched",
@@ -404,7 +405,7 @@ const en: TranslationDict = {
     tvSeries: "TV Series",
     tvPrograms: "TV Programs",
     movies: "Movies",
-    couldNotLoadItem: "MediaVault: couldn't load \"{title}\" — {error}",
+    couldNotLoadItem: "Couldn't load \"{title}\" — {error}",
     watchHistory: "Watch History",
     episodes: "Episodes",
     firstWatch: "First watch",

@@ -2828,17 +2828,13 @@ body.mediavault-android .mediavault-filter-panel select {
   margin: 8px 0 16px 0;
 }
 
-/* Modal cards render much wider than Lists-page grid columns (single
-   column at typical modal width), which stretched the 16:9 banner tall
-   enough to push the title far from the visible fold. Cap the banner
-   height here so the title stays clearly readable, matching how it
-   reads on the Lists page. */
 .mediavault-add-to-list-options.mediavault-lists-grid {
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 10px;
 }
 
 .mediavault-add-to-list-options .mediavault-list-banner {
+  width: 100%;
   aspect-ratio: 20 / 9;
   max-height: 110px;
 }
@@ -3943,6 +3939,9 @@ body.mediavault-android .mediavault-explore-filter-bar select {
   min-width: 0;
 }
 
+/* Standalone inputs/selects on their own filter row take full width on mobile;
+   paired inputs (Min/Max, From/To) stay side by side inside their group.
+   The genre carousel and the Favorites checkbox row keep their own layout. */
 .is-phone
   .mediavault-filter-row:not(.mediavault-filter-sort-size-row):not(
     .mediavault-filter-genre-row
@@ -3988,21 +3987,6 @@ body.mediavault-android .mediavault-explore-filter-bar select {
 
 .is-phone .mediavault-autocomplete-wrap {
   width: 100%;
-  height: auto;
-  min-height: 0;
-}
-
-.is-phone .mediavault-autocomplete-list {
-  min-height: 0;
-}
-
-.is-phone .mediavault-filter-chips {
-  min-height: 0;
-  margin-bottom: 0;
-}
-
-datalist {
-  display: none;
 }
 
 body.mediavault-android .mediavault-pagination {

@@ -124,7 +124,7 @@ export function formatRuntime(minutes: number | null): string {
   if (!minutes) return "—";
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  return h > 0 ? `${h}${t("common.hours")} ${m}${t("common.minutes")}` : `${m}${t("common.minutes")}`;
+  return h > 0 ? `${h}${t("statistics.hours")} ${m}${t("statistics.minutes")}` : `${m}${t("statistics.minutes")}`;
 }
 
 export function formatRating(rating: number | null): string {

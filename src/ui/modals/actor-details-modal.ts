@@ -63,9 +63,7 @@ export class ActorDetailsModal extends Modal {
     try {
       this.person = await this.tmdb.getPersonDetails(this.personId);
     } catch (err) {
-      loading.setText(
-        `Couldn't load actor details — ${(err as Error).message}`,
-      );
+      loading.setText(t("detail.couldNotLoadItem", { title: "actor", error: (err as Error).message }));
       return;
     }
     loading.remove();
@@ -154,8 +152,8 @@ export class ActorDetailsModal extends Modal {
 
     if (this.activeTab === null) {
       this.activeTab =
-        getCategoryTabs().find((tab) => this.itemsForTab(tab.id).length > 0)?.id ??
-        "movie";
+        getCategoryTabs().find((tab) => this.itemsForTab(tab.id).length > 0)
+          ?.id ?? "movie";
     }
 
     this.renderTabBar();

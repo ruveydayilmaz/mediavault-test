@@ -790,7 +790,7 @@ export class LibraryView extends ItemView {
       const wrap = row.createDiv({ cls: "mediavault-autocomplete-wrap" });
       const input = wrap.createEl("input", {
         type: "text",
-        attr: { placeholder: `Add ${label.toLowerCase()}...` },
+        attr: { placeholder: t("library.addTagPlaceholder", { label: label.toLowerCase() }) },
       });
       makeClearable(input);
       const suggestionsEl = wrap.createDiv({
@@ -843,7 +843,7 @@ export class LibraryView extends ItemView {
       const input = row.createEl("input", {
         type: "text",
         attr: {
-          placeholder: `Add ${label.toLowerCase()}...`,
+          placeholder: t("library.addTagPlaceholder", { label: label.toLowerCase() }),
           list: datalistId,
         },
       });

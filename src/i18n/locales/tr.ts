@@ -143,6 +143,7 @@ const tr: TranslationDict = {
     movieRuntime: "Film Süresi",
     episodeRuntime: "Bölüm Süresi",
     totalSeriesRuntime: "Toplam Dizi Süresi",
+    addTagPlaceholder: "{label} ekle...",
   },
   stats: {
     moviesWatchedLabel: "{count} film izlendi",
@@ -851,7 +852,7 @@ const tr: TranslationDict = {
   },
   statistics: {
     minutes: "dk",
-    hours: "sa",
+    hours: "s",
     days: "g",
     months: "ay",
     years: "y",
@@ -861,6 +862,16 @@ const tr: TranslationDict = {
   month: {
     jan: "Ocak",
     feb: "Şub",
+    mar: "Mar",
+    apr: "Nis",
+    may: "May",
+    jun: "Haz",
+    jul: "Tem",
+    aug: "Ağu",
+    sep: "Eyl",
+    oct: "Eki",
+    nov: "Kas",
+    dec: "Ara",
   },
   command: {
     addMedia: "Film veya dizi ekle",
