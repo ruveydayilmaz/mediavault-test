@@ -464,12 +464,12 @@ export class MediaDetailModal extends Modal {
     }
 
     const addBtn = heroContent.createEl("button", {
-      cls: "mediavault-detail-log-btn mod-cta",
+      cls: "mod-cta",
       attr: {
         "aria-label": t("common.addToLibraryAria"),
       },
     });
-    setIcon(addBtn, "plus-circle");
+    setIcon(addBtn, "bookmark-plus");
 
     addBtn.addEventListener("click", async (evt) => {
       evt.stopPropagation();
@@ -999,7 +999,10 @@ export class MediaDetailModal extends Modal {
       comments = await fetchComments();
     } catch (err) {
       loading.setText(
-        `Couldn't load comments from Trakt: ${describeTraktError(err)}`,
+        t("detail.couldNotLoadItem", {
+          title: "comments from Trakt",
+          error: (err as Error).message,
+        }),
       );
       return;
     }
@@ -2134,7 +2137,7 @@ export class MediaDetailModal extends Modal {
       const star = wrap.createEl("button", {
         cls: "clickable-icon mediavault-star-btn",
       });
-      setIcon(star, i <= current ? "star" : "star-off");
+      setIcon(star, "star");
       star.toggleClass("is-filled", i <= current);
       star.setAttr(
         "aria-label",
@@ -2148,14 +2151,14 @@ export class MediaDetailModal extends Modal {
   }
 
   private static readonly EMOTIONS = [
-    "😀",
-    "😄",
-    "😐",
-    "😢",
-    "😭",
-    "😱",
-    "❤️",
-    "🤯",
+    { id: "happy", icon: "smile" },
+    { id: "joy", icon: "laugh" },
+    { id: "neutral", icon: "meh" },
+    { id: "sad", icon: "frown" },
+    { id: "crying", icon: "droplets" },
+    { id: "shocked", icon: "siren" },
+    { id: "love", icon: "heart" },
+    { id: "mindblown", icon: "brain" },
   ];
 
   private renderEpisodeEmotionPicker(
@@ -2171,15 +2174,22 @@ export class MediaDetailModal extends Modal {
     });
     const row = wrap.createDiv({ cls: "mediavault-emotion-row" });
 
-    MediaDetailModal.EMOTIONS.forEach((emoji) => {
+    MediaDetailModal.EMOTIONS.forEach((emotion) => {
       const btn = row.createEl("button", {
         cls: "mediavault-emotion-btn",
-        text: emoji,
       });
-      btn.toggleClass("is-selected", watch.emotion === emoji);
+
+      setIcon(btn, emotion.icon);
+
+      btn.toggleClass("is-selected", watch.emotion === emotion.id);
+
       btn.addEventListener("click", async () => {
-        const next = watch.emotion === emoji ? null : emoji;
-        await updateEpisodeWatch(this.storage, watch.id, { emotion: next });
+        const next = watch.emotion === emotion.id ? null : emotion.id;
+
+        await updateEpisodeWatch(this.storage, watch.id, {
+          emotion: next,
+        });
+
         await this.render();
       });
     });

@@ -53,6 +53,7 @@ const tr: TranslationDict = {
     inLibrary: "Kitaplıkta",
     addToLibrary: "+ Ekle",
     confirmWithLabel: "{label} onaylansın mı?",
+    loadMore: "Daha fazla yükle ({count} kaldı)",
   },
   status: {
     currently_watching: "Şu An İzleniyor",

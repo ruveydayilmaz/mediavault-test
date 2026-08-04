@@ -53,6 +53,7 @@ const en: TranslationDict = {
     inLibrary: "In library",
     addToLibrary: "+ Add",
     confirmWithLabel: "Confirm {label}",
+    loadMore: "Load more ({count} remaining)",
   },
   status: {
     currently_watching: "Currently Watching",

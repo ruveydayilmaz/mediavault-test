@@ -22,7 +22,7 @@ export function computeDailyWatchCounts(
   return counts;
 }
 
-const MONTH_NAMES = [
+const getMonthNames = () => [
   t("month.jan"),
   t("month.feb"),
   t("month.mar"),
@@ -44,12 +44,13 @@ export function renderCalendarHeatmap(
 ): void {
   const maxCount = Math.max(1, ...dailyCounts.values());
   const grid = container.createDiv({ cls: "mediavault-heatmap" });
+  const monthNames = getMonthNames();
 
   for (let month = 0; month < 12; month++) {
     const row = grid.createDiv({ cls: "mediavault-heatmap-row" });
     row.createSpan({
       cls: "mediavault-heatmap-month-label",
-      text: MONTH_NAMES[month],
+      text: monthNames[month],
     });
 
     const daysInMonth = new Date(year, month + 1, 0).getDate();

@@ -481,6 +481,10 @@
   color: var(--color-yellow, #e3b341);
 }
 
+.mediavault-star-btn.is-filled svg {
+  fill: currentColor;
+}
+
 .mediavault-episode-emotion-picker {
   margin: 14px 0;
 }
@@ -2662,8 +2666,8 @@ body.mediavault-android .mediavault-filter-panel select {
 
 .mediavault-autocomplete-wrap {
   position: relative;
-  flex: 1 1 160px;
-  min-width: 140px;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .mediavault-autocomplete-list {
@@ -4013,6 +4017,12 @@ body.mediavault-android .mediavault-explore-filter-bar select {
 
 .is-phone .mediavault-autocomplete-wrap {
   width: 100%;
+}
+
+.is-phone .mediavault-autocomplete-wrap input.mediavault-clearable-field {
+  min-height: 34px;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 body.mediavault-android .mediavault-pagination {
