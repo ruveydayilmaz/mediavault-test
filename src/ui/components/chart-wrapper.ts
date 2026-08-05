@@ -30,18 +30,38 @@ Chart.register(
   Legend,
 );
 
-function cssVar(name: string, fallback: string): string {
-  const value = getComputedStyle(document.body).getPropertyValue(name).trim();
-  return value || fallback;
-}
+// getComputedStyle() forces a style/layout recalculation, so recomputing it
+// once per chart (interleaved with each chart's canvas DOM insertion) causes
+// repeated forced reflows when a view renders several charts back to back.
+// Theme colors only change when the Obsidian theme itself changes, so a
+// short-lived cache lets a whole render pass share a single read.
+let cachedColors: ReturnType<typeof computeThemeColors> | null = null;
 
-export function themeColors() {
+function computeThemeColors() {
+  const bodyStyle = getComputedStyle(document.body);
+  const cssVar = (name: string, fallback: string): string => {
+    const value = bodyStyle.getPropertyValue(name).trim();
+    return value || fallback;
+  };
   return {
     text: cssVar("--text-normal", "#dcddde"),
     muted: cssVar("--text-muted", "#999"),
     accent: cssVar("--interactive-accent", "#7c3aed"),
     border: cssVar("--background-modifier-border", "#444"),
   };
+}
+
+export function themeColors() {
+  if (!cachedColors) {
+    cachedColors = computeThemeColors();
+    // Invalidate on the next frame so a later render pass (e.g. after a
+    // theme change) always picks up fresh values, while calls made
+    // synchronously within the same render pass reuse this one read.
+    requestAnimationFrame(() => {
+      cachedColors = null;
+    });
+  }
+  return cachedColors;
 }
 
 export const CHART_PALETTE = [
@@ -63,8 +83,11 @@ export function createChart(
   data: ChartData,
   options: ChartOptions = {},
 ): Chart {
-  const canvas = container.createEl("canvas");
+  // Read theme colors before touching the DOM so this doesn't interleave a
+  // style read with the canvas insertion below (which would force a
+  // synchronous style/layout recalculation).
   const colors = themeColors();
+  const canvas = container.createEl("canvas");
 
   const mergedOptions: ChartOptions = {
     responsive: true,

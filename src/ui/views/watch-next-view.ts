@@ -252,8 +252,13 @@ export class WatchNextView extends ItemView {
       this.populateNextEpisodeCard(card, replacement);
       card.removeClass("is-leaving");
       card.addClass("is-entering");
-      card.getBoundingClientRect();
-      requestAnimationFrame(() => card.removeClass("is-entering"));
+      // Restart the entrance animation without forcing a synchronous
+      // layout read: waiting two animation frames guarantees the
+      // "is-entering" class has been committed in a style flush before we
+      // remove it, without querying layout geometry ourselves.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => card.removeClass("is-entering"));
+      });
       return;
     }
 

@@ -113,7 +113,16 @@ export function createCarousel(container: HTMLElement): { track: HTMLElement } {
       atEnd || track.scrollWidth <= track.clientWidth,
     );
   };
-  track.addEventListener("scroll", updateNavVisibility, { passive: true });
+  let navVisibilityTicking = false;
+  const onTrackScroll = () => {
+    if (navVisibilityTicking) return;
+    navVisibilityTicking = true;
+    requestAnimationFrame(() => {
+      updateNavVisibility();
+      navVisibilityTicking = false;
+    });
+  };
+  track.addEventListener("scroll", onTrackScroll, { passive: true });
   requestAnimationFrame(updateNavVisibility);
 
   return { track };
