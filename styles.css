@@ -183,7 +183,7 @@
 /* Grid view */
 .mediavault-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 12px;
 }
 
@@ -2039,7 +2039,7 @@ body.mediavault-android .mediavault-comfort-flags .setting-item {
   color: var(--text-muted);
   cursor: pointer;
   font-size: 0.85em;
-  padding: 0;
+  padding: 0 5px;
 }
 
 .mediavault-favorites-view-all:hover {
@@ -2139,7 +2139,7 @@ body.mediavault-android .mediavault-comfort-flags .setting-item {
   cursor: pointer;
   font-size: 0.85em;
   font-weight: 400;
-  padding: 0;
+  padding: 0 5px;
 }
 
 .mediavault-lists-view-all:hover {

@@ -190,10 +190,6 @@ export class MediaDetailModal extends Modal {
     }
   }
 
-  // Re-renders only the episodes tab's own content — not the header, hero,
-  // or tab bar — so a background episode sync (which can legitimately run
-  // on every open while a show is "Watching") never causes the whole modal
-  // to visibly rebuild. Only the section that actually changed updates.
   private async refreshEpisodesTabContent(): Promise<void> {
     const container = this.contentEl.querySelector<HTMLElement>(
       ".mediavault-detail-episodes-tab-content",

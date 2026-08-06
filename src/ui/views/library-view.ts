@@ -2,7 +2,10 @@ import { ItemView, WorkspaceLeaf, setIcon, Platform } from "obsidian";
 import type MediaVaultPlugin from "../../main";
 import { VIEW_TYPE_LIBRARY } from "../../constants";
 import { t } from "../../i18n";
-import { getLocalizedGenreNames, getLocalizedGenreName } from "../../services/genre-labels";
+import {
+  getLocalizedGenreNames,
+  getLocalizedGenreName,
+} from "../../services/genre-labels";
 import { MediaType } from "../../types/enums";
 import { MediaItem } from "../../models/media";
 import {
@@ -400,7 +403,7 @@ export class LibraryView extends ItemView {
     );
     this.renderTagInput(
       panel,
-      t("library.studios"),
+      t("library.studio"),
       options.studios,
       this.filterCriteria.studios,
       applyAndRefresh,
@@ -710,7 +713,8 @@ export class LibraryView extends ItemView {
         ".mediavault-genre-card-name",
       )?.dataset.genreKey;
       const key = name ? keyByGenre[name] : undefined;
-      if (key && updates[key]) card.style.backgroundImage = `url(${updates[key]})`;
+      if (key && updates[key])
+        card.style.backgroundImage = `url(${updates[key]})`;
     });
   }
 
@@ -786,11 +790,20 @@ export class LibraryView extends ItemView {
       return false;
     };
 
+    const isTurkish = navigator.language.toLowerCase().startsWith("tr"); // TODO: bunu sonradan degistir. direkt "tr" olmasin
+    const toLowerCase = isTurkish
+      ? (s: string) => s
+      : (s: string) => s.toLowerCase();
+
     if (isAndroidDevice()) {
       const wrap = row.createDiv({ cls: "mediavault-autocomplete-wrap" });
       const input = wrap.createEl("input", {
         type: "text",
-        attr: { placeholder: t("library.addTagPlaceholder", { label: label.toLowerCase() }) },
+        attr: {
+          placeholder: t("library.addTagPlaceholder", {
+            label: toLowerCase(label),
+          }),
+        },
       });
       makeClearable(input);
       const suggestionsEl = wrap.createDiv({
@@ -839,11 +852,13 @@ export class LibraryView extends ItemView {
         if (commitValue(input.value)) input.value = "";
       });
     } else {
-      const datalistId = `mediavault-filter-datalist-${label.toLowerCase()}`;
+      const datalistId = `mediavault-filter-datalist-${toLowerCase(label)}`;
       const input = row.createEl("input", {
         type: "text",
         attr: {
-          placeholder: t("library.addTagPlaceholder", { label: label.toLowerCase() }),
+          placeholder: t("library.addTagPlaceholder", {
+            label: toLowerCase(label),
+          }),
           list: datalistId,
         },
       });
@@ -973,7 +988,7 @@ export class LibraryView extends ItemView {
     getSortOptions().forEach((opt) => {
       sortSelect.createEl("option", {
         value: opt.value,
-        text: opt.label
+        text: opt.label,
       });
     });
     sortSelect.value = this.query.sortField;
