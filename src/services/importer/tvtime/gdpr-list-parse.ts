@@ -24,7 +24,7 @@ function parseGoMap(block: string): Record<string, string> {
   return result;
 }
 
-export function parseGoMapArray(raw: string): GoMapListItem[] {
+function parseGoMapArrayLiteral(raw: string): GoMapListItem[] {
   const trimmed = raw.trim();
   if (!trimmed || trimmed === "[]") return [];
 
@@ -35,6 +35,8 @@ export function parseGoMapArray(raw: string): GoMapListItem[] {
 
   if (!inner) return [];
 
+  // Every "map[" boundary starts a new object, so this preserves ordering
+  // and yields one chunk per entry regardless of how many entries exist.
   const chunks = inner.split("map[");
   const items: GoMapListItem[] = [];
 
@@ -58,4 +60,60 @@ export function parseGoMapArray(raw: string): GoMapListItem[] {
   }
 
   return items;
+}
+
+interface RawJsonListObject {
+  type?: string | number | null;
+  uuid?: string | number | null;
+  id?: string | number | null;
+  created_at?: string | number | null;
+}
+
+function toStringOrNull(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  const s = String(value).trim();
+  return s ? s : null;
+}
+
+function parseJsonObjectsArray(raw: string): GoMapListItem[] | null {
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(data)) return null;
+
+  return data.map((entry) => {
+    const obj = (entry ?? {}) as RawJsonListObject;
+    const createdAt = toStringOrNull(obj.created_at);
+    return {
+      type: toStringOrNull(obj.type),
+      uuid: toStringOrNull(obj.uuid),
+      tvTimeId: toStringOrNull(obj.id),
+      createdAt: createdAt ? epochToISODate(createdAt) : null,
+    };
+  });
+}
+
+/**
+ * Parses the `objects` column of a TV Time GDPR `lists-prod-lists.csv` row.
+ * TV Time has shipped this column both as Go's `fmt %v` representation of
+ * `[]map[string]interface{}` (e.g. `[map[id:1 type:series uuid:...] ...]`)
+ * and, in some export versions, as a plain JSON array. Both preserve item
+ * ordering and are attempted here so a format difference never silently
+ * yields zero items for an otherwise valid list.
+ */
+export function parseGoMapArray(raw: string): GoMapListItem[] {
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed === "[]") return [];
+
+  if (trimmed.includes("map[")) {
+    return parseGoMapArrayLiteral(trimmed);
+  }
+
+  const asJson = parseJsonObjectsArray(trimmed);
+  if (asJson) return asJson;
+
+  return parseGoMapArrayLiteral(trimmed);
 }

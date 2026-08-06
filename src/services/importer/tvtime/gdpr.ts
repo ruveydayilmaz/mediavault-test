@@ -391,27 +391,61 @@ export function parseGdprArchive(
     bundleFor("user_tv_show_data.csv").favorites.push(fav);
   }
 
-  for (const row of parsed.get("lists-prod-lists.csv") ?? []) {
-    const name = clean(row.name);
-    if (!name) continue;
-    const objectsRaw = row.objects ?? "";
-    const items = parseGoMapArray(objectsRaw);
-    if (items.length === 0) continue;
+  for (const [index, row] of (
+    parsed.get("lists-prod-lists.csv") ?? []
+  ).entries()) {
+    // `s_key` is TV Time's stable per-list slug — unlike `name`, it can't
+    // collide across a user's lists (default lists in particular commonly
+    // share a display name, e.g. multiple lists named "Watchlist"). Identity
+    // for dedup/idempotency must key off this, never off the display name,
+    // or distinct lists silently collapse into one on import.
+    const sKey = clean(row.s_key);
+    const rawName = clean(row.name);
+    const name = rawName ?? (sKey ? titleCaseSlug(sKey) : null);
+    // A row with neither a usable name nor a stable key carries no
+    // identifiable list at all — nothing left to preserve.
+    if (!name && !sKey) continue;
+    const displayName = name ?? `Imported List ${index + 1}`;
+    const sourceKey = sKey ? `s_key:${sKey}` : `name:${displayName}`;
 
-    const listImport: ListImport = {
-      name,
-      description: clean(row.description),
-      items: items
-        .filter((item) => item.uuid || item.tvTimeId)
-        .map((item) => ({
+    const objectsRaw = row.objects ?? "";
+    const parsedItems = parseGoMapArray(objectsRaw);
+
+    const items: ListImport["items"] = [];
+    let unresolved = 0;
+    for (const item of parsedItems) {
+      if (item.uuid || item.tvTimeId) {
+        items.push({
           kind: (item.type === "series" ? "series" : "movie") as
             | "series"
             | "movie",
           ids: { tvTimeUuid: item.uuid, tvTimeId: item.tvTimeId },
           title:
-            lookupSeriesTitle(seriesById, item.tvTimeId, item.uuid) ?? name,
+            lookupSeriesTitle(seriesById, item.tvTimeId, item.uuid) ??
+            displayName,
           year: null,
-        })),
+        });
+      } else {
+        unresolved++;
+      }
+    }
+
+    if (unresolved > 0) {
+      bundleFor("lists-prod-lists.csv").warnings.push({
+        row: index + 2,
+        reason: `"${displayName}": ${unresolved} list item(s) had no identifiable id/uuid and were skipped.`,
+      });
+    }
+
+    // A list is preserved even when it has zero resolvable items — an
+    // empty or fully-unresolved list is still a real list, and dropping it
+    // here (as opposed to surfacing it via the warning above) would be
+    // exactly the kind of silent data loss this importer must avoid.
+    const listImport: ListImport = {
+      name: displayName,
+      description: clean(row.description),
+      items,
+      sourceKey,
     };
     bundleFor("lists-prod-lists.csv").lists.push(listImport);
   }
@@ -497,6 +531,14 @@ function extractVoteValue(voteKey: string | undefined): string | null {
   if (parts.length < 2) return null;
   const last = parts[parts.length - 1];
   return /^\d+$/.test(last) ? last : null;
+}
+
+function titleCaseSlug(slug: string): string {
+  return slug
+    .split(/[_-]+/)
+    .filter(Boolean)
+    .map((word) => word[0].toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 function clean(value?: string | null): string | null {

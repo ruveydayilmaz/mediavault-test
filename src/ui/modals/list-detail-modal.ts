@@ -398,8 +398,15 @@ export class ListDetailModal extends Modal {
     card.setAttr("data-media-id", media.id);
 
     const useNativeDnd = isManual && !isAndroidDevice();
+    const useTouchDrag = isManual && isAndroidDevice();
     card.setAttr("draggable", useNativeDnd ? "true" : "false");
-    card.toggleClass("is-draggable", isManual);
+    // Two distinct classes, not one shared "is-draggable" — the two paths
+    // use fundamentally different gesture mechanisms (native HTML5 DnD vs.
+    // JS-driven pointer capture) and need different touch-action handling;
+    // a single shared class previously coupled Android's CSS needs to iOS
+    // and vice versa (see styles.css).
+    card.toggleClass("is-draggable", useNativeDnd);
+    card.toggleClass("is-touch-draggable", useTouchDrag);
 
     if (useNativeDnd) {
       card.addEventListener("dragstart", () => {
@@ -415,7 +422,7 @@ export class ListDetailModal extends Modal {
         this.dragMediaId = null;
         await this.reorderListManually(orderedMedia, fromId, media.id);
       });
-    } else if (isManual && isAndroidDevice()) {
+    } else if (useTouchDrag) {
       this.setupAndroidManualDrag(card, grid, media, orderedMedia);
     }
 
@@ -568,6 +575,11 @@ export class ListDetailModal extends Modal {
       );
       card.addEventListener("pointercancel", () => endSession(), { signal });
       card.addEventListener("lostpointercapture", () => endSession(), {
+        signal,
+      });
+      // Android's native long-press (context menu / callout) can otherwise
+      // fire mid-gesture and steal the touch before LONG_PRESS_MS elapses.
+      card.addEventListener("contextmenu", (evt) => evt.preventDefault(), {
         signal,
       });
 

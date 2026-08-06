@@ -87,6 +87,13 @@ export interface ListImport {
   name: string;
   description: string | null;
   items: ListImportItem[];
+  /**
+   * Stable identity for this list, independent of the (mutable, possibly
+   * duplicated) display `name`. Used to match a list across re-imports so
+   * distinct lists never collapse into one, and so the same list updates
+   * in place instead of duplicating on re-import.
+   */
+  sourceKey: string;
 }
 
 export interface NormalizedImportBundle {

@@ -55,6 +55,7 @@ export const JsonListImporter: TVTimeImporter = {
       bundle.lists.push({
         name: raw.name,
         description: raw.description ?? null,
+        sourceKey: raw.id ? `id:${raw.id}` : `name:${raw.name.toLowerCase()}`,
         items: (raw.items ?? [])
           .filter((item) => typeof item.name === "string")
           .map((item) => ({

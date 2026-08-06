@@ -647,16 +647,23 @@ async function applyList(
   report: ImportReport,
 ): Promise<void> {
   const existingLists = await storage.customLists.getAll();
+  // Identity is the stable `sourceKey` (e.g. TV Time's per-list `s_key`),
+  // never the display `name` — display names are mutable and can collide
+  // across genuinely distinct lists (TV Time's own default lists commonly
+  // share a name), so matching on `name` would merge unrelated lists.
   const existing = existingLists.find(
-    (l) => l.isImported && l.importSource === list.name,
+    (l) => l.isImported && l.importSource === list.sourceKey,
   );
 
   if (existing) {
     const missing = mediaIds.filter((id) => !existing.mediaIds.includes(id));
-    if (missing.length > 0) {
-      await storage.customLists.update(existing.id, {
-        mediaIds: [...existing.mediaIds, ...missing],
-      });
+    const patch: Partial<typeof existing> = {};
+    if (missing.length > 0) patch.mediaIds = [...existing.mediaIds, ...missing];
+    if (existing.title !== list.name) patch.title = list.name;
+    if ((existing.description ?? null) !== (list.description ?? null))
+      patch.description = list.description;
+    if (Object.keys(patch).length > 0) {
+      await storage.customLists.update(existing.id, patch);
     }
   } else {
     await storage.customLists.create({
@@ -664,7 +671,7 @@ async function applyList(
       description: list.description,
       mediaIds,
       isImported: true,
-      importSource: list.name,
+      importSource: list.sourceKey,
     });
   }
   report.listsImported++;

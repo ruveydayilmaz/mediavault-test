@@ -35,7 +35,7 @@ import { isAndroidDevice } from "../../utils/platform";
 import { makeClearable } from "../components/clearable-input";
 import {
   FilterCriteria,
-  DEFAULT_FILTER_CRITERIA,
+  createDefaultFilterCriteria,
   RuntimeMode,
   buildFilterContext,
   applyUniversalFilter,
@@ -90,7 +90,7 @@ export class LibraryView extends ItemView {
   private plugin: MediaVaultPlugin;
   private query: LibraryQuery = { ...DEFAULT_LIBRARY_QUERY };
   private viewMode: ViewMode = "grid";
-  private filterCriteria: FilterCriteria = { ...DEFAULT_FILTER_CRITERIA };
+  private filterCriteria: FilterCriteria = createDefaultFilterCriteria();
   private filterPanelOpen = false;
 
   private contentEl2!: HTMLElement;
@@ -554,7 +554,7 @@ export class LibraryView extends ItemView {
       text: t("library.clearFilters"),
     });
     resetBtn.addEventListener("click", () => {
-      this.filterCriteria = { ...DEFAULT_FILTER_CRITERIA };
+      this.filterCriteria = createDefaultFilterCriteria();
       applyAndRefresh();
     });
   }

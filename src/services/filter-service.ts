@@ -30,6 +30,29 @@ export const DEFAULT_FILTER_CRITERIA: FilterCriteria = {
   tags: [],
 };
 
+/**
+ * Returns a fresh FilterCriteria with independent array instances.
+ *
+ * Root cause this guards against: FilterCriteria's array fields (genres,
+ * actors, directors, studios, tags) are mutated in place (push/splice)
+ * by the filter UI. A shallow `{ ...DEFAULT_FILTER_CRITERIA }` copies the
+ * object but not its array references, so those in-place mutations leak
+ * back into DEFAULT_FILTER_CRITERIA itself — corrupting the "default" for
+ * every future reset. Always construct FilterCriteria via this function
+ * (never spread DEFAULT_FILTER_CRITERIA directly) so each instance owns
+ * its own arrays.
+ */
+export function createDefaultFilterCriteria(): FilterCriteria {
+  return {
+    ...DEFAULT_FILTER_CRITERIA,
+    genres: [],
+    actors: [],
+    directors: [],
+    studios: [],
+    tags: [],
+  };
+}
+
 export function hasActiveFilters(criteria: FilterCriteria): boolean {
   return (
     criteria.genres.length > 0 ||
