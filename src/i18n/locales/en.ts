@@ -725,6 +725,23 @@ const en: TranslationDict = {
     viewHistory: "View history",
     commentsLanguage: "Comments language",
   },
+  factoryReset: {
+    sectionTitle: "Danger Zone",
+    settingName: "Reset MediaVault",
+    settingDesc:
+      "Permanently delete all MediaVault data and return the plugin to a fresh installation. Generated Markdown notes in your vault are kept.",
+    title: "Reset MediaVault?",
+    body: "This will permanently delete all MediaVault data and return the plugin to a fresh installation.",
+    preserves:
+      "The only data that will be preserved is the generated Markdown notes already created in your vault.",
+    irreversible: "This action cannot be undone.",
+    confirmButton: "Reset MediaVault",
+    resetting: "Resetting…",
+    success: "MediaVault has been reset. Your Markdown notes were kept.",
+    reloadHint:
+      "MediaVault was reset, but couldn't auto-reload — please reload Obsidian (or disable/enable the plugin) to finish starting fresh.",
+    failed: "Factory reset failed: {error}",
+  },
   import: {
     title: "Import from TV Time",
     readingFile: "Reading \"{name}\" — this may take a moment for large exports...",
@@ -773,6 +790,10 @@ const en: TranslationDict = {
     episodesUnmatched: "Episodes unmatched",
     totalImportedWatchTime: "Total imported watch time",
     hoursUnit: "{n} hours",
+    listsDiscovered: "Lists discovered",
+    listItemsMatched: "List items matched",
+    listItemsMissing: "List items missing",
+    unmatchedSKeysCount: "Unmatched list keys ({count})",
     whyRecordsSkipped: "Why records were skipped",
     unmatchedCount: "Unmatched ({count})",
     movies: "Movies",

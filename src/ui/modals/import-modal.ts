@@ -362,6 +362,9 @@ export class ImportModal extends Modal {
         t("import.totalImportedWatchTime"),
         t("import.hoursUnit", { n: totalHours.toFixed(1) }),
       ],
+      [t("import.listsDiscovered"), String(report.listsDiscovered)],
+      [t("import.listItemsMatched"), String(report.matchedListItems)],
+      [t("import.listItemsMissing"), String(report.missingListItems)],
     ];
     diagRows.forEach(([label, value]) => {
       diagBox.createDiv({
@@ -419,6 +422,23 @@ export class ImportModal extends Modal {
 
       renderGroup(t("import.movies"), movies);
       renderGroup(t("import.series"), series);
+    }
+
+    if (report.unmatchedListSKeys.length > 0) {
+      const sKeyBox = container.createDiv({
+        cls: "mediavault-import-unmatched",
+      });
+      sKeyBox.createEl("h4", {
+        text: t("import.unmatchedSKeysCount", {
+          count: report.unmatchedListSKeys.length,
+        }),
+      });
+      report.unmatchedListSKeys.forEach((sKey) => {
+        sKeyBox.createDiv({
+          cls: "mediavault-import-unmatched-item",
+          text: sKey,
+        });
+      });
     }
 
     if (report.matchLog.length > 0) {

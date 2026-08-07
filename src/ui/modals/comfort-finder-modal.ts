@@ -286,7 +286,6 @@ export class ComfortFinderModal extends Modal {
       }
 
       card.addEventListener("click", () => {
-        this.close();
         new MediaDetailModal(
           this.app,
           this.storage,

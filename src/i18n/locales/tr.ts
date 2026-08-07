@@ -779,6 +779,23 @@ const tr: TranslationDict = {
     viewHistory: "Geçmişi görüntüle",
     commentsLanguage: "Yorum dili",
   },
+  factoryReset: {
+    sectionTitle: "Tehlikeli Bölge",
+    settingName: "MediaVault'u Sıfırla",
+    settingDesc:
+      "Tüm MediaVault verilerini kalıcı olarak siler ve eklentiyi ilk kurulum haline döndürür. Kasanızdaki oluşturulmuş Markdown notları korunur.",
+    title: "MediaVault sıfırlansın mı?",
+    body: "Bu işlem tüm MediaVault verilerini kalıcı olarak siler ve eklentiyi ilk kurulum haline döndürür.",
+    preserves:
+      "Yalnızca kasanızda zaten oluşturulmuş Markdown notları korunacaktır.",
+    irreversible: "Bu işlem geri alınamaz.",
+    confirmButton: "MediaVault'u Sıfırla",
+    resetting: "Sıfırlanıyor…",
+    success: "MediaVault sıfırlandı. Markdown notlarınız korundu.",
+    reloadHint:
+      "MediaVault sıfırlandı, ancak otomatik olarak yeniden yüklenemedi — sıfırlamayı tamamlamak için lütfen Obsidian'ı yeniden yükleyin (veya eklentiyi kapatıp açın).",
+    failed: "Sıfırlama başarısız oldu: {error}",
+  },
   import: {
     title: "TV Time'dan İçe Aktar",
     readingFile:
@@ -834,6 +851,10 @@ const tr: TranslationDict = {
     episodesUnmatched: "Eşleşmeyen bölümler",
     totalImportedWatchTime: "İçe aktarılan toplam izleme süresi",
     hoursUnit: "{n} saat",
+    listsDiscovered: "Bulunan listeler",
+    listItemsMatched: "Eşleşen liste öğeleri",
+    listItemsMissing: "Eksik liste öğeleri",
+    unmatchedSKeysCount: "Eşleşmeyen liste anahtarları ({count})",
     whyRecordsSkipped: "Kayıtların neden atlandığı",
     unmatchedCount: "Eşleşmeyenler ({count})",
     movies: "Filmler",

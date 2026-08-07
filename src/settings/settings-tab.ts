@@ -8,6 +8,7 @@ import { disconnectTrakt } from "../services/trakt-token";
 import { i18n, t } from "../i18n";
 import { SUPPORTED_LOCALES } from "../i18n/types";
 import { makeClearable } from "../ui/components/clearable-input";
+import { FactoryResetModal } from "../ui/modals/factory-reset-modal";
 
 export class MediaVaultSettingTab extends PluginSettingTab {
   plugin: MediaVaultPlugin;
@@ -426,5 +427,22 @@ export class MediaVaultSettingTab extends PluginSettingTab {
     containerEl
       .querySelectorAll<HTMLInputElement>('input[type="text"]')
       .forEach((input) => makeClearable(input));
+
+    containerEl.createEl("h3", { text: t("factoryReset.sectionTitle") });
+    new Setting(containerEl)
+      .setName(t("factoryReset.settingName"))
+      .setDesc(t("factoryReset.settingDesc"))
+      .addButton((btn) =>
+        btn
+          .setButtonText(t("factoryReset.settingName"))
+          .setWarning()
+          .onClick(() => {
+            new FactoryResetModal(this.app, {
+              onConfirm: async () => {
+                await this.plugin.performFactoryReset();
+              },
+            }).open();
+          }),
+      );
   }
 }

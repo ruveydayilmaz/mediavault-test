@@ -465,7 +465,6 @@ export class ListDetailModal extends Modal {
         delete card.dataset.justDragged;
         return;
       }
-      this.close();
       this.plugin.openMediaDetail(media);
     });
   }

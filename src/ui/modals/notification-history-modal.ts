@@ -72,7 +72,6 @@ export class NotificationHistoryModal extends Modal {
     row.addEventListener("click", async () => {
       const media = await this.plugin.storage.media.findById(n.mediaId);
       if (media) {
-        this.close();
         this.plugin.openMediaDetail(media);
       }
     });

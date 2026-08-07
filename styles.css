@@ -722,6 +722,15 @@
   font-size: 0.85em;
 }
 
+.mediavault-factory-reset-modal .mediavault-modal-hint {
+  margin-bottom: 8px;
+}
+
+.mediavault-factory-reset-warning {
+  color: var(--text-error);
+  font-weight: 600;
+}
+
 .mediavault-modal-buttons {
   display: flex;
   gap: 8px;

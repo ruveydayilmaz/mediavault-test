@@ -268,7 +268,6 @@ export class ActorDetailsModal extends Modal {
       mediaType,
     );
     if (existing) {
-      this.close();
       new MediaDetailModal(this.app, this.storage, this.tmdb, existing).open();
       return;
     }
@@ -279,7 +278,6 @@ export class ActorDetailsModal extends Modal {
           ? await this.tmdb.getMovie(item.tmdbId)
           : await this.tmdb.getTV(item.tmdbId);
       const previewMedia = buildMediaItemFromTMDB(details);
-      this.close();
       new MediaDetailModal(
         this.app,
         this.storage,

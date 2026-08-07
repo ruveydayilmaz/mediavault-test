@@ -83,6 +83,8 @@ export interface ListImportItem {
   match?: MatchMetadata;
 }
 
+export type ListBuiltInKind = "movies" | "series" | null;
+
 export interface ListImport {
   name: string;
   description: string | null;
@@ -94,6 +96,31 @@ export interface ListImport {
    * in place instead of duplicating on re-import.
    */
   sourceKey: string;
+
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  isPublic?: boolean;
+  posterUrl?: string | null;
+  bannerUrl?: string | null;
+
+  /**
+   * Non-null when this list is one of TV Time's built-in favorite lists
+   * (`favorite-movies` / `favorite-series`). These map onto MediaVault's
+   * own built-in Favorite Movies / Favorite TV Series lists rather than
+   * becoming a new custom list.
+   */
+  builtIn?: ListBuiltInKind;
+}
+
+export interface ListImportDiagnostics {
+  /** Number of list-metadata entries found in the `collection` row. */
+  listsDiscovered: number;
+  /** `s_key`s from `collection` metadata with no matching item row. */
+  unmatchedSKeys: string[];
+}
+
+export function emptyListImportDiagnostics(): ListImportDiagnostics {
+  return { listsDiscovered: 0, unmatchedSKeys: [] };
 }
 
 export interface NormalizedImportBundle {
@@ -104,6 +131,7 @@ export interface NormalizedImportBundle {
   favorites: FavoriteImport[];
   lists: ListImport[];
   warnings: { row?: number; reason: string }[];
+  listDiagnostics: ListImportDiagnostics;
 }
 
 export function emptyBundle(): NormalizedImportBundle {
@@ -115,6 +143,7 @@ export function emptyBundle(): NormalizedImportBundle {
     favorites: [],
     lists: [],
     warnings: [],
+    listDiagnostics: emptyListImportDiagnostics(),
   };
 }
 
@@ -130,6 +159,10 @@ export function mergeBundles(
     result.favorites.push(...b.favorites);
     result.lists.push(...b.lists);
     result.warnings.push(...b.warnings);
+    result.listDiagnostics.listsDiscovered += b.listDiagnostics.listsDiscovered;
+    result.listDiagnostics.unmatchedSKeys.push(
+      ...b.listDiagnostics.unmatchedSKeys,
+    );
   }
   return result;
 }

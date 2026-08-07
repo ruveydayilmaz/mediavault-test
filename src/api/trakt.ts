@@ -98,6 +98,10 @@ export class TraktService {
     return value;
   }
 
+  clearCache(): void {
+    this.cache.clear();
+  }
+
   async getHistory(
     type: "movies" | "episodes",
     page = 1,

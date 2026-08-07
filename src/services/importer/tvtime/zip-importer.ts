@@ -68,6 +68,35 @@ const KNOWN_NON_IMPORTABLE = new Set([
   "users-customization-prod-data.csv",
 ]);
 
+const NON_IMPORTABLE_REASONS: Record<string, string> = {
+  "comment_translation.csv":
+    "Machine-translated copies of comments already imported from their source file — ignored to avoid duplicates.",
+  "tracking-deployment-prod-tracks.csv":
+    "App deployment/version tracking, not user watch activity — ignored.",
+  "tracking-prod-count-by-timeframe.csv":
+    "Pre-aggregated stat counters TV Time computed for its own UI — MediaVault derives the same stats live from imported watch history, so this is ignored.",
+  "recommendations-prod-user-scores.csv":
+    "TV Time's internal recommendation-engine scores — not user activity, ignored.",
+  "recommendations-prod-user-shows.csv":
+    "TV Time's internal recommendation-engine inputs — not user activity, ignored.",
+  "episode_comment_like.csv":
+    "Likes on other users' comments — no corresponding concept in MediaVault, ignored.",
+  "followed_tv_show_source.csv":
+    "Attribution for how a follow happened (search, notification, etc.) — the follow itself is read from followed_tv_show.csv; this file adds no importable data.",
+  "show_character_episode_vote.csv":
+    "Character popularity votes — no corresponding concept in MediaVault, ignored.",
+  "emotions-3-prod-episode_votes.csv":
+    "Emotion reactions on episodes — no corresponding concept in MediaVault, ignored.",
+  "emotions-live-votes.csv":
+    "Emotion reactions on movies — no corresponding concept in MediaVault, ignored.",
+  "emotions-v2-prod-votes.csv":
+    "Emotion reactions — no corresponding concept in MediaVault, ignored.",
+  "episode_emotion.csv":
+    "Emotion reactions on episodes — no corresponding concept in MediaVault, ignored.",
+  "users-customization-prod-data.csv":
+    "TV Time app theme/UI preferences — not importable data, ignored.",
+};
+
 const GDPR_RELATIONAL_FILES = new Set([
   // Watch history
   "tracking-prod-records-v2.csv",
@@ -87,6 +116,7 @@ const GDPR_RELATIONAL_FILES = new Set([
   // Status / favorites
   "user_show_special_status.csv",
   "user_tv_show_data.csv",
+  "followed_tv_show.csv",
   // Custom lists
   "lists-prod-lists.csv",
 ]);
@@ -124,6 +154,18 @@ export async function runZipImport(
     const name = basename(entry.name);
 
     if (KNOWN_NON_IMPORTABLE.has(name.toLowerCase())) {
+      files.push({
+        filename: name,
+        detection: {
+          format: "csv",
+          category: "unknown",
+          label:
+            NON_IMPORTABLE_REASONS[name.toLowerCase()] ??
+            "Not user activity data — ignored.",
+        },
+        rowCount: 0,
+        unsupported: true,
+      });
       done++;
       onProgress?.(done, entries.length);
       continue;
@@ -235,6 +277,7 @@ function gdprCategory(filename: string): ImportCategory {
   if (filename.includes("comment")) return "csv_comments";
   if (filename.includes("lists")) return "json_list";
   if (filename.includes("user_tv_show_data")) return "csv_favorites";
+  if (filename.includes("followed_tv_show")) return "csv_favorites";
   return "unknown";
 }
 
@@ -250,6 +293,7 @@ function gdprLabel(filename: string): string {
   if (filename.includes("special_status"))
     return "TV Time Watch Later / Favorites";
   if (filename.includes("user_tv_show_data")) return "TV Time Show Favorites";
+  if (filename.includes("followed_tv_show")) return "TV Time Followed Shows";
   if (filename.includes("lists")) return "TV Time Custom Lists";
   return "TV Time GDPR Data";
 }

@@ -15,7 +15,11 @@ import {
   ReviewImport,
   WatchImport,
 } from "./types";
-import { parseGoMapArray } from "./gdpr-list-parse";
+import {
+  parseGoMapArray,
+  parseGoMapObjectsArray,
+  parseListMetadata,
+} from "./gdpr-list-parse";
 
 const REACTION_EMOJI: Record<string, string> = {
   "1": "👍",
@@ -49,8 +53,14 @@ export function parseGdprArchive(
     "user_tv_show_data.csv",
     "show_seen_episode_latest.csv",
   ]) {
-    for (const row of parsed.get(name) ?? [])
+    for (const row of parsed.get(name) ?? []) {
       addSeries(seriesById, row.tv_show_id, row.tv_show_name);
+    }
+    // Register the file as recognized/parsed even when it contributes no
+    // watches/favorites/etc of its own (e.g. `followed_tv_show.csv` is
+    // used only to build the series id → title lookup above) — otherwise
+    // it would be silently absent from the import diagnostics report.
+    bundleFor(name);
   }
   for (const row of parsed.get("tracking-prod-records-v2.csv") ?? []) {
     addSeries(seriesById, row.s_id, row.series_name, row.uuid);
@@ -78,12 +88,19 @@ export function parseGdprArchive(
         title,
         season,
         episode,
-        watchedAt: row.created_at,
+        // `updated_at` reflects the last time this tracking row was
+        // touched (e.g. a bulk/rewatch bump); when it's later than
+        // `created_at` it's the truer "last watched" instant, so prefer
+        // whichever of the two is more recent rather than always trusting
+        // `created_at`. This never moves a watch date earlier than what
+        // `created_at` alone would have given.
+        watchedAt: laterOf(row.created_at, row.updated_at),
         tvTimeId: row.s_id,
         tvTimeUuid: row.uuid,
         tvTimeEpisodeId: row.episode_id || row.ep_id,
         runtimeSeconds: number(row.runtime),
         sourceRow: index,
+        isRewatch: isRewatchRow(row),
       }),
     );
   }
@@ -129,6 +146,7 @@ export function parseGdprArchive(
         tvTimeEpisodeId: row.episode_id,
         runtimeSeconds: number(row.runtime),
         sourceRow: index,
+        isRewatch: row.type === "rewatch" || isRewatchRow(row),
       });
 
       if (!v2EpisodeKeys.has(episodeKey(watch))) {
@@ -147,7 +165,7 @@ export function parseGdprArchive(
           country: clean(row.country),
         }),
         watchedAt,
-        rewatchCount: 0,
+        rewatchCount: row.type === "rewatch" ? 1 : 0,
       });
     }
   }
@@ -391,26 +409,94 @@ export function parseGdprArchive(
     bundleFor("user_tv_show_data.csv").favorites.push(fav);
   }
 
-  for (const [index, row] of (
-    parsed.get("lists-prod-lists.csv") ?? []
-  ).entries()) {
-    // `s_key` is TV Time's stable per-list slug — unlike `name`, it can't
-    // collide across a user's lists (default lists in particular commonly
-    // share a display name, e.g. multiple lists named "Watchlist"). Identity
-    // for dedup/idempotency must key off this, never off the display name,
-    // or distinct lists silently collapse into one on import.
+  parseGdprLists(
+    parsed.get("lists-prod-lists.csv") ?? [],
+    seriesById,
+    bundleFor,
+  );
+
+  return result;
+}
+
+// Helpers
+
+const LIST_SKEY_COUNT = "count";
+const LIST_SKEY_COLLECTION = "collection";
+const LIST_SKEY_FAVORITE_MOVIES = "favorite-movies";
+const LIST_SKEY_FAVORITE_SERIES = "favorite-series";
+
+/**
+ * The GDPR `lists-prod-lists.csv` export doesn't hold one list per row.
+ * Instead every row is keyed by `s_key`, and rows serve one of three
+ * distinct purposes:
+ *
+ *  - `count`                      → a row count / stat, not list data at all.
+ *  - `collection`                 → the *only* source of list metadata: an
+ *                                    `objects` array of entries, one per
+ *                                    list, each carrying its own `s_key`.
+ *  - `favorite-movies` /
+ *    `favorite-series` / `<uuid>` → item rows. Each holds only the items
+ *                                    (`uuid`, `type`, `created_at`) for the
+ *                                    single list whose metadata `s_key`
+ *                                    matches this row's `s_key`.
+ *
+ * This two-stage lookup — metadata from `collection`, items matched in by
+ * `s_key` — is required because a row's own item-array format carries no
+ * name/description/dates/visibility/artwork; that only exists once, in the
+ * `collection` row's metadata entry for the list.
+ */
+function parseGdprLists(
+  rows: RawImportRow[],
+  seriesById: Map<string, { title: string; uuid?: string }>,
+  bundleFor: (name: string) => NormalizedImportBundle,
+): void {
+  const FILE = "lists-prod-lists.csv";
+  const bundle = bundleFor(FILE);
+
+  const itemRowsBySKey = new Map<string, { row: RawImportRow; index: number }>();
+  const collectionRowEntry =
+    rows
+      .map((row, index) => ({ row, index }))
+      .find(({ row }) => clean(row.s_key) === LIST_SKEY_COLLECTION) ?? null;
+
+  rows.forEach((row, index) => {
     const sKey = clean(row.s_key);
-    const rawName = clean(row.name);
-    const name = rawName ?? (sKey ? titleCaseSlug(sKey) : null);
-    // A row with neither a usable name nor a stable key carries no
-    // identifiable list at all — nothing left to preserve.
-    if (!name && !sKey) continue;
-    const displayName = name ?? `Imported List ${index + 1}`;
-    const sourceKey = sKey ? `s_key:${sKey}` : `name:${displayName}`;
+    if (!sKey || sKey === LIST_SKEY_COUNT || sKey === LIST_SKEY_COLLECTION)
+      return;
+    itemRowsBySKey.set(sKey, { row, index });
+  });
 
-    const objectsRaw = row.objects ?? "";
-    const parsedItems = parseGoMapArray(objectsRaw);
+  if (!collectionRowEntry) return;
 
+  const metadataEntries = parseGoMapObjectsArray(
+    collectionRowEntry.row.objects ?? "",
+  ).map(parseListMetadata);
+
+  bundle.listDiagnostics.listsDiscovered += metadataEntries.length;
+
+  for (const meta of metadataEntries) {
+    const sKey = meta.sKey;
+    const displayName = meta.name ?? (sKey ? titleCaseSlug(sKey) : null);
+    if (!displayName && !sKey) continue;
+    const name = displayName ?? `Imported List`;
+
+    if (!sKey) {
+      bundle.warnings.push({
+        reason: `"${name}": list metadata has no s_key and can't be matched to its items — skipped.`,
+      });
+      continue;
+    }
+
+    const itemRow = itemRowsBySKey.get(sKey);
+    if (!itemRow) {
+      bundle.listDiagnostics.unmatchedSKeys.push(sKey);
+      bundle.warnings.push({
+        reason: `"${name}" (s_key: ${sKey}): no matching item row found — list metadata was discovered but its contents are missing.`,
+      });
+      continue;
+    }
+
+    const parsedItems = parseGoMapArray(itemRow.row.objects ?? "");
     const items: ListImport["items"] = [];
     let unresolved = 0;
     for (const item of parsedItems) {
@@ -421,8 +507,7 @@ export function parseGdprArchive(
             | "movie",
           ids: { tvTimeUuid: item.uuid, tvTimeId: item.tvTimeId },
           title:
-            lookupSeriesTitle(seriesById, item.tvTimeId, item.uuid) ??
-            displayName,
+            lookupSeriesTitle(seriesById, item.tvTimeId, item.uuid) ?? name,
           year: null,
         });
       } else {
@@ -431,29 +516,39 @@ export function parseGdprArchive(
     }
 
     if (unresolved > 0) {
-      bundleFor("lists-prod-lists.csv").warnings.push({
-        row: index + 2,
-        reason: `"${displayName}": ${unresolved} list item(s) had no identifiable id/uuid and were skipped.`,
+      bundle.warnings.push({
+        row: itemRow.index + 2,
+        reason: `"${name}": ${unresolved} list item(s) had no identifiable id/uuid and were skipped.`,
       });
     }
+
+    const builtIn: ListImport["builtIn"] =
+      sKey === LIST_SKEY_FAVORITE_MOVIES
+        ? "movies"
+        : sKey === LIST_SKEY_FAVORITE_SERIES
+          ? "series"
+          : null;
 
     // A list is preserved even when it has zero resolvable items — an
     // empty or fully-unresolved list is still a real list, and dropping it
     // here (as opposed to surfacing it via the warning above) would be
     // exactly the kind of silent data loss this importer must avoid.
     const listImport: ListImport = {
-      name: displayName,
-      description: clean(row.description),
+      name,
+      description: meta.description,
       items,
-      sourceKey,
+      sourceKey: `s_key:${sKey}`,
+      createdAt: meta.createdAt,
+      updatedAt: meta.updatedAt,
+      isPublic: meta.isPublic,
+      posterUrl: meta.posterUrls[0] ?? null,
+      bannerUrl: meta.fanartUrls[0] ?? null,
+      builtIn,
     };
-    bundleFor("lists-prod-lists.csv").lists.push(listImport);
+    bundle.lists.push(listImport);
   }
-
-  return result;
 }
 
-// Helpers
 function episodeWatch(input: {
   title: string;
   season: number;
@@ -464,6 +559,7 @@ function episodeWatch(input: {
   tvTimeEpisodeId?: string;
   runtimeSeconds: number | null;
   sourceRow: number;
+  isRewatch?: boolean;
 }): WatchImport {
   const title = splitTitleYear(input.title);
   return {
@@ -479,8 +575,30 @@ function episodeWatch(input: {
     seasonNumber: input.season,
     episodeNumber: input.episode,
     watchedAt: epochOrDate(input.watchedAt),
-    rewatchCount: 0,
+    rewatchCount: input.isRewatch ? 1 : 0,
   };
+}
+
+function laterOf(a?: string | null, b?: string | null): string | null {
+  const da = epochOrDate(a ?? null);
+  const db = epochOrDate(b ?? null);
+  if (!da) return db;
+  if (!db) return da;
+  return db > da ? db : da;
+}
+
+/**
+ * Some GDPR tracking rows tag the event itself as a rewatch — via a
+ * `bulk_type` column formatted like `rewatch-episode-...`, or (depending on
+ * export version) that same marker showing up in the `uuid` column. Either
+ * way, a `rewatch-` prefix on either field means TV Time itself recorded
+ * this specific event as a rewatch rather than a first watch.
+ */
+function isRewatchRow(row: RawImportRow): boolean {
+  return (
+    row.bulk_type?.toLowerCase().startsWith("rewatch") === true ||
+    row.uuid?.toLowerCase().startsWith("rewatch") === true
+  );
 }
 
 function addSeries(

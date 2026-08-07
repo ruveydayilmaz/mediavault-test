@@ -78,7 +78,6 @@ export class FavoriteListsModal extends Modal {
     });
 
     card.addEventListener("click", () => {
-      this.close();
       new ListDetailModal(this.app, this.plugin, list).open();
     });
   }

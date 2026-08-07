@@ -185,6 +185,53 @@ export class StorageAdapter {
     return this.data;
   }
 
+  /**
+   * Wipes every MediaVault storage file (split group files, meta.json, and
+   * the legacy pre-split data.json if it's still on disk) and rewrites a
+   * brand-new empty state, so the plugin behaves exactly like a fresh
+   * installation without requiring an Obsidian restart. Never touches
+   * anything outside the plugin's own storage directory — generated
+   * Markdown notes live in the vault proper and this method has no path
+   * into that tree at all.
+   */
+  async factoryReset(): Promise<void> {
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+      this.saveTimeout = null;
+    }
+    this.savePromise = null;
+    this.resolveSavePromise = null;
+    this.lastWrittenJson.clear();
+
+    await this.removePathIfExists(this.storageDir);
+    await this.removePathIfExists(this.legacyDataPath);
+
+    this.data = createEmptyVaultData();
+    await this.writeAllGroups();
+    await this.writeMeta({ migrated: true, version: this.data.version });
+  }
+
+  private get legacyDataPath(): string {
+    return `${this.plugin.manifest.dir ?? `.obsidian/plugins/${this.plugin.manifest.id}`}/data.json`;
+  }
+
+  private async removePathIfExists(path: string): Promise<void> {
+    try {
+      if (!(await this.adapter.exists(path))) return;
+      const stat = await this.adapter.stat(path);
+      if (stat?.type === "folder") {
+        await this.adapter.rmdir(path, true);
+      } else {
+        await this.adapter.remove(path);
+      }
+    } catch (err) {
+      console.error(
+        `MediaVault: failed to remove "${path}" during factory reset.`,
+        err,
+      );
+    }
+  }
+
   requestSave(): Promise<void> {
     if (this.saveTimeout) {
       clearTimeout(this.saveTimeout);

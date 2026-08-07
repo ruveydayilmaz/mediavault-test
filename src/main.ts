@@ -705,4 +705,39 @@ export default class MediaVaultPlugin extends Plugin {
       await this.storage.flush();
     }
   }
+
+  /**
+   * Wipes every MediaVault-managed storage file and reinitializes the
+   * plugin to a brand-new, first-run state. Generated Markdown notes in
+   * the vault are never touched — this only ever writes inside the
+   * plugin's own storage directory (see `StorageAdapter.factoryReset`).
+   */
+  async performFactoryReset(): Promise<void> {
+    await this.storage.factoryReset();
+    this.tmdb.clearCache();
+    this.trakt.clearCache();
+
+    new Notice(t("factoryReset.success"));
+
+    const pluginId = this.manifest.id;
+    const pluginsApi = (
+      this.app as unknown as {
+        plugins: {
+          disablePlugin(id: string): Promise<void>;
+          enablePlugin(id: string): Promise<void>;
+        };
+      }
+    ).plugins;
+
+    try {
+      await pluginsApi.disablePlugin(pluginId);
+      await pluginsApi.enablePlugin(pluginId);
+    } catch (err) {
+      console.error(
+        "MediaVault: couldn't auto-reload after factory reset — a manual reload is needed to fully re-initialize.",
+        err,
+      );
+      new Notice(t("factoryReset.reloadHint"));
+    }
+  }
 }

@@ -28,6 +28,10 @@ export interface CustomList {
   updatedAt: ISODateString;
 
   isSystem?: boolean;
+
+  isPublic?: boolean;
+  posterUrl?: string | null;
+  bannerUrl?: string | null;
 }
 
 export type NewCustomListInput = Pick<CustomList, "title"> &

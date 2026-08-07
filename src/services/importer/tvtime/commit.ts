@@ -5,6 +5,7 @@ import { Episode } from "../../../models/episode";
 import { MediaType } from "../../../types/enums";
 import { buildMediaItemFromTMDB } from "../../media-import";
 import { addWatchSession } from "../../watch-session-service";
+import { touchMediaActivity } from "../../activity-service";
 import { importEpisodesForShow } from "../../episode-import";
 import { findBestMatch, MatchTier } from "../tmdb-match";
 import {
@@ -55,6 +56,11 @@ export interface ImportReport {
   ratingsImported: number;
   emotionsImported: number;
   listsImported: number;
+  listsDiscovered: number;
+  totalListItems: number;
+  matchedListItems: number;
+  missingListItems: number;
+  unmatchedListSKeys: string[];
   duplicatesMerged: number;
   skipped: number;
   errors: { reason: string }[];
@@ -83,6 +89,11 @@ export function emptyReport(): ImportReport {
     ratingsImported: 0,
     emotionsImported: 0,
     listsImported: 0,
+    listsDiscovered: 0,
+    totalListItems: 0,
+    matchedListItems: 0,
+    missingListItems: 0,
+    unmatchedListSKeys: [],
     duplicatesMerged: 0,
     skipped: 0,
     errors: [],
@@ -313,15 +324,48 @@ async function applyWatch(
   episodeIndexes: Map<string, Map<string, Episode>>,
   affectedSeries: Set<string>,
   seriesLatestWatchedDate: Map<string, string>,
+  mediaLatestActivityDate: Map<string, string>,
   wasSeriesCompleteBeforeImport: Map<string, boolean>,
+  existingWatchDates: Map<string, Set<string>>,
 ): Promise<void> {
+  const bumpActivity = (mediaId: string, at: string | null) => {
+    if (!at) return;
+    const current = mediaLatestActivityDate.get(mediaId);
+    if (!current || at > current) mediaLatestActivityDate.set(mediaId, at);
+  };
+
   if (watch.kind === "movie") {
+    const watchedAt = watch.watchedAt ?? new Date().toISOString().slice(0, 10);
+
+    // Idempotency: skip creating another session if this exact movie was
+    // already logged as watched on this exact date (either from a prior
+    // run of this same import, or from data already in the vault).
+    let seenDates = existingWatchDates.get(`movie:${media.id}`);
+    if (!seenDates) {
+      seenDates = new Set(
+        (await storage.watchSessions.findByMediaId(media.id)).map(
+          (s) => s.watchDate,
+        ),
+      );
+      existingWatchDates.set(`movie:${media.id}`, seenDates);
+    }
+    if (seenDates.has(watchedAt)) {
+      report.skipped++;
+      report.duplicatesMerged++;
+      trackSkip(report, "Movie already watched on this date — merged");
+      bumpActivity(media.id, watchedAt);
+      return;
+    }
+    seenDates.add(watchedAt);
+
     await addWatchSession(storage, {
       mediaId: media.id,
-      watchDate: watch.watchedAt ?? new Date().toISOString().slice(0, 10),
+      watchDate: watchedAt,
       rating: null,
       review: "",
+      activityAt: watch.watchedAt ?? undefined,
     });
+    bumpActivity(media.id, watchedAt);
     if (watch.match?.runtimeSeconds)
       report.totalImportedRuntimeSeconds += watch.match.runtimeSeconds;
     return;
@@ -363,28 +407,50 @@ async function applyWatch(
     );
   }
 
+  const watchedAt = watch.watchedAt ?? new Date().toISOString().slice(0, 10);
+
+  // Idempotency: re-running the same GDPR import must not create duplicate
+  // episode-watch records. An exact (episode, watched date) pair is treated
+  // as the same watch event as one already on disk or already created
+  // earlier in this same run (e.g. from an overlapping GDPR source file).
+  let seenDates = existingWatchDates.get(episode.id);
+  if (!seenDates) {
+    seenDates = new Set(
+      (await storage.episodeWatches.findByEpisodeId(episode.id)).map(
+        (w) => w.watchedAt,
+      ),
+    );
+    existingWatchDates.set(episode.id, seenDates);
+  }
+  if (seenDates.has(watchedAt)) {
+    report.skipped++;
+    report.duplicatesMerged++;
+    trackSkip(report, "Episode already watched on this date — merged");
+    affectedSeries.add(media.id);
+    bumpActivity(media.id, watchedAt);
+    const current = seriesLatestWatchedDate.get(media.id);
+    if (!current || watchedAt > current)
+      seriesLatestWatchedDate.set(media.id, watchedAt);
+    return;
+  }
+  seenDates.add(watchedAt);
+
   await storage.episodeWatches.create({
     mediaId: episode.mediaId,
     episodeId: episode.id,
-    watchedAt: watch.watchedAt ?? new Date().toISOString().slice(0, 10),
+    watchedAt,
     rating: null,
     emotion: null,
     review: null,
     notes: null,
   });
-  await storage.episodeProgress.markWatched(
-    episode,
-    true,
-    watch.watchedAt ?? undefined,
-  );
+  await storage.episodeProgress.markWatched(episode, true, watchedAt);
   affectedSeries.add(media.id);
 
-  const watchedDate = watch.watchedAt;
-  if (watchedDate) {
-    const current = seriesLatestWatchedDate.get(media.id);
-    if (!current || watchedDate > current)
-      seriesLatestWatchedDate.set(media.id, watchedDate);
-  }
+  const current = seriesLatestWatchedDate.get(media.id);
+  if (!current || watchedAt > current)
+    seriesLatestWatchedDate.set(media.id, watchedAt);
+  bumpActivity(media.id, watchedAt);
 
   report.episodesUpdated++;
   report.episodeWatchesImported++;
@@ -646,6 +712,19 @@ async function applyList(
   mediaIds: string[],
   report: ImportReport,
 ): Promise<void> {
+  // Built-in favorite lists (`favorite-movies` / `favorite-series`) have no
+  // storage record of their own in MediaVault — they're derived live from
+  // `MediaItem.isFavorite`. Populate that instead of creating a duplicate
+  // custom list that would just shadow the real built-in list.
+  if (list.builtIn) {
+    for (const mediaId of mediaIds) {
+      await storage.media.update(mediaId, { isFavorite: true });
+    }
+    report.favoritesImported += mediaIds.length;
+    report.listsImported++;
+    return;
+  }
+
   const existingLists = await storage.customLists.getAll();
   // Identity is the stable `sourceKey` (e.g. TV Time's per-list `s_key`),
   // never the display `name` — display names are mutable and can collide
@@ -662,6 +741,12 @@ async function applyList(
     if (existing.title !== list.name) patch.title = list.name;
     if ((existing.description ?? null) !== (list.description ?? null))
       patch.description = list.description;
+    if ((existing.isPublic ?? false) !== (list.isPublic ?? false))
+      patch.isPublic = list.isPublic;
+    if ((existing.posterUrl ?? null) !== (list.posterUrl ?? null))
+      patch.posterUrl = list.posterUrl;
+    if ((existing.bannerUrl ?? null) !== (list.bannerUrl ?? null))
+      patch.bannerUrl = list.bannerUrl;
     if (Object.keys(patch).length > 0) {
       await storage.customLists.update(existing.id, patch);
     }
@@ -672,6 +757,11 @@ async function applyList(
       mediaIds,
       isImported: true,
       importSource: list.sourceKey,
+      isPublic: list.isPublic,
+      posterUrl: list.posterUrl,
+      bannerUrl: list.bannerUrl,
+      ...(list.createdAt ? { createdAt: list.createdAt } : {}),
+      ...(list.updatedAt ? { updatedAt: list.updatedAt } : {}),
     });
   }
   report.listsImported++;
@@ -738,7 +828,9 @@ export async function commitBundle(
   const episodeIndexes = new Map<string, Map<string, Episode>>();
   const affectedSeries = new Set<string>();
   const seriesLatestWatchedDate = new Map<string, string>();
+  const mediaLatestActivityDate = new Map<string, string>();
   const wasSeriesCompleteBeforeImport = new Map<string, boolean>();
+  const existingWatchDates = new Map<string, Set<string>>();
 
   const total =
     bundle.watches.length +
@@ -830,7 +922,9 @@ export async function commitBundle(
           episodeIndexes,
           affectedSeries,
           seriesLatestWatchedDate,
+          mediaLatestActivityDate,
           wasSeriesCompleteBeforeImport,
+          existingWatchDates,
         );
       }
       tick("Watch history");
@@ -916,6 +1010,7 @@ export async function commitBundle(
   await timer.time("Applying custom lists", async () => {
     for (const list of bundle.lists) {
       const mediaIds: string[] = [];
+      report.totalListItems += list.items.length;
       for (const item of list.items) {
         const media = await resolver.resolve(
           item.ids,
@@ -924,8 +1019,11 @@ export async function commitBundle(
           item.kind,
           item.match,
         );
-        if (media) mediaIds.push(media.id);
-        else {
+        if (media) {
+          mediaIds.push(media.id);
+          report.matchedListItems++;
+        } else {
+          report.missingListItems++;
           report.skipped++;
           trackSkip(report, "No media match — list item not imported");
         }
@@ -934,6 +1032,9 @@ export async function commitBundle(
       tick("Custom lists");
     }
   });
+
+  report.listsDiscovered = bundle.listDiagnostics.listsDiscovered;
+  report.unmatchedListSKeys = [...bundle.listDiagnostics.unmatchedSKeys];
 
   await timer.time("Status recalculation", async () => {
     for (const mediaId of affectedSeries) {
@@ -946,13 +1047,29 @@ export async function commitBundle(
     if (wasComplete) continue;
     const isCompleteNow = await isSeriesFullyWatched(storage, mediaId);
     if (!isCompleteNow) continue;
+    const completionDate =
+      seriesLatestWatchedDate.get(mediaId) ??
+      new Date().toISOString().slice(0, 10);
     await addWatchSession(storage, {
       mediaId,
-      watchDate:
-        seriesLatestWatchedDate.get(mediaId) ??
-        new Date().toISOString().slice(0, 10),
+      watchDate: completionDate,
+      activityAt: seriesLatestWatchedDate.get(mediaId),
     });
   }
+
+  // Recent sorting reads `lastActivityAt`, and it must reflect the true
+  // chronology of the imported history — not import time. Episode watches
+  // are written directly above (bypassing the per-write touchMediaActivity
+  // funnel, deliberately, for bulk-import performance), so this is the one
+  // place that reconciles `lastActivityAt` for every affected show/movie,
+  // using the newest watch event actually found for it. touchMediaActivity
+  // itself guards against moving activity backward, so this is safe to run
+  // unconditionally and is idempotent on re-import.
+  await timer.time("Recent activity sync", async () => {
+    for (const [mediaId, at] of mediaLatestActivityDate) {
+      await touchMediaActivity(storage, mediaId, at);
+    }
+  });
 
   for (const warning of bundle.warnings) {
     report.skipped++;

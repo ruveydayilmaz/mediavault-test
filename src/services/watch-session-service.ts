@@ -34,7 +34,7 @@ export async function addWatchSession(
   };
 
   await storage.watchSessions.save(session);
-  await syncMediaAggregates(storage, input.mediaId);
+  await syncMediaAggregates(storage, input.mediaId, input.activityAt);
   await recalculateAndPersistStatus(storage, input.mediaId);
 
   return session;
@@ -97,6 +97,7 @@ export async function findSessionByExternalRef(
 async function syncMediaAggregates(
   storage: StorageService,
   mediaId: string,
+  activityAt?: string,
 ): Promise<void> {
   const sessions = await storage.watchSessions.findWhere(
     (s) => s.mediaId === mediaId,
@@ -112,5 +113,5 @@ async function syncMediaAggregates(
           )
         : null,
   });
-  await touchMediaActivity(storage, mediaId);
+  await touchMediaActivity(storage, mediaId, activityAt);
 }
