@@ -85,6 +85,7 @@ export function normalizeSearchResult(
     country: raw.origin_country?.[0] ?? null,
     language: raw.original_language ?? null,
     adult: raw.adult,
+    popularity: raw.popularity ?? 0,
   };
 }
 

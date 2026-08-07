@@ -7,7 +7,12 @@ import { buildMediaItemFromTMDB } from "../../media-import";
 import { addWatchSession } from "../../watch-session-service";
 import { touchMediaActivity } from "../../activity-service";
 import { importEpisodesForShow } from "../../episode-import";
-import { findBestMatch, MatchTier } from "../tmdb-match";
+import {
+  findBestMatch,
+  MatchTier,
+  EpisodeHistoryEntry,
+  CandidateSeasonInfo,
+} from "../tmdb-match";
 import {
   NormalizedImportBundle,
   WatchImport,
@@ -23,6 +28,7 @@ import { recalculateAndPersistStatus } from "../../status-service";
 import { isSeriesFullyWatched } from "../../episode-status-sync";
 import { ImportTimer } from "../import-timer";
 import { mapWithConcurrency } from "../concurrency";
+import { maybeYield } from "../yield";
 
 const RESOLVE_CONCURRENCY = 5;
 const EPISODE_IMPORT_CONCURRENCY = 4;
@@ -43,6 +49,8 @@ export interface MatchLogEntry {
   queriesTried: string[];
   selected: string | null;
   rejectedCount: number;
+  tieBrokenByPopularity: boolean;
+  tieBrokenByEpisodeHistory: boolean;
 }
 
 export interface ImportReport {
@@ -56,6 +64,8 @@ export interface ImportReport {
   ratingsImported: number;
   emotionsImported: number;
   listsImported: number;
+  builtInListsImported: number;
+  customListsImported: number;
   listsDiscovered: number;
   totalListItems: number;
   matchedListItems: number;
@@ -66,6 +76,12 @@ export interface ImportReport {
   errors: { reason: string }[];
   unmatched: UnmatchedItem[];
   matchLog: MatchLogEntry[];
+
+  exactMatchCount: number;
+  metadataMatchCount: number;
+  episodeHistoryMatchCount: number;
+  popularityTieBreakCount: number;
+  unmatchedMatchCount: number;
 
   totalRecordsParsed: number;
   matchedMediaCount: number;
@@ -89,6 +105,8 @@ export function emptyReport(): ImportReport {
     ratingsImported: 0,
     emotionsImported: 0,
     listsImported: 0,
+    builtInListsImported: 0,
+    customListsImported: 0,
     listsDiscovered: 0,
     totalListItems: 0,
     matchedListItems: 0,
@@ -99,6 +117,11 @@ export function emptyReport(): ImportReport {
     errors: [],
     unmatched: [],
     matchLog: [],
+    exactMatchCount: 0,
+    metadataMatchCount: 0,
+    episodeHistoryMatchCount: 0,
+    popularityTieBreakCount: 0,
+    unmatchedMatchCount: 0,
     totalRecordsParsed: 0,
     matchedMediaCount: 0,
     unmatchedMediaCount: 0,
@@ -138,6 +161,23 @@ function normalizeTitleKey(title: string): string {
   return title.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+/**
+ * Fetches a TV candidate's season/episode-count catalogue for
+ * episode-history tie-breaking. `TMDBService.getTV()` already caches by
+ * tmdbId internally, so repeated lookups for the same candidate across
+ * multiple ambiguous imports in one run are free.
+ */
+async function fetchCandidateSeasons(
+  tmdb: TMDBService,
+  tmdbId: number,
+): Promise<CandidateSeasonInfo[]> {
+  const details = await tmdb.getTV(tmdbId);
+  return (details.seasons ?? []).map((s) => ({
+    seasonNumber: s.seasonNumber,
+    episodeCount: s.episodeCount,
+  }));
+}
+
 export class MediaResolver {
   private cache = new Map<
     string,
@@ -152,6 +192,7 @@ export class MediaResolver {
     private tmdb: TMDBService,
     private report: ImportReport,
     private timer: ImportTimer = new ImportTimer(),
+    private episodeHistoryByKey: Map<string, EpisodeHistoryEntry[]> = new Map(),
   ) {}
 
   private async ensureTitleIndex(): Promise<Map<string, MediaItem[]>> {
@@ -186,7 +227,14 @@ export class MediaResolver {
     const key = resolutionKey(ids, title, year, kind, match);
     let pending = this.cache.get(key);
     if (!pending) {
-      pending = this.doResolve(ids, title, year, kind, match);
+      pending = this.doResolve(
+        ids,
+        title,
+        year,
+        kind,
+        match,
+        this.episodeHistoryByKey.get(key),
+      );
       this.cache.set(key, pending);
     }
     const result = await pending;
@@ -206,6 +254,7 @@ export class MediaResolver {
     year: number | null,
     kind: ImportMediaKind,
     match?: MatchMetadata,
+    episodeHistory?: EpisodeHistoryEntry[],
   ): Promise<{ media: MediaItem | null; isNew: boolean }> {
     if (ids.tvdbId != null) {
       const existing = await this.storage.media.findByTvdbId(ids.tvdbId);
@@ -249,7 +298,21 @@ export class MediaResolver {
       const tmdbMatch = await this.timer.time(
         "Media matching (TMDB search)",
         () =>
-          findBestMatch(this.tmdb, { kind: tmdbKind, title, year, ...match }),
+          findBestMatch(
+            this.tmdb,
+            {
+              kind: tmdbKind,
+              title,
+              year,
+              ...match,
+              ...(tmdbKind === "tv" && episodeHistory?.length
+                ? { episodeHistory }
+                : {}),
+            },
+            tmdbKind === "tv"
+              ? (tmdbId) => fetchCandidateSeasons(this.tmdb, tmdbId)
+              : undefined,
+          ),
       );
 
       this.report.matchLog.push({
@@ -262,7 +325,28 @@ export class MediaResolver {
           ? `${tmdbMatch.candidate.title}${tmdbMatch.candidate.year ? ` (${tmdbMatch.candidate.year})` : ""}`
           : null,
         rejectedCount: tmdbMatch.rejected.length,
+        tieBrokenByPopularity: tmdbMatch.tieBrokenByPopularity,
+        tieBrokenByEpisodeHistory: tmdbMatch.tieBrokenByEpisodeHistory,
       });
+
+      switch (tmdbMatch.tier) {
+        case "exact":
+          this.report.exactMatchCount++;
+          break;
+        case "year":
+        case "fuzzy":
+          this.report.metadataMatchCount++;
+          break;
+        case "episode-history":
+          this.report.episodeHistoryMatchCount++;
+          break;
+        case "popularity":
+          this.report.popularityTieBreakCount++;
+          break;
+        case "unmatched":
+          this.report.unmatchedMatchCount++;
+          break;
+      }
 
       if (tmdbMatch.candidate === null) {
         this.report.unmatched.push({
@@ -722,6 +806,7 @@ async function applyList(
     }
     report.favoritesImported += mediaIds.length;
     report.listsImported++;
+    report.builtInListsImported++;
     return;
   }
 
@@ -765,6 +850,7 @@ async function applyList(
     });
   }
   report.listsImported++;
+  report.customListsImported++;
 }
 
 export type ImportProgressCallback = (
@@ -783,9 +869,13 @@ interface DistinctResolution {
 
 function collectDistinctResolutions(
   bundle: NormalizedImportBundle,
-): DistinctResolution[] {
+): {
+  resolutions: DistinctResolution[];
+  episodeHistoryByKey: Map<string, EpisodeHistoryEntry[]>;
+} {
   const seen = new Set<string>();
   const out: DistinctResolution[] = [];
+  const episodeHistoryByKey = new Map<string, EpisodeHistoryEntry[]>();
   const consider = (
     ids: ExternalIds,
     title: string,
@@ -799,8 +889,19 @@ function collectDistinctResolutions(
     out.push({ ids, title, year, kind, match });
   };
 
-  for (const w of bundle.watches)
+  for (const w of bundle.watches) {
     consider(w.ids, w.title, w.year, w.kind, w.match);
+    if (
+      w.kind === "series" &&
+      w.seasonNumber !== undefined &&
+      w.episodeNumber !== undefined
+    ) {
+      const key = resolutionKey(w.ids, w.title, w.year, w.kind, w.match);
+      const list = episodeHistoryByKey.get(key) ?? [];
+      list.push({ seasonNumber: w.seasonNumber, episodeNumber: w.episodeNumber });
+      episodeHistoryByKey.set(key, list);
+    }
+  }
   for (const r of bundle.reviews)
     consider(r.ids, r.title, r.year, r.kind, r.match);
   for (const l of bundle.likes)
@@ -813,7 +914,7 @@ function collectDistinctResolutions(
     for (const item of list.items)
       consider(item.ids, item.title, item.year, item.kind, item.match);
 
-  return out;
+  return { resolutions: out, episodeHistoryByKey };
 }
 
 export async function commitBundle(
@@ -824,7 +925,15 @@ export async function commitBundle(
 ): Promise<ImportReport> {
   const report = emptyReport();
   const timer = new ImportTimer();
-  const resolver = new MediaResolver(storage, tmdb, report, timer);
+  const { resolutions: distinctResolutions, episodeHistoryByKey } =
+    collectDistinctResolutions(bundle);
+  const resolver = new MediaResolver(
+    storage,
+    tmdb,
+    report,
+    timer,
+    episodeHistoryByKey,
+  );
   const episodeIndexes = new Map<string, Map<string, Episode>>();
   const affectedSeries = new Set<string>();
   const seriesLatestWatchedDate = new Map<string, string>();
@@ -857,15 +966,52 @@ export async function commitBundle(
     }
   };
 
-  const distinctResolutions = collectDistinctResolutions(bundle);
-  await timer.time("Media matching (total)", () =>
-    mapWithConcurrency(distinctResolutions, RESOLVE_CONCURRENCY, (item) =>
-      resolver.resolve(item.ids, item.title, item.year, item.kind, item.match),
-    ),
-  );
+  // Report a stage immediately, before any awaited work begins, so the
+  // modal never sits on "Starting..." once the commit has actually kicked
+  // off — even if the very first phase (matching) turns out to be slow.
+  onProgress?.(0, 1, "Matching movies & TV series");
+
+  await timer.time("Media matching (total)", async () => {
+    let matchDone = 0;
+    let lastMatchProgressAt = 0;
+    const matchTotal = Math.max(distinctResolutions.length, 1);
+    await mapWithConcurrency(
+      distinctResolutions,
+      RESOLVE_CONCURRENCY,
+      async (item) => {
+        const result = await resolver.resolve(
+          item.ids,
+          item.title,
+          item.year,
+          item.kind,
+          item.match,
+        );
+        matchDone++;
+        const now = Date.now();
+        if (
+          matchDone === distinctResolutions.length ||
+          now - lastMatchProgressAt >= PROGRESS_THROTTLE_MS
+        ) {
+          lastMatchProgressAt = now;
+          onProgress?.(
+            matchDone,
+            matchTotal,
+            item.kind === "movie"
+              ? "Matching movies"
+              : "Matching TV series",
+          );
+        }
+        await maybeYield(matchDone, 25);
+        return result;
+      },
+    );
+  });
+
+  onProgress?.(0, 1, "Building lookup tables");
 
   await timer.time("Episode importing (catalogue fetch)", async () => {
     const distinctShows = new Map<string, MediaItem>();
+    let lookupDone = 0;
     for (const watch of bundle.watches) {
       if (
         watch.kind !== "series" ||
@@ -882,10 +1028,24 @@ export async function commitBundle(
       );
       if (media && !distinctShows.has(media.id))
         distinctShows.set(media.id, media);
+      lookupDone++;
+      if (lookupDone % 25 === 0) {
+        onProgress?.(
+          lookupDone,
+          bundle.watches.length,
+          "Building lookup tables",
+        );
+        await maybeYield(lookupDone, 25);
+      }
     }
 
+    const showList = [...distinctShows.values()];
+    let episodesDone = 0;
+    let lastEpisodeProgressAt = 0;
+    const episodeTotal = Math.max(showList.length, 1);
+    onProgress?.(0, episodeTotal, "Matching episodes");
     await mapWithConcurrency(
-      [...distinctShows.values()],
+      showList,
       EPISODE_IMPORT_CONCURRENCY,
       async (media) => {
         await importEpisodesForShow(storage, tmdb, media);
@@ -896,6 +1056,16 @@ export async function commitBundle(
           ]),
         );
         episodeIndexes.set(media.id, episodes);
+        episodesDone++;
+        const now = Date.now();
+        if (
+          episodesDone === showList.length ||
+          now - lastEpisodeProgressAt >= PROGRESS_THROTTLE_MS
+        ) {
+          lastEpisodeProgressAt = now;
+          onProgress?.(episodesDone, episodeTotal, "Matching episodes");
+        }
+        await maybeYield(episodesDone, 5);
       },
     );
   });
@@ -927,7 +1097,8 @@ export async function commitBundle(
           existingWatchDates,
         );
       }
-      tick("Watch history");
+      tick("Importing watch history");
+      await maybeYield(done, 25);
     }
   });
 
@@ -946,7 +1117,8 @@ export async function commitBundle(
       } else {
         await applyReview(storage, review, media, report);
       }
-      tick("Comments");
+      tick("Importing comments");
+      await maybeYield(done, 25);
     }
   });
 
@@ -965,7 +1137,8 @@ export async function commitBundle(
       } else {
         await applyLike(storage, like, media, report);
       }
-      tick("Likes");
+      tick("Importing likes");
+      await maybeYield(done, 25);
     }
   });
 
@@ -984,7 +1157,8 @@ export async function commitBundle(
       } else {
         await applyRating(storage, rating, media, report);
       }
-      tick("Ratings");
+      tick("Importing ratings");
+      await maybeYield(done, 25);
     }
   });
 
@@ -1003,7 +1177,8 @@ export async function commitBundle(
       } else {
         await applyFavorite(storage, media, report);
       }
-      tick("Favorites");
+      tick("Importing favorites");
+      await maybeYield(done, 25);
     }
   });
 
@@ -1029,19 +1204,26 @@ export async function commitBundle(
         }
       }
       await applyList(storage, list, mediaIds, report);
-      tick("Custom lists");
+      tick("Importing lists");
+      await maybeYield(done, 5);
     }
   });
 
   report.listsDiscovered = bundle.listDiagnostics.listsDiscovered;
   report.unmatchedListSKeys = [...bundle.listDiagnostics.unmatchedSKeys];
 
+  onProgress?.(0, 1, "Saving data");
+
   await timer.time("Status recalculation", async () => {
+    let statusDone = 0;
     for (const mediaId of affectedSeries) {
       await recalculateAndPersistStatus(storage, mediaId);
+      statusDone++;
+      await maybeYield(statusDone, 25);
     }
   });
 
+  let rewatchDone = 0;
   for (const mediaId of affectedSeries) {
     const wasComplete = wasSeriesCompleteBeforeImport.get(mediaId) ?? false;
     if (wasComplete) continue;
@@ -1055,6 +1237,9 @@ export async function commitBundle(
       watchDate: completionDate,
       activityAt: seriesLatestWatchedDate.get(mediaId),
     });
+    rewatchDone++;
+    onProgress?.(rewatchDone, affectedSeries.size, "Importing rewatches");
+    await maybeYield(rewatchDone, 25);
   }
 
   // Recent sorting reads `lastActivityAt`, and it must reflect the true
@@ -1066,10 +1251,16 @@ export async function commitBundle(
   // itself guards against moving activity backward, so this is safe to run
   // unconditionally and is idempotent on re-import.
   await timer.time("Recent activity sync", async () => {
+    let syncDone = 0;
     for (const [mediaId, at] of mediaLatestActivityDate) {
       await touchMediaActivity(storage, mediaId, at);
+      syncDone++;
+      onProgress?.(syncDone, mediaLatestActivityDate.size, "Saving data");
+      await maybeYield(syncDone, 25);
     }
   });
+
+  onProgress?.(1, 1, "Finalizing");
 
   for (const warning of bundle.warnings) {
     report.skipped++;

@@ -16,6 +16,7 @@ export interface TMDBRawSearchResultItem {
   origin_country?: string[];
   original_language?: string;
   adult?: boolean;
+  popularity?: number;
 }
 
 export interface TMDBRawSearchResponse {
@@ -134,6 +135,7 @@ export interface TMDBSearchResult {
   country: string | null;
   language: string | null;
   adult: boolean | undefined;
+  popularity: number;
 }
 
 export interface TMDBNormalizedDetails {

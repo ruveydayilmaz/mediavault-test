@@ -117,10 +117,36 @@ export interface ListImportDiagnostics {
   listsDiscovered: number;
   /** `s_key`s from `collection` metadata with no matching item row. */
   unmatchedSKeys: string[];
+  /** Number of item rows (excluding `collection`/`count`) found in the file. */
+  listItemRows: number;
+  /** Of the discovered lists, how many resolved to a built-in favorites list. */
+  builtInListsDiscovered: number;
+  /** Of the discovered lists, how many resolved to a custom list. */
+  customListsDiscovered: number;
+  /** Total raw list items parsed across every item row, before match resolution. */
+  totalListItemsParsed: number;
+  /** Movie item UUIDs that had no title/year match in the GDPR movie datasets. */
+  unresolvedMovieUuids: string[];
+  /** Per-list item resolution breakdown, for detailed debugging output. */
+  perList: {
+    name: string;
+    items: number;
+    resolved: number;
+    skipped: number;
+  }[];
 }
 
 export function emptyListImportDiagnostics(): ListImportDiagnostics {
-  return { listsDiscovered: 0, unmatchedSKeys: [] };
+  return {
+    listsDiscovered: 0,
+    unmatchedSKeys: [],
+    listItemRows: 0,
+    builtInListsDiscovered: 0,
+    customListsDiscovered: 0,
+    totalListItemsParsed: 0,
+    unresolvedMovieUuids: [],
+    perList: [],
+  };
 }
 
 export interface NormalizedImportBundle {
@@ -163,6 +189,17 @@ export function mergeBundles(
     result.listDiagnostics.unmatchedSKeys.push(
       ...b.listDiagnostics.unmatchedSKeys,
     );
+    result.listDiagnostics.listItemRows += b.listDiagnostics.listItemRows;
+    result.listDiagnostics.builtInListsDiscovered +=
+      b.listDiagnostics.builtInListsDiscovered;
+    result.listDiagnostics.customListsDiscovered +=
+      b.listDiagnostics.customListsDiscovered;
+    result.listDiagnostics.totalListItemsParsed +=
+      b.listDiagnostics.totalListItemsParsed;
+    result.listDiagnostics.unresolvedMovieUuids.push(
+      ...b.listDiagnostics.unresolvedMovieUuids,
+    );
+    result.listDiagnostics.perList.push(...b.listDiagnostics.perList);
   }
   return result;
 }

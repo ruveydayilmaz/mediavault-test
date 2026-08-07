@@ -175,8 +175,8 @@ export class ImportModal extends Modal {
     this.detecting = true;
     this.render();
     try {
-      this.zip = await runZipImport(zipData, (done, total) => {
-        this.updateProgress(done, total, t("import.scanningFiles"));
+      this.zip = await runZipImport(zipData, (done, total, stage) => {
+        this.updateProgress(done, total, stage);
       });
       this.zipTiming = this.zip.timing;
       this.zipPreview = await previewBundle(this.storage, this.zip.bundle);
@@ -235,6 +235,17 @@ export class ImportModal extends Modal {
           ? `✕ ${f.filename} — ${f.detection.label}`
           : `✓ ${f.filename} — ${f.detection.label} (${f.rowCount})`,
       });
+      if (!f.unsupported && f.diagnosticLines && f.diagnosticLines.length > 0) {
+        const diag = list.createDiv({
+          cls: "mediavault-import-zip-file-diagnostics",
+        });
+        f.diagnosticLines.forEach((line) => {
+          diag.createDiv({
+            cls: "mediavault-import-zip-file-diagnostic-line",
+            text: line,
+          });
+        });
+      }
     });
 
     box.createDiv({
@@ -337,6 +348,8 @@ export class ImportModal extends Modal {
       [t("import.favoritesImported"), report.favoritesImported],
       [t("import.ratingsImported"), report.ratingsImported],
       [t("import.listsImported"), report.listsImported],
+      [t("import.builtInListsImported"), report.builtInListsImported],
+      [t("import.customListsImported"), report.customListsImported],
       [t("import.duplicatesMerged"), report.duplicatesMerged],
       [t("import.skipped"), report.skipped],
     ];
@@ -356,6 +369,16 @@ export class ImportModal extends Modal {
       [t("import.totalRecordsParsed"), String(report.totalRecordsParsed)],
       [t("import.mediaMatched"), String(report.matchedMediaCount)],
       [t("import.mediaUnmatched"), String(report.unmatchedMediaCount)],
+      [t("import.exactMatches"), String(report.exactMatchCount)],
+      [t("import.metadataMatches"), String(report.metadataMatchCount)],
+      [
+        t("import.episodeHistoryMatches"),
+        String(report.episodeHistoryMatchCount),
+      ],
+      [
+        t("import.popularityTieBreakMatches"),
+        String(report.popularityTieBreakCount),
+      ],
       [t("import.episodesMatched"), String(report.matchedEpisodes)],
       [t("import.episodesUnmatched"), String(report.unmatchedEpisodes)],
       [
@@ -363,6 +386,7 @@ export class ImportModal extends Modal {
         t("import.hoursUnit", { n: totalHours.toFixed(1) }),
       ],
       [t("import.listsDiscovered"), String(report.listsDiscovered)],
+      [t("import.totalListItems"), String(report.totalListItems)],
       [t("import.listItemsMatched"), String(report.matchedListItems)],
       [t("import.listItemsMissing"), String(report.missingListItems)],
     ];

@@ -20,6 +20,13 @@ import {
   parseGoMapObjectsArray,
   parseListMetadata,
 } from "./gdpr-list-parse";
+import { maybeYield, yieldToEventLoop } from "../yield";
+
+export type GdprProgressCallback = (
+  done: number,
+  total: number,
+  stage: string,
+) => void;
 
 const REACTION_EMOJI: Record<string, string> = {
   "1": "👍",
@@ -29,12 +36,19 @@ const REACTION_EMOJI: Record<string, string> = {
   "29": "🤯",
 };
 
-export function parseGdprArchive(
+export async function parseGdprArchive(
   files: Map<string, string>,
-): Map<string, NormalizedImportBundle> {
+  onProgress?: GdprProgressCallback,
+): Promise<Map<string, NormalizedImportBundle>> {
   const parsed = new Map<string, RawImportRow[]>();
-  for (const [name, content] of files) {
-    if (/\.csv$/i.test(name)) parsed.set(name, parseCSV(content));
+  const csvFiles = [...files].filter(([name]) => /\.csv$/i.test(name));
+  let parsedDone = 0;
+  onProgress?.(0, Math.max(csvFiles.length, 1), "Parsing CSVs");
+  for (const [name, content] of csvFiles) {
+    parsed.set(name, parseCSV(content));
+    parsedDone++;
+    onProgress?.(parsedDone, csvFiles.length, "Parsing CSVs");
+    await maybeYield(parsedDone, 1);
   }
 
   const result = new Map<string, NormalizedImportBundle>();
@@ -46,6 +60,8 @@ export function parseGdprArchive(
     }
     return bundle;
   };
+
+  onProgress?.(0, 1, "Building lookup tables");
 
   const seriesById = new Map<string, { title: string; uuid?: string }>();
   for (const name of [
@@ -69,9 +85,33 @@ export function parseGdprArchive(
     addSeries(seriesById, row.series_id, row.series_name, row.series_uuid);
   }
 
-  for (const [index, row] of (
-    parsed.get("tracking-prod-records-v2.csv") ?? []
-  ).entries()) {
+  // Movie list items (`lists-prod-lists.csv`) carry only a TV Time `uuid` —
+  // unlike series items they have no numeric `id` — so resolving one to a
+  // title requires a uuid → title/year lookup built from the GDPR movie
+  // datasets that actually pair a movie's uuid with its name:
+  // `ratings-live-votes.csv` (movie reactions) and the movie-entity rows of
+  // `comments-prod-comments.csv`. Without this table, movie list items had
+  // no way to recover a real title and silently fell back to the list's own
+  // name, which is virtually never the movie's title and made TMDB matching
+  // fail for every movie in every list.
+  const moviesByUuid = new Map<string, { title: string; year: number | null }>();
+  const addMovie = (uuid: string | undefined, rawTitle: string | undefined) => {
+    const key = clean(uuid);
+    const title = clean(rawTitle);
+    if (!key || !title || moviesByUuid.has(key)) return;
+    const parsedTitle = splitTitleYear(title);
+    moviesByUuid.set(key, { title: parsedTitle.title, year: parsedTitle.year });
+  };
+  for (const row of parsed.get("ratings-live-votes.csv") ?? []) {
+    addMovie(row.uuid, row.movie_name);
+  }
+  for (const row of parsed.get("comments-prod-comments.csv") ?? []) {
+    if (row.entity_type !== "movie") continue;
+    addMovie(row.entity_uuid ?? row.uuid, row.movie_name);
+  }
+
+  const v2Records = parsed.get("tracking-prod-records-v2.csv") ?? [];
+  for (const [index, row] of v2Records.entries()) {
     const season = number(row.season_number);
     const episode = number(row.episode_number);
     const title = clean(row.series_name);
@@ -103,6 +143,13 @@ export function parseGdprArchive(
         isRewatch: isRewatchRow(row),
       }),
     );
+    if (index % 25 === 0) {
+      onProgress?.(index + 1, v2Records.length, "Matching episodes");
+      await maybeYield(index + 1, 200);
+    }
+  }
+  if (v2Records.length > 0) {
+    onProgress?.(v2Records.length, v2Records.length, "Matching episodes");
   }
 
   const v2EpisodeKeys = new Set<string>();
@@ -111,9 +158,12 @@ export function parseGdprArchive(
     v2EpisodeKeys.add(episodeKey(watch));
   }
 
-  for (const [index, row] of (
-    parsed.get("tracking-prod-records.csv") ?? []
-  ).entries()) {
+  const legacyRecords = parsed.get("tracking-prod-records.csv") ?? [];
+  for (const [index, row] of legacyRecords.entries()) {
+    if (index % 25 === 0) {
+      onProgress?.(index + 1, legacyRecords.length, "Matching episodes");
+      await maybeYield(index + 1, 200);
+    }
     if (row.type !== "watch" && row.type !== "rewatch") continue;
     const watchedAt = epochOrDate(row.watch_date || row.created_at);
     if (
@@ -168,6 +218,13 @@ export function parseGdprArchive(
         rewatchCount: row.type === "rewatch" ? 1 : 0,
       });
     }
+  }
+  if (legacyRecords.length > 0) {
+    onProgress?.(
+      legacyRecords.length,
+      legacyRecords.length,
+      "Matching episodes",
+    );
   }
 
   for (const [index, row] of (
@@ -240,6 +297,9 @@ export function parseGdprArchive(
     }
   }
 
+  onProgress?.(0, 1, "Importing ratings");
+  await yieldToEventLoop();
+
   for (const name of [
     "ratings-3-prod-episode_votes.csv",
     "ratings-v2-prod-votes.csv",
@@ -289,6 +349,9 @@ export function parseGdprArchive(
     };
     bundleFor("ratings-live-votes.csv").ratings.push(rating);
   }
+
+  onProgress?.(0, 1, "Importing comments");
+  await yieldToEventLoop();
 
   for (const row of parsed.get("comments-prod-comments.csv") ?? []) {
     const text = clean(row.text);
@@ -409,9 +472,13 @@ export function parseGdprArchive(
     bundleFor("user_tv_show_data.csv").favorites.push(fav);
   }
 
+  onProgress?.(0, 1, "Importing lists");
+  await yieldToEventLoop();
+
   parseGdprLists(
     parsed.get("lists-prod-lists.csv") ?? [],
     seriesById,
+    moviesByUuid,
     bundleFor,
   );
 
@@ -444,10 +511,31 @@ const LIST_SKEY_FAVORITE_SERIES = "favorite-series";
  * `s_key` — is required because a row's own item-array format carries no
  * name/description/dates/visibility/artwork; that only exists once, in the
  * `collection` row's metadata entry for the list.
+ *
+ * Root cause of the "0 lists detected" bug: the `collection` row carries
+ * its per-list metadata array in the CSV's dedicated `lists` column, not in
+ * `objects` (that column is empty on the `collection` row — `objects` only
+ * holds item arrays on item rows). Reading `objects` unconditionally always
+ * parsed an empty string, so 0 lists were ever discovered. The `lists`
+ * column is preferred here, falling back to `objects` in case a future/older
+ * export version lays it out the other way.
+ *
+ * Each item row's `objects` entries carry a `type` (`series` | `movie`) and
+ * a `uuid`, plus an `id` *only* for series (TV Time's internal show id —
+ * movies have no equivalent numeric id in this export). Series titles are
+ * resolved via `seriesById` (id, falling back to a uuid scan); movies have
+ * no `id` to look up by at all, so they're resolved via `moviesByUuid`, a
+ * uuid → title/year table built from the GDPR files that actually name a
+ * movie by its uuid (see its construction above). A uuid absent from that
+ * table cannot be resolved to a title here — the item is still kept (with a
+ * clearly-marked placeholder title) rather than silently dropped, matching
+ * this importer's "never silently lose data" rule, and the failure is
+ * surfaced as a warning instead.
  */
 function parseGdprLists(
   rows: RawImportRow[],
   seriesById: Map<string, { title: string; uuid?: string }>,
+  moviesByUuid: Map<string, { title: string; year: number | null }>,
   bundleFor: (name: string) => NormalizedImportBundle,
 ): void {
   const FILE = "lists-prod-lists.csv";
@@ -466,11 +554,17 @@ function parseGdprLists(
     itemRowsBySKey.set(sKey, { row, index });
   });
 
+  bundle.listDiagnostics.listItemRows += itemRowsBySKey.size;
+
   if (!collectionRowEntry) return;
 
-  const metadataEntries = parseGoMapObjectsArray(
-    collectionRowEntry.row.objects ?? "",
-  ).map(parseListMetadata);
+  const collectionMetadataRaw =
+    (collectionRowEntry.row.lists ?? "").trim() ||
+    (collectionRowEntry.row.objects ?? "");
+
+  const metadataEntries = parseGoMapObjectsArray(collectionMetadataRaw).map(
+    parseListMetadata,
+  );
 
   bundle.listDiagnostics.listsDiscovered += metadataEntries.length;
 
@@ -497,23 +591,54 @@ function parseGdprLists(
     }
 
     const parsedItems = parseGoMapArray(itemRow.row.objects ?? "");
+    bundle.listDiagnostics.totalListItemsParsed += parsedItems.length;
     const items: ListImport["items"] = [];
     let unresolved = 0;
+    let placeholderMovies = 0;
     for (const item of parsedItems) {
       if (item.uuid || item.tvTimeId) {
+        const isMovie = item.type !== "series";
+        let title = name;
+        let year: number | null = null;
+
+        if (isMovie) {
+          const movie = item.uuid ? moviesByUuid.get(item.uuid) : undefined;
+          if (movie) {
+            title = movie.title;
+            year = movie.year;
+          } else {
+            placeholderMovies++;
+            bundle.listDiagnostics.unresolvedMovieUuids.push(
+              item.uuid ?? "(no uuid)",
+            );
+            bundle.warnings.push({
+              row: itemRow.index + 2,
+              reason: `"${name}": movie UUID ${item.uuid ?? "(missing)"} not found in GDPR metadata (checked ratings-live-votes.csv and comments-prod-comments.csv) — item kept with a placeholder title, but it likely won't match on TMDB.`,
+            });
+            title = `Unknown movie (${item.uuid ?? "no uuid"})`;
+          }
+        } else {
+          title =
+            lookupSeriesTitle(seriesById, item.tvTimeId, item.uuid) ?? name;
+        }
+
         items.push({
-          kind: (item.type === "series" ? "series" : "movie") as
-            | "series"
-            | "movie",
+          kind: (isMovie ? "movie" : "series") as "series" | "movie",
           ids: { tvTimeUuid: item.uuid, tvTimeId: item.tvTimeId },
-          title:
-            lookupSeriesTitle(seriesById, item.tvTimeId, item.uuid) ?? name,
-          year: null,
+          title,
+          year,
         });
       } else {
         unresolved++;
       }
     }
+
+    bundle.listDiagnostics.perList.push({
+      name,
+      items: parsedItems.length,
+      resolved: items.length - placeholderMovies,
+      skipped: unresolved + placeholderMovies,
+    });
 
     if (unresolved > 0) {
       bundle.warnings.push({
@@ -545,6 +670,8 @@ function parseGdprLists(
       bannerUrl: meta.fanartUrls[0] ?? null,
       builtIn,
     };
+    if (builtIn) bundle.listDiagnostics.builtInListsDiscovered++;
+    else bundle.listDiagnostics.customListsDiscovered++;
     bundle.lists.push(listImport);
   }
 }

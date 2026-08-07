@@ -131,6 +131,36 @@ export function parseGoMapArray(raw: string): GoMapListItem[] {
 
 export type GoMapObject = Record<string, string | string[]>;
 
+// The GDPR `collection` row's list-metadata objects (one per list) have a
+// fixed, known key set, printed by Go's `fmt %v` in sorted-key order:
+// created_at, description, fanart, is_public, name, order, posters, s_key,
+// type, updated_at, user_id. Unlike the item-row objects (id/type/uuid/
+// created_at), several of these values — `name`, `description`, `order` —
+// can themselves contain spaces (e.g. `name:family friendly movies`), and
+// Go's unquoted `%v` map format gives no delimiter between such a value and
+// the next key. A naive "value ends at the next whitespace" split (the
+// previous approach) truncates every multi-word value to its first word and
+// misattributes the remaining words to a bogus key. Since the key set and
+// its ordering are fixed, scalar values are instead read up to the next
+// recognized "<space>knownKey:" boundary (or the end of the object) rather
+// than the next whitespace, which correctly preserves multi-word values.
+const LIST_METADATA_KEYS = [
+  "created_at",
+  "description",
+  "fanart",
+  "is_public",
+  "name",
+  "order",
+  "posters",
+  "s_key",
+  "type",
+  "updated_at",
+  "user_id",
+];
+const NEXT_KEY_BOUNDARY = new RegExp(
+  `\\s(?:${LIST_METADATA_KEYS.join("|")}):`,
+);
+
 function parseGoMapBody(body: string): GoMapObject {
   const result: GoMapObject = {};
   let i = 0;
@@ -158,9 +188,16 @@ function parseGoMapBody(body: string): GoMapObject {
       i++; // consume closing ']'
       result[key] = arrBody.trim() ? arrBody.trim().split(/\s+/) : [];
     } else {
-      const start = i;
-      while (i < n && !/\s/.test(body[i])) i++;
-      result[key] = body.slice(start, i);
+      const rest = body.slice(i);
+      const boundary = NEXT_KEY_BOUNDARY.exec(rest);
+      const valueEnd = boundary ? boundary.index : rest.length;
+      const rawValue = rest.slice(0, valueEnd).trim();
+      // Go prints an untyped nil (e.g. a null `description`) as the literal
+      // string "<nil>" in `%v` output — normalize it to empty so downstream
+      // consumers (which treat "" as absent) see it as unset rather than as
+      // the four-character string "<nil>".
+      result[key] = rawValue === "<nil>" ? "" : rawValue;
+      i += valueEnd;
     }
   }
 

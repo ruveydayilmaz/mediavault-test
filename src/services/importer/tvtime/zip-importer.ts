@@ -9,6 +9,7 @@ import {
 } from "./types";
 import { parseGdprArchive } from "./gdpr";
 import { ImportTimer } from "../import-timer";
+import { maybeYield } from "../yield";
 
 const FILENAME_COLUMN_RENAMES: Record<string, Record<string, string>> = {
   "seen_episode_latest.csv": { created_at: "watched_at" },
@@ -42,6 +43,13 @@ export interface ZipFileResult {
   detection: DetectionResult;
   rowCount: number;
   unsupported: boolean;
+  /**
+   * Extra human-readable diagnostic lines shown under this file's row in
+   * the preview (currently only populated for `lists-prod-lists.csv`,
+   * whose single `rowCount` number hides the collection/item-row/list-item
+   * breakdown that's most useful for debugging a new GDPR export).
+   */
+  diagnosticLines?: string[];
 }
 
 export interface ZipImportResult {
@@ -128,9 +136,11 @@ function basename(path: string): string {
 
 export async function runZipImport(
   zipData: ArrayBuffer,
-  onProgress?: (done: number, total: number) => void,
+  onProgress?: (done: number, total: number, stage: string) => void,
 ): Promise<ZipImportResult> {
   const timer = new ImportTimer();
+
+  onProgress?.(0, 1, "Reading ZIP");
 
   let zip: JSZip;
   try {
@@ -144,6 +154,8 @@ export async function runZipImport(
   const entries = Object.values(zip.files).filter(
     (entry) => !entry.dir && /\.(csv|json)$/i.test(entry.name),
   );
+
+  onProgress?.(0, Math.max(entries.length, 1), "Extracting files");
 
   const bundles: NormalizedImportBundle[] = [];
   const files: ZipFileResult[] = [];
@@ -167,7 +179,8 @@ export async function runZipImport(
         unsupported: true,
       });
       done++;
-      onProgress?.(done, entries.length);
+      onProgress?.(done, entries.length, "Extracting files");
+      await maybeYield(done, 5);
       continue;
     }
 
@@ -189,7 +202,8 @@ export async function runZipImport(
           unsupported: false,
         });
         done++;
-        onProgress?.(done, entries.length);
+        onProgress?.(done, entries.length, "Extracting files");
+        await maybeYield(done, 5);
         continue;
       }
 
@@ -198,6 +212,7 @@ export async function runZipImport(
         content = renameCsvHeaderColumns(content, renames);
       }
 
+      onProgress?.(done, entries.length, "Parsing CSVs");
       const result = await timer.time("CSV/JSON parsing", async () =>
         runImport(content),
       );
@@ -228,13 +243,16 @@ export async function runZipImport(
     }
 
     done++;
-    onProgress?.(done, entries.length);
+    onProgress?.(done, entries.length, "Extracting files");
+    await maybeYield(done, 5);
   }
 
-  const gdprBundles = timer.time("CSV/JSON parsing", async () =>
-    parseGdprArchive(contents),
+  const gdprBundles = await timer.time("CSV/JSON parsing", () =>
+    parseGdprArchive(contents, (gdone, gtotal, stage) => {
+      onProgress?.(gdone, gtotal, stage);
+    }),
   );
-  for (const [filename, bundle] of await gdprBundles) {
+  for (const [filename, bundle] of gdprBundles) {
     const file = files.find((f) => f.filename.toLowerCase() === filename);
     if (file) {
       file.detection = {
@@ -249,9 +267,30 @@ export async function runZipImport(
         bundle.favorites.length +
         bundle.lists.length;
       file.unsupported = false;
+
+      if (filename === "lists-prod-lists.csv") {
+        const d = bundle.listDiagnostics;
+        file.diagnosticLines = [
+          `Collection entries: ${d.listsDiscovered}`,
+          `Custom lists: ${d.customListsDiscovered}`,
+          `Built-in lists: ${d.builtInListsDiscovered}`,
+          `List item rows: ${d.listItemRows}`,
+          `Total list items: ${d.totalListItemsParsed}`,
+          ...(d.unresolvedMovieUuids.length > 0
+            ? [`Unresolved movie UUIDs: ${d.unresolvedMovieUuids.length}`]
+            : []),
+          "",
+          ...d.perList.flatMap((l) => [
+            `${l.name}`,
+            `  Items: ${l.items}  Resolved: ${l.resolved}  Skipped: ${l.skipped}`,
+          ]),
+        ];
+      }
     }
     bundles.push(bundle);
   }
+
+  onProgress?.(1, 1, "Finalizing");
 
   const bundle = bundles.length > 0 ? mergeBundles(bundles) : emptyBundle();
   const supportedCount = files.filter((f) => !f.unsupported).length;
