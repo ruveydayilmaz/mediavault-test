@@ -1,4 +1,4 @@
-import { Platform } from "obsidian";
+import { App, Platform } from "obsidian";
 
 export function isAndroidDevice(): boolean {
   return Platform.isAndroidApp;
@@ -21,25 +21,38 @@ export function applyAndroidBodyClass(): void {
 //    signal for it is the live gap between the layout viewport
 //    (`window.innerHeight`, which doesn't shrink for system bars) and the
 //    visual viewport (`window.visualViewport`, which Android does shrink
-//    to exclude system chrome). This was already implemented below.
+//    to exclude system chrome).
 //
-// 2. Obsidian's own mobile bottom toolbar/floatbar. This is an ordinary DOM
-//    element that Obsidian mounts *inside* the page itself, not OS chrome —
-//    so it never produces any layout-vs-visual-viewport delta at all (both
-//    viewports already exclude it, since it's just page content). No CSS
-//    safe-area mechanism can see it because it isn't a safe-area at the OS
-//    level; it has to be measured directly from the DOM. This is the part
-//    that was previously missing, which is exactly why the existing
-//    `env(safe-area-inset-bottom)` rule didn't fix the pagination overlap:
-//    it was correctly compensating for #1 but had nothing accounting
-//    for #2.
+// 2. Obsidian's own mobile bottom toolbar. This is an ordinary DOM element
+//    Obsidian mounts *inside* the page itself, not OS chrome — so it never
+//    produces any layout-vs-visual-viewport delta at all (both viewports
+//    already exclude it, since it's just page content sitting on top of
+//    everything). No CSS safe-area mechanism can see it because it isn't a
+//    safe-area at the OS level; it has to be measured directly from the
+//    DOM.
 //
-// These are intentionally kept as two separate CSS custom properties
-// (`--mediavault-android-bottom-inset` for #1,
-// `--mediavault-android-toolbar-inset` for #2) rather than summed into one,
-// so a call site that only cares about one of them doesn't have to guess
-// how much of a combined value came from which source, and so a change in
-// one doesn't need to be re-derived from the other.
+// Because #2 is ordinary page content, `visualViewport`'s height already
+// excludes #1 by the time we measure #2's geometry against it — so summing
+// the two measured insets does *not* double-count the region where the
+// toolbar sits directly above the system nav bar (see
+// `getAndroidBottomObstruction()` below).
+//
+// Critically, #2's actual element is NOT assumed to be `.mobile-toolbar` or
+// any other guessed class name: Obsidian's mobile chrome markup has shifted
+// across versions, and different builds/skins produce different structures.
+// Instead, the bottom of the viewport is scanned geometrically for whatever
+// is actually docked there right now (see `findBottomDockedObstructions()`),
+// and only real measured geometry (`rect.top`, `rect.bottom`) is used to
+// compute the obstruction — never an assumed selector match or an assumed
+// `rect.bottom === viewport.bottom` equality.
+
+const ANDROID_DEBUG = true;
+
+function debugLog(...args: unknown[]): void {
+  if (!ANDROID_DEBUG) return;
+  // eslint-disable-next-line no-console
+  console.debug("[MediaVault][android-insets]", ...args);
+}
 
 let androidSafeAreaCleanup: (() => void) | null = null;
 
@@ -58,88 +71,203 @@ function measureAndroidSystemInset(): number {
   return Math.min(inset, 64);
 }
 
-// Obsidian doesn't expose a documented API for the mobile toolbar's
-// geometry, so it's located directly in the DOM. `.mobile-toolbar` is
-// Obsidian's own class for it; the other selectors are defensive fallbacks
-// in case a future/older Obsidian build names it differently — all are
-// verified against actual measured geometry below rather than trusted
-// blindly, so a wrong match just measures as "not an obstruction" instead
-// of corrupting the inset.
-function findObsidianMobileToolbar(): HTMLElement | null {
-  return (
-    document.querySelector<HTMLElement>(".mobile-toolbar") ??
-    document.querySelector<HTMLElement>(".mobile-navbar") ??
-    document.querySelector<HTMLElement>('[class*="mobile"][class*="toolbar"]')
+// Any real bottom toolbar/navbar is well under this height on a phone
+// screen; used as a sanity cap so a large overlay (a modal backdrop, a
+// full-height panel, etc.) that happens to be bottom-docked can never be
+// mistaken for a slim toolbar.
+const MAX_OBSTRUCTION_CANDIDATE_HEIGHT = 160;
+// Slack for "is this element's bottom edge actually at the viewport's
+// bottom edge right now" — generous enough to tolerate sub-pixel layout
+// rounding and a barely-off-screen translate during a mount/dismiss
+// animation frame, but nowhere near loose enough to match content that
+// merely happens to be near the bottom.
+const BOTTOM_DOCK_TOLERANCE = 6;
+
+function isPluginOwnElement(el: HTMLElement): boolean {
+  return !!el.closest(
+    [
+      ".mediavault-library-root",
+      ".mediavault-modal-shell",
+      ".modal-content",
+      ".mediavault-detail-modal",
+    ].join(","),
   );
 }
 
-function measureObsidianToolbarInset(el: HTMLElement | null): number {
-  if (!el) return 0;
+function isVisible(el: HTMLElement): boolean {
   const style = window.getComputedStyle(el);
-  if (style.display === "none" || style.visibility === "hidden") return 0;
-  const rect = el.getBoundingClientRect();
-  if (rect.height <= 0 || rect.width <= 0) return 0;
-  const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-  // Only counts as an obstruction over MediaVault's own bottom-anchored
-  // content (e.g. pagination) when it's actually docked at the bottom edge
-  // of the viewport right now. If a future Obsidian layout renders it
-  // elsewhere (or it's mid-animation off-screen), don't pad for it.
-  if (Math.abs(viewportHeight - rect.bottom) > 4) return 0;
-  return Math.round(rect.height);
+  if (style.display === "none" || style.visibility === "hidden") return false;
+  if (parseFloat(style.opacity || "1") === 0) return false;
+  return true;
 }
 
-export function setupAndroidSafeArea(): void {
+/**
+ * Scans a bounded, shallow set of candidate elements — direct children of
+ * `<body>`, plus one level into each of those (where Obsidian's mobile
+ * chrome, like the bottom toolbar, is actually mounted) — for whatever is
+ * currently docked to the bottom edge of the viewport. Deliberately does
+ * not assume any class name: a candidate qualifies purely by its measured
+ * `getBoundingClientRect()` sitting flush against the bottom of the
+ * viewport, being reasonably toolbar-sized, actually visible, and not
+ * being part of MediaVault's own UI (which would otherwise self-match once
+ * MediaVault's own bottom-anchored content, like pagination, is itself
+ * flush against the bottom edge).
+ */
+function findBottomDockedObstructions(): HTMLElement[] {
+  const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+  const candidates = new Set<HTMLElement>();
+
+  for (const child of Array.from(document.body.children)) {
+    const el = child as HTMLElement;
+    candidates.add(el);
+    for (const grandchild of Array.from(el.children)) {
+      candidates.add(grandchild as HTMLElement);
+    }
+  }
+
+  const results: HTMLElement[] = [];
+  for (const el of candidates) {
+    if (isPluginOwnElement(el)) continue;
+    if (!isVisible(el)) continue;
+
+    const rect = el.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) continue;
+    if (rect.height > MAX_OBSTRUCTION_CANDIDATE_HEIGHT) continue;
+    if (rect.top <= 0) continue;
+    if (Math.abs(viewportHeight - rect.bottom) > BOTTOM_DOCK_TOLERANCE)
+      continue;
+
+    results.push(el);
+  }
+
+  return results;
+}
+
+interface ToolbarObstructionResult {
+  el: HTMLElement | null;
+  rect: DOMRect | null;
+  obstruction: number;
+}
+
+/**
+ * Determines the real obstruction Obsidian's mobile toolbar (or whatever
+ * else is genuinely docked to the bottom edge right now) imposes over
+ * MediaVault's own bottom-anchored content. The measurement is the gap
+ * between the viewport's bottom edge and the obstructing element's *top*
+ * edge (not its height, and not an assumed equality with the viewport
+ * bottom) — matching the actual overlap MediaVault's content needs to clear,
+ * using `getBoundingClientRect()` values that are already viewport-relative
+ * regardless of how many wrapper containers Obsidian nests the toolbar in.
+ */
+function measureObsidianToolbarObstruction(): ToolbarObstructionResult {
+  const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+  const obstructions = findBottomDockedObstructions();
+  if (obstructions.length === 0) {
+    return { el: null, rect: null, obstruction: 0 };
+  }
+
+  // If more than one bottom-docked element is found (e.g. a toolbar plus a
+  // thin decorative strip beneath it), the true obstruction is measured
+  // from the topmost edge among them, since that's the actual highest
+  // point MediaVault's content needs to clear.
+  let winner = obstructions[0];
+  let winnerRect = winner.getBoundingClientRect();
+  for (const el of obstructions.slice(1)) {
+    const rect = el.getBoundingClientRect();
+    if (rect.top < winnerRect.top) {
+      winner = el;
+      winnerRect = rect;
+    }
+  }
+
+  const obstruction = Math.max(0, Math.round(viewportHeight - winnerRect.top));
+  return { el: winner, rect: winnerRect, obstruction };
+}
+
+/**
+ * The single number MediaVault actually needs: total required bottom
+ * clearance on Android, combining the Android system-navigation inset and
+ * the Obsidian toolbar obstruction. These are safe to sum without
+ * double-counting — see the module-level comment above for why the
+ * toolbar's measured obstruction (against `visualViewport`, which already
+ * excludes the system nav bar) never includes the system-nav region twice.
+ */
+export function getAndroidBottomObstruction(): number {
+  const systemInset = measureAndroidSystemInset();
+  const { obstruction: toolbarInset } = measureObsidianToolbarObstruction();
+  return systemInset + toolbarInset;
+}
+
+export function setupAndroidSafeArea(app?: App): void {
   if (!isAndroidDevice() || androidSafeAreaCleanup) return;
 
   let toolbarEl: HTMLElement | null = null;
   let toolbarResizeObserver: ResizeObserver | null = null;
   let rafHandle: number | null = null;
 
-  const updateSystemInset = (): void => {
+  const updateSystemInset = (): number => {
+    const inset = measureAndroidSystemInset();
     document.body.style.setProperty(
       "--mediavault-android-bottom-inset",
-      `${measureAndroidSystemInset()}px`,
+      `${inset}px`,
     );
+    return inset;
   };
 
-  const updateToolbarInset = (): void => {
+  const updateToolbarInset = (): ToolbarObstructionResult => {
+    const result = measureObsidianToolbarObstruction();
     document.body.style.setProperty(
       "--mediavault-android-toolbar-inset",
-      `${measureObsidianToolbarInset(toolbarEl)}px`,
+      `${result.obstruction}px`,
     );
+    return result;
   };
 
   const attachToolbarObserver = (el: HTMLElement): void => {
     toolbarResizeObserver?.disconnect();
-    toolbarResizeObserver = new ResizeObserver(() => updateToolbarInset());
+    toolbarResizeObserver = new ResizeObserver(() => updateAll());
     toolbarResizeObserver.observe(el);
   };
 
-  // Re-locate the toolbar (not just re-measure it) on every update pass:
-  // Obsidian can mount/unmount it (e.g. certain full-screen views hide it)
-  // well after this plugin has already initialized, so a one-time lookup
-  // isn't sufficient — see the MutationObserver below, which is what
-  // actually triggers this on Obsidian UI changes rather than polling.
-  const findAndAttachToolbar = (): void => {
-    const el = findObsidianMobileToolbar();
-    if (el !== toolbarEl) {
-      toolbarEl = el;
-      if (el) attachToolbarObserver(el);
+  const updateAll = (): void => {
+    const systemInset = updateSystemInset();
+    const toolbarResult = updateToolbarInset();
+
+    if (toolbarResult.el !== toolbarEl) {
+      toolbarEl = toolbarResult.el;
+      if (toolbarEl) attachToolbarObserver(toolbarEl);
       else toolbarResizeObserver?.disconnect();
     }
-    updateToolbarInset();
-  };
 
-  const updateAll = (): void => {
-    updateSystemInset();
-    findAndAttachToolbar();
+    if (ANDROID_DEBUG) {
+      const vv = window.visualViewport;
+      const pagination = document.querySelector<HTMLElement>(
+        ".mediavault-pagination",
+      );
+      const paginationRect = pagination?.getBoundingClientRect() ?? null;
+      debugLog({
+        innerHeight: window.innerHeight,
+        visualViewportHeight: vv?.height ?? null,
+        systemInset,
+        toolbarElFound: toolbarResult.el
+          ? `${toolbarResult.el.tagName.toLowerCase()}.${Array.from(toolbarResult.el.classList).join(".")}`
+          : null,
+        toolbarRectTop: toolbarResult.rect?.top ?? null,
+        toolbarRectBottom: toolbarResult.rect?.bottom ?? null,
+        toolbarRectHeight: toolbarResult.rect?.height ?? null,
+        toolbarObstruction: toolbarResult.obstruction,
+        finalBottomInset: systemInset + toolbarResult.obstruction,
+        paginationRectTop: paginationRect?.top ?? null,
+        paginationRectBottom: paginationRect?.bottom ?? null,
+      });
+    }
   };
 
   // Mutations anywhere in Obsidian's DOM are extremely frequent (editor
   // typing, live preview, etc.), so this observer intentionally only
-  // watches `document.body`'s direct children (`subtree: false`) — where
-  // Obsidian mounts/unmounts top-level chrome like the mobile toolbar —
-  // rather than the whole subtree, and coalesces bursts with
+  // watches `document.body`'s direct children and their immediate children
+  // (where Obsidian mounts/unmounts top-level chrome like the mobile
+  // toolbar), rather than the whole subtree, and coalesces bursts with
   // requestAnimationFrame rather than recalculating synchronously on every
   // mutation record.
   const scheduleUpdate = (): void => {
@@ -153,6 +281,16 @@ export function setupAndroidSafeArea(): void {
   const bodyObserver = new MutationObserver(scheduleUpdate);
   bodyObserver.observe(document.body, { childList: true, subtree: false });
 
+  // Also watch two levels deep so a toolbar mounted/unmounted inside an
+  // existing top-level container (rather than body itself gaining/losing a
+  // child) still triggers a re-scan.
+  const childObservers: MutationObserver[] = [];
+  for (const child of Array.from(document.body.children)) {
+    const obs = new MutationObserver(scheduleUpdate);
+    obs.observe(child, { childList: true, subtree: false });
+    childObservers.push(obs);
+  }
+
   updateAll();
 
   const vv = window.visualViewport;
@@ -160,12 +298,21 @@ export function setupAndroidSafeArea(): void {
   window.addEventListener("orientationchange", scheduleUpdate);
   window.addEventListener("resize", scheduleUpdate);
 
+  const workspace = app?.workspace;
+  workspace?.on("layout-change", scheduleUpdate);
+  workspace?.on("active-leaf-change", scheduleUpdate);
+  workspace?.on("resize", scheduleUpdate);
+
   androidSafeAreaCleanup = () => {
     if (rafHandle !== null) window.cancelAnimationFrame(rafHandle);
     vv?.removeEventListener("resize", scheduleUpdate);
     window.removeEventListener("orientationchange", scheduleUpdate);
     window.removeEventListener("resize", scheduleUpdate);
+    workspace?.off("layout-change", scheduleUpdate);
+    workspace?.off("active-leaf-change", scheduleUpdate);
+    workspace?.off("resize", scheduleUpdate);
     bodyObserver.disconnect();
+    for (const obs of childObservers) obs.disconnect();
     toolbarResizeObserver?.disconnect();
     document.body.style.removeProperty("--mediavault-android-bottom-inset");
     document.body.style.removeProperty("--mediavault-android-toolbar-inset");

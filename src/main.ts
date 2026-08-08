@@ -76,7 +76,7 @@ export default class MediaVaultPlugin extends Plugin {
     console.log(`Loading ${PLUGIN_NAME}`);
 
     applyAndroidBodyClass();
-    setupAndroidSafeArea();
+    setupAndroidSafeArea(this.app);
 
     this.storage = new StorageService(this);
     await this.storage.initialize();
