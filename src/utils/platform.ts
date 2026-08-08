@@ -131,7 +131,7 @@ export function setupAndroidSafeArea(app?: App): void {
     const toolbarResult = measureObsidianToolbarObstruction();
 
     const finalInset =
-      systemInset + toolbarResult.obstruction + ANDROID_EXTRA_BOTTOM_PADDING;
+      systemInset + toolbarResult.obstruction;
 
     document.body.style.setProperty(
       "--mediavault-android-bottom-inset",
