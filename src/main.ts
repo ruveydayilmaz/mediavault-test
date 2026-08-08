@@ -84,6 +84,7 @@ export default class MediaVaultPlugin extends Plugin {
     this.unsubscribeLocaleChange = i18n.onChange(() => this.onLocaleChanged());
     this.statistics = new StatisticsService(this.storage);
     await seedBuiltInPresets(this.storage);
+    await this.ensureNotificationActivationDate();
 
     this.tmdb = new TMDBService({
       getApiKey: () => this.storage.settings.get().tmdbApiKey,
@@ -352,7 +353,11 @@ export default class MediaVaultPlugin extends Plugin {
     }).open();
   }
 
-  openMediaDetail(media: MediaItem, episode?: Episode): void {
+  openMediaDetail(
+    media: MediaItem,
+    episode?: Episode,
+    listContext?: { listId: string; listTitle: string; onRemoved?: () => void },
+  ): void {
     new MediaDetailModal(
       this.app,
       this.storage,
@@ -366,6 +371,9 @@ export default class MediaVaultPlugin extends Plugin {
       "episodes",
       this.trakt,
       episode,
+      false,
+      null,
+      listContext,
     ).open();
   }
 
@@ -647,6 +655,26 @@ export default class MediaVaultPlugin extends Plugin {
       );
       this.registerInterval(this.syncIntervalHandle);
     }
+  }
+
+  private async ensureNotificationActivationDate(): Promise<void> {
+    const settings = this.storage.settings.get();
+    if (settings.notificationPluginActivationDate) return;
+    // First time this field has ever been read: either a brand-new vault or
+    // an existing vault upgrading to a version that has this concept. Either
+    // way, set it once, now, and never touch it again — this is exactly the
+    // "activation date must not reset on every reload" requirement. For an
+    // existing vault with a pre-existing library, this doubles as the
+    // Milestone 6 "missing date" fallback: it prevents a historical
+    // notification backlog for data that predates this feature entirely
+    // without ever inventing a backdated timestamp.
+    const today = new Date().toISOString().slice(0, 10);
+    await this.storage.settings.update({
+      notificationPluginActivationDate: today,
+    });
+    console.log(
+      `MediaVault: notification plugin-activation date set to ${today}`,
+    );
   }
 
   private setupNotificationSchedule(): void {

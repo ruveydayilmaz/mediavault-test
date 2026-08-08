@@ -72,6 +72,11 @@ export class ListDetailModal extends Modal {
     this.onChanged?.();
   }
 
+  private async refreshAfterListRemoval(): Promise<void> {
+    this.notifyChanged();
+    await this.render();
+  }
+
   private async render(): Promise<void> {
     const { contentEl } = this;
     contentEl.empty();
@@ -287,29 +292,15 @@ export class ListDetailModal extends Modal {
   }
 
   private enterEditMode(titleEl: HTMLElement, descEl: HTMLElement): void {
+    const header = titleEl.closest(
+      ".mediavault-list-detail-header",
+    ) as HTMLElement | null;
+
     const titleInput = document.createElement("input");
     titleInput.type = "text";
     titleInput.value = this.list.title;
     titleInput.className = "mediavault-list-title-input";
     titleEl.replaceWith(titleInput);
-    titleInput.focus();
-    titleInput.select();
-
-    const saveTitle = async () => {
-      const title = titleInput.value.trim();
-      if (title && title !== this.list.title) {
-        const updated = await this.storage.customLists.update(this.list.id, {
-          title,
-        });
-        if (updated) this.list = updated;
-        this.notifyChanged();
-      }
-      await this.render();
-    };
-    titleInput.addEventListener("blur", saveTitle);
-    titleInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") titleInput.blur();
-    });
 
     const descInput = document.createElement("textarea");
     descInput.className = "mediavault-list-description-input";
@@ -317,17 +308,69 @@ export class ListDetailModal extends Modal {
     descInput.placeholder = t("lists.descPlaceholder");
     descEl.replaceWith(descInput);
 
-    const saveDesc = async () => {
+    titleInput.focus();
+    titleInput.select();
+
+    // Root cause of the original bug: each field used to save-and-fully-
+    // re-render on its own `blur`. A full re-render tears down and rebuilds
+    // the header's DOM — including whichever input the user had just
+    // clicked/tapped into — so moving focus from the title straight into
+    // the description (a completely ordinary focus change *within* edit
+    // mode) made edit mode appear to close the instant the description was
+    // touched, because the re-render triggered by the title's blur
+    // destroyed the description input before it could ever receive focus.
+    //
+    // The fix is to only exit edit mode (save + re-render) when focus
+    // actually leaves the whole edit UI — not on every individual field's
+    // blur. `focusout` bubbles and exposes `relatedTarget` (the element
+    // gaining focus), so a single shared handler on both fields can tell
+    // "moved to the other field in edit mode" (relatedTarget is inside
+    // `header`) apart from "left edit mode entirely" (it isn't) and
+    // preserve the existing outside-click-closes-edit-mode behavior for
+    // the latter case only.
+    let exited = false;
+    const exitEditMode = async (): Promise<void> => {
+      if (exited) return;
+      exited = true;
+      const title = titleInput.value.trim();
       const desc = descInput.value || null;
-      if (desc !== (this.list.description ?? null)) {
+      const titleChanged = title.length > 0 && title !== this.list.title;
+      const descChanged = desc !== (this.list.description ?? null);
+      if (titleChanged || descChanged) {
         const updated = await this.storage.customLists.update(this.list.id, {
-          description: desc,
+          ...(titleChanged ? { title } : {}),
+          ...(descChanged ? { description: desc } : {}),
         });
         if (updated) this.list = updated;
         this.notifyChanged();
       }
+      await this.render();
     };
-    descInput.addEventListener("blur", saveDesc);
+
+    const handleFocusOut = (evt: FocusEvent): void => {
+      const next = evt.relatedTarget as Node | null;
+      if (next) {
+        if (header?.contains(next)) return; // moved within edit UI — stay
+        void exitEditMode();
+        return;
+      }
+      // Some mobile WebViews don't reliably populate `relatedTarget` for
+      // touch-initiated focus changes. Fall back to checking where focus
+      // actually landed on the next tick instead of assuming it left the
+      // header — this keeps the same "click outside closes, click between
+      // fields doesn't" behavior on iOS/Android touch as on desktop mouse.
+      window.setTimeout(() => {
+        if (header && header.contains(document.activeElement)) return;
+        void exitEditMode();
+      }, 0);
+    };
+
+    titleInput.addEventListener("focusout", handleFocusOut);
+    descInput.addEventListener("focusout", handleFocusOut);
+
+    titleInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") titleInput.blur();
+    });
   }
 
   private async addMedia(): Promise<void> {
@@ -434,30 +477,6 @@ export class ListDetailModal extends Modal {
     });
 
     let removeBtn: HTMLElement | null = null;
-    if (!this.list.isSystem) {
-      removeBtn = card.createEl("button", {
-        cls: "mediavault-list-detail-remove",
-        text: "\u2715",
-      });
-      removeBtn.setAttr("aria-label", t("lists.removeFromList"));
-      removeBtn.addEventListener("click", async (evt) => {
-        evt.stopPropagation();
-        const confirmed = confirm(
-          t("addToList.removeConfirm", {
-            title: media.title,
-            list: this.list.title,
-          }),
-        );
-        if (!confirmed) return;
-        const updated = await this.storage.customLists.removeMedia(
-          this.list.id,
-          media.id,
-        );
-        if (updated) this.list = updated;
-        this.notifyChanged();
-        await this.render();
-      });
-    }
 
     card.addEventListener("click", (evt) => {
       if (evt.target === removeBtn) return;
@@ -465,7 +484,20 @@ export class ListDetailModal extends Modal {
         delete card.dataset.justDragged;
         return;
       }
-      this.plugin.openMediaDetail(media);
+      const listId = this.list.id;
+      const listTitle = this.list.title;
+      const isSystem = this.list.isSystem;
+      this.plugin.openMediaDetail(
+        media,
+        undefined,
+        isSystem
+          ? undefined
+          : {
+              listId,
+              listTitle,
+              onRemoved: () => void this.refreshAfterListRemoval(),
+            },
+      );
     });
   }
 

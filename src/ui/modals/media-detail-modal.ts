@@ -93,6 +93,7 @@ export class MediaDetailModal extends Modal {
   private isPreview: boolean;
   private previewTmdbRating: number | null = null;
   private pendingHighlightCommentId: number | null = null;
+  private listContext?: { listId: string; listTitle: string; onRemoved?: () => void };
 
   private activeTab: DetailTab = "episodes";
   private expandedSeasons = new Set<number>();
@@ -115,6 +116,7 @@ export class MediaDetailModal extends Modal {
     initialEpisode?: Episode,
     isPreview = false,
     previewTmdbRating: number | null = null,
+    listContext?: { listId: string; listTitle: string; onRemoved?: () => void },
   ) {
     super(app);
     this.storage = storage;
@@ -125,6 +127,7 @@ export class MediaDetailModal extends Modal {
     this.plugin = plugin;
     this.isPreview = isPreview;
     this.previewTmdbRating = previewTmdbRating;
+    this.listContext = listContext;
     if (media.type === MediaType.TVShow && initialEpisode) {
       this.selectedEpisode = initialEpisode;
       this.activeTab = "episode-detail";
@@ -564,7 +567,11 @@ export class MediaDetailModal extends Modal {
     }).open();
   }
 
-  private openHeroMenu(evt: MouseEvent, confirmingDelete = false): void {
+  private openHeroMenu(
+    evt: MouseEvent,
+    confirmingDelete = false,
+    confirmingRemoveFromList = false,
+  ): void {
     const menu = new Menu();
 
     menu.addItem((item) =>
@@ -624,6 +631,17 @@ export class MediaDetailModal extends Modal {
           ).open();
         }),
     );
+
+    if (this.listContext) {
+      addDestructiveMenuItem(menu, evt, {
+        label: t("lists.removeFromList"),
+        icon: "list-x",
+        confirming: confirmingRemoveFromList,
+        rebuild: (_m, confirming) =>
+          this.openHeroMenu(evt, confirmingDelete, confirming),
+        onConfirm: () => void this.removeFromListAndClose(),
+      });
+    }
 
     if (this.plugin) {
       menu.addSeparator();
@@ -2249,6 +2267,22 @@ export class MediaDetailModal extends Modal {
   private async refreshAndNotify(): Promise<void> {
     await this.render();
     this.onChanged?.();
+  }
+
+  private async removeFromListAndClose(): Promise<void> {
+    if (!this.listContext) return;
+    const { listId, listTitle, onRemoved } = this.listContext;
+    await this.storage.customLists.removeMedia(listId, this.media.id);
+    new Notice(
+      t("addToList.removedNotice", {
+        title: this.media.title,
+        list: listTitle,
+      }),
+    );
+    this.close();
+    onRemoved?.();
+    this.onChanged?.();
+    if (this.plugin) this.plugin.refreshListViews();
   }
 
   private async confirmAndDelete(alreadyConfirmed = false): Promise<void> {

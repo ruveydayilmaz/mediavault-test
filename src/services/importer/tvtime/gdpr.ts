@@ -8,6 +8,7 @@ import {
   emptyBundle,
   ExternalIds,
   FavoriteImport,
+  ImportMediaKind,
   ListImport,
   MatchMetadata,
   NormalizedImportBundle,
@@ -111,6 +112,70 @@ export async function parseGdprArchive(
   }
 
   const v2Records = parsed.get("tracking-prod-records-v2.csv") ?? [];
+
+  // `is_archived` is TV Time's closest equivalent to MediaVault's "Dropped"
+  // status. It's collected in its own pass — separate from, and before, the
+  // watch-import loop below — for two reasons: (1) that loop `continue`s
+  // early on rows missing season/episode/series_name (e.g. movie rows),
+  // which would otherwise silently lose any `is_archived` flag on them; and
+  // (2) a media item can have many tracking rows (one per episode watched),
+  // so its dropped state has to be aggregated across all of them — a single
+  // `is_archived:true` row anywhere for that item means dropped, and no
+  // later `is_archived:false` row for the same item should undo that once
+  // recorded (Milestone 4). The literal representation of "true" isn't
+  // assumed to be the string "true": TV Time's exports have been observed
+  // using "1"/"0" as often as "true"/"false", and this normalizes case too.
+  const droppedAgg = new Map<
+    string,
+    { kind: ImportMediaKind; ids: ExternalIds; title: string; year: number | null }
+  >();
+  let archivedRowsFound = 0;
+  for (const row of v2Records) {
+    if (!isArchivedTrue(row.is_archived)) continue;
+    archivedRowsFound++;
+
+    const seriesTitle = clean(row.series_name);
+    const movieTitle = clean(row.movie_name);
+
+    if (seriesTitle) {
+      const parsedTitle = splitTitleYear(seriesTitle);
+      const key = `series:${clean(row.s_id) ?? clean(row.uuid) ?? seriesTitle.toLowerCase()}`;
+      if (!droppedAgg.has(key)) {
+        droppedAgg.set(key, {
+          kind: "series",
+          ids: idsForSeries(seriesById, row.s_id, row.uuid),
+          title: parsedTitle.title,
+          year: parsedTitle.year,
+        });
+      }
+    } else if (movieTitle) {
+      const parsedTitle = splitTitleYear(movieTitle);
+      const key = `movie:${clean(row.uuid) ?? movieTitle.toLowerCase()}`;
+      if (!droppedAgg.has(key)) {
+        droppedAgg.set(key, {
+          kind: "movie",
+          ids: { tvTimeUuid: clean(row.uuid) },
+          title: parsedTitle.title,
+          year: parsedTitle.year,
+        });
+      }
+    }
+    // A row with is_archived=true but neither a series nor movie title is
+    // uncommon but not silently discarded from the diagnostics count above
+    // — it just can't be resolved to a specific item, so it isn't (and
+    // can't be) added to `droppedAgg`.
+  }
+  {
+    const droppedBundle = bundleFor("tracking-prod-records-v2.csv");
+    droppedBundle.dropped.push(...droppedAgg.values());
+    droppedBundle.droppedDiagnostics.archivedRowsFound += archivedRowsFound;
+    for (const entry of droppedAgg.values()) {
+      if (entry.kind === "movie")
+        droppedBundle.droppedDiagnostics.droppedMovies++;
+      else droppedBundle.droppedDiagnostics.droppedSeries++;
+    }
+  }
+
   for (const [index, row] of v2Records.entries()) {
     const season = number(row.season_number);
     const episode = number(row.episode_number);
@@ -726,6 +791,20 @@ function isRewatchRow(row: RawImportRow): boolean {
     row.bulk_type?.toLowerCase().startsWith("rewatch") === true ||
     row.uuid?.toLowerCase().startsWith("rewatch") === true
   );
+}
+
+/**
+ * Normalizes `is_archived` (TV Time's "Dropped" flag) without assuming the
+ * literal string `"true"`. GDPR CSV exports have been observed representing
+ * booleans as `"true"`/`"false"`, `"1"`/`"0"`, and with inconsistent casing
+ * (`"TRUE"`); this recognizes all of those as true and treats anything
+ * else — including missing/empty values — as false, so a blank or absent
+ * column is never mistaken for an archived/dropped row.
+ */
+function isArchivedTrue(raw: string | undefined): boolean {
+  const v = clean(raw)?.toLowerCase();
+  if (!v) return false;
+  return v === "true" || v === "1" || v === "yes" || v === "t";
 }
 
 function addSeries(

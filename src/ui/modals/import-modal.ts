@@ -350,6 +350,7 @@ export class ImportModal extends Modal {
       [t("import.listsImported"), report.listsImported],
       [t("import.builtInListsImported"), report.builtInListsImported],
       [t("import.customListsImported"), report.customListsImported],
+      [t("import.droppedImported"), report.droppedImported],
       [t("import.duplicatesMerged"), report.duplicatesMerged],
       [t("import.skipped"), report.skipped],
     ];
@@ -389,6 +390,9 @@ export class ImportModal extends Modal {
       [t("import.totalListItems"), String(report.totalListItems)],
       [t("import.listItemsMatched"), String(report.matchedListItems)],
       [t("import.listItemsMissing"), String(report.missingListItems)],
+      [t("import.droppedRecordsFound"), String(report.droppedRecordsFound)],
+      [t("import.droppedMoviesImported"), String(report.droppedMoviesImported)],
+      [t("import.droppedSeriesImported"), String(report.droppedSeriesImported)],
     ];
     diagRows.forEach(([label, value]) => {
       diagBox.createDiv({
@@ -532,6 +536,22 @@ export class ImportModal extends Modal {
           merged: this.report.duplicatesMerged,
         }),
       );
+      // Record the import-completion date used to establish the
+      // notification baseline (see notification-service.ts). Deliberately
+      // set only here, on a *successful* commit — not when the modal opens
+      // or a file is selected — and only overwritten by a *later* completed
+      // import, so an aborted/failed import never regresses the baseline.
+      const today = new Date().toISOString().slice(0, 10);
+      const priorImportDate = this.storage.settings.get()
+        .notificationDataImportDate;
+      if (!priorImportDate || priorImportDate < today) {
+        await this.storage.settings.update({
+          notificationDataImportDate: today,
+        });
+        console.log(
+          `MediaVault: notification data-import date set to ${today}`,
+        );
+      }
       this.onImported?.();
     } catch (err) {
       new Notice(

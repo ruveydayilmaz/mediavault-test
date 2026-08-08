@@ -26,6 +26,53 @@ function isoDateOnly(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * The date from which "new"/"upcoming" notifications should start being
+ * generated: `max(pluginActivationDate, dataImportDate)`.
+ *
+ * This exists so that installing the plugin and importing an existing
+ * watch history doesn't generate a backlog of notifications for every
+ * episode/season/movie that "became new" relative to the empty vault the
+ * plugin started with — those things aren't new, the user's data about them
+ * just is. Everything with a release/air date at or after this baseline is
+ * still eligible for a "new" notification exactly as before; the baseline
+ * only suppresses items that are actually historical relative to it.
+ *
+ * - Both dates present → the later of the two wins (a later completed
+ *   import reflects more complete data, so it's fine for it to move the
+ *   floor forward; it will never move it backward, see
+ *   `notificationDataImportDate`'s update site).
+ * - Only one present → use it.
+ * - Neither present → `null`. Callers should treat `null` as "no baseline
+ *   available" and fall back to whatever historical filtering they already
+ *   had (e.g. per-show `createdAt`), rather than suppressing everything or
+ *   inventing a date. In practice this should be rare: the plugin sets
+ *   `notificationPluginActivationDate` once, unconditionally, the first
+ *   time settings are loaded (see `main.ts`), so it's only ever null before
+ *   that has had a chance to run.
+ */
+export function getNotificationBaselineDate(
+  settings: Pick<
+    MediaVaultSettings,
+    "notificationPluginActivationDate" | "notificationDataImportDate"
+  >,
+): string | null {
+  const { notificationPluginActivationDate: activation, notificationDataImportDate: imported } =
+    settings;
+  if (activation && imported) return activation > imported ? activation : imported;
+  return activation ?? imported ?? null;
+}
+
+/** Later of two `YYYY-MM-DD` dates, treating `null`/`undefined` as "no floor". */
+function laterDateOnly(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): string | null {
+  if (!a) return b ?? null;
+  if (!b) return a;
+  return a > b ? a : b;
+}
+
 export function shouldRunDailyCheck(
   settings: MediaVaultSettings,
   now: Date = new Date(),
@@ -75,6 +122,7 @@ export async function checkMetadataUpdates(
   storage: StorageService,
   tmdb: TMDBService,
   enabled: MediaVaultSettings["notificationsEnabled"],
+  baselineDate: string | null = null,
 ): Promise<{
   pending: PendingNotification[];
   mediaUpdates: Map<string, Partial<MediaItem>>;
@@ -128,11 +176,19 @@ export async function checkMetadataUpdates(
       );
 
       const trackedSince = show.createdAt.slice(0, 10);
+      // Floor `trackedSince` at the global notification baseline: a show
+      // imported at the same moment as everything else in a GDPR import has
+      // `createdAt` ≈ the import instant already, so this is usually a
+      // no-op — but it also correctly covers a show that was added to the
+      // vault (e.g. manually, or via an earlier partial import) *before*
+      // the baseline was established, which would otherwise use its own
+      // earlier `createdAt` and let pre-baseline seasons/episodes through.
+      const effectiveSince = laterDateOnly(trackedSince, baselineDate) ?? trackedSince;
 
       for (const season of details.seasons) {
         if (season.seasonNumber === 0) continue; // specials
         const seasonIsHistorical =
-          season.airDate !== null && season.airDate < trackedSince;
+          season.airDate !== null && season.airDate < effectiveSince;
         if (seasonIsHistorical) continue;
 
         if (enabled.newSeason && season.seasonNumber > knownMaxSeason) {
@@ -180,10 +236,21 @@ export async function checkMetadataUpdates(
       } catch {
         continue;
       }
-      if (
+      const releasedNow =
         details.releaseDate &&
-        new Date(details.releaseDate).getTime() <= Date.now()
-      ) {
+        new Date(details.releaseDate).getTime() <= Date.now();
+      // Also require the release date to be at/after the baseline: without
+      // this, a movie imported with a past `releaseDate` that TMDB later
+      // corrects to something still in the past (but after the stale local
+      // value) could otherwise slip through the "already released" gate on
+      // a technicality. In practice `releasedNow` already excludes almost
+      // everything historical; this is the same belt-and-suspenders
+      // baseline check applied to episodes/seasons above, for consistency.
+      const releaseIsPreBaseline =
+        baselineDate !== null &&
+        details.releaseDate !== null &&
+        details.releaseDate < baselineDate;
+      if (releasedNow && !releaseIsPreBaseline) {
         pending.push({
           type: "movie_released",
           mediaId: movie.id,
@@ -254,10 +321,18 @@ export async function runNotificationCheck(
   settings: MediaVaultSettings,
   now: Date = new Date(),
 ): Promise<PendingNotification[]> {
+  const baselineDate = getNotificationBaselineDate(settings);
+  console.log(
+    `MediaVault: notification baseline = ${baselineDate ?? "(none — no historical floor available)"} ` +
+      `[activation=${settings.notificationPluginActivationDate ?? "unset"}, ` +
+      `import=${settings.notificationDataImportDate ?? "unset"}]`,
+  );
+
   const { pending: metadataPending, mediaUpdates } = await checkMetadataUpdates(
     storage,
     tmdb,
     settings.notificationsEnabled,
+    baselineDate,
   );
 
   for (const [mediaId, patch] of mediaUpdates) {

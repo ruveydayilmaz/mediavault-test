@@ -2,7 +2,7 @@ import type { StorageService } from "../../storage";
 import type { TMDBService } from "../../../api/tmdb";
 import { MediaItem } from "../../../models/media";
 import { Episode } from "../../../models/episode";
-import { MediaType } from "../../../types/enums";
+import { MediaType, MediaStatus } from "../../../types/enums";
 import { buildMediaItemFromTMDB } from "../../media-import";
 import { addWatchSession } from "../../watch-session-service";
 import { touchMediaActivity } from "../../activity-service";
@@ -20,6 +20,7 @@ import {
   LikeImport,
   RatingImport,
   ListImport,
+  DroppedImport,
   ExternalIds,
   ImportMediaKind,
   MatchMetadata,
@@ -71,6 +72,12 @@ export interface ImportReport {
   matchedListItems: number;
   missingListItems: number;
   unmatchedListSKeys: string[];
+  droppedRecordsFound: number;
+  droppedMoviesFound: number;
+  droppedSeriesFound: number;
+  droppedImported: number;
+  droppedMoviesImported: number;
+  droppedSeriesImported: number;
   duplicatesMerged: number;
   skipped: number;
   errors: { reason: string }[];
@@ -112,6 +119,12 @@ export function emptyReport(): ImportReport {
     matchedListItems: 0,
     missingListItems: 0,
     unmatchedListSKeys: [],
+    droppedRecordsFound: 0,
+    droppedMoviesFound: 0,
+    droppedSeriesFound: 0,
+    droppedImported: 0,
+    droppedMoviesImported: 0,
+    droppedSeriesImported: 0,
     duplicatesMerged: 0,
     skipped: 0,
     errors: [],
@@ -790,6 +803,27 @@ async function applyFavorite(
   report.favoritesImported++;
 }
 
+/**
+ * Marks a media item Dropped from a GDPR `is_archived` tracking row.
+ * `MediaStatus.Dropped` is one of `status-service.ts`'s
+ * `MANUAL_OVERRIDE_STATUSES`, so once set here it's preserved by every
+ * later live status recalculation in this same commit (and afterward) —
+ * exactly like a user manually dropping the item from the UI would be.
+ * Idempotent: re-importing the same archived item just re-applies the same
+ * status.
+ */
+async function applyDropped(
+  storage: StorageService,
+  dropped: DroppedImport,
+  media: MediaItem,
+  report: ImportReport,
+): Promise<void> {
+  await storage.media.update(media.id, { status: MediaStatus.Dropped });
+  report.droppedImported++;
+  if (dropped.kind === "movie") report.droppedMoviesImported++;
+  else report.droppedSeriesImported++;
+}
+
 async function applyList(
   storage: StorageService,
   list: ListImport,
@@ -910,6 +944,8 @@ function collectDistinctResolutions(
     consider(r.ids, r.title, r.year, r.kind, r.match);
   for (const f of bundle.favorites)
     consider(f.ids, f.title, f.year, f.kind, f.match);
+  for (const d of bundle.dropped)
+    consider(d.ids, d.title, d.year, d.kind, d.match);
   for (const list of bundle.lists)
     for (const item of list.items)
       consider(item.ids, item.title, item.year, item.kind, item.match);
@@ -947,7 +983,8 @@ export async function commitBundle(
     bundle.likes.length +
     bundle.ratings.length +
     bundle.favorites.length +
-    bundle.lists.length;
+    bundle.lists.length +
+    bundle.dropped.length;
   report.totalRecordsParsed = total + bundle.warnings.length;
   let done = 0;
   let lastProgressAt = 0;
@@ -1211,6 +1248,29 @@ export async function commitBundle(
 
   report.listsDiscovered = bundle.listDiagnostics.listsDiscovered;
   report.unmatchedListSKeys = [...bundle.listDiagnostics.unmatchedSKeys];
+  report.droppedRecordsFound = bundle.droppedDiagnostics.archivedRowsFound;
+  report.droppedMoviesFound = bundle.droppedDiagnostics.droppedMovies;
+  report.droppedSeriesFound = bundle.droppedDiagnostics.droppedSeries;
+
+  await timer.time("Applying dropped status", async () => {
+    for (const dropped of bundle.dropped) {
+      const media = await resolver.resolve(
+        dropped.ids,
+        dropped.title,
+        dropped.year,
+        dropped.kind,
+        dropped.match,
+      );
+      if (!media) {
+        report.skipped++;
+        trackSkip(report, "No media match — dropped status not imported");
+      } else {
+        await applyDropped(storage, dropped, media, report);
+      }
+      tick("Importing dropped status");
+      await maybeYield(done, 25);
+    }
+  });
 
   onProgress?.(0, 1, "Saving data");
 

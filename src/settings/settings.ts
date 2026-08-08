@@ -55,6 +55,20 @@ export interface MediaVaultSettings {
   notificationSilent: boolean;
   notificationTimezone: string;
   notificationLastCheckedDate: string | null;
+  /**
+   * When this vault first activated the plugin (ISO date, `YYYY-MM-DD`).
+   * Set once, the first time settings are loaded and this is still null —
+   * never overwritten afterward, so plugin reloads/updates do NOT reset it.
+   */
+  notificationPluginActivationDate: string | null;
+  /**
+   * When the most recent GDPR/Trakt import actually *completed* (ISO date).
+   * Set only on successful import completion, never on merely opening the
+   * import modal or selecting a file. Updated on every subsequent completed
+   * import (a later import reflects more complete data, so it's fine — and
+   * intended — for it to become the new floor).
+   */
+  notificationDataImportDate: string | null;
   commentsPrimaryLanguage: string;
   commentsAdditionalLanguages: string[];
   showAdultContent: boolean;
@@ -98,6 +112,8 @@ export const DEFAULT_SETTINGS: MediaVaultSettings = {
   notificationSilent: false,
   notificationTimezone: "",
   notificationLastCheckedDate: null,
+  notificationPluginActivationDate: null,
+  notificationDataImportDate: null,
   commentsPrimaryLanguage: "en",
   commentsAdditionalLanguages: [],
   showAdultContent: false,

@@ -75,6 +75,22 @@ export interface FavoriteImport {
   match?: MatchMetadata;
 }
 
+/**
+ * A media item that TV Time's export marked `is_archived` on at least one
+ * of its tracking rows — TV Time's closest equivalent to MediaVault's
+ * "Dropped" status. Deliberately its own import category (like
+ * `FavoriteImport`) rather than a flag on `WatchImport`: dropped-ness is a
+ * property of the *media item*, aggregated across every tracking row that
+ * references it, not of any single watch event.
+ */
+export interface DroppedImport {
+  kind: ImportMediaKind;
+  ids: ExternalIds;
+  title: string;
+  year: number | null;
+  match?: MatchMetadata;
+}
+
 export interface ListImportItem {
   kind: ImportMediaKind;
   ids: ExternalIds;
@@ -149,6 +165,19 @@ export function emptyListImportDiagnostics(): ListImportDiagnostics {
   };
 }
 
+export interface DroppedImportDiagnostics {
+  /** Raw tracking rows where `is_archived` was truthy (before dedup). */
+  archivedRowsFound: number;
+  /** Distinct dropped movies, after aggregating rows by media identity. */
+  droppedMovies: number;
+  /** Distinct dropped TV series, after aggregating rows by media identity. */
+  droppedSeries: number;
+}
+
+export function emptyDroppedImportDiagnostics(): DroppedImportDiagnostics {
+  return { archivedRowsFound: 0, droppedMovies: 0, droppedSeries: 0 };
+}
+
 export interface NormalizedImportBundle {
   watches: WatchImport[];
   reviews: ReviewImport[];
@@ -156,8 +185,10 @@ export interface NormalizedImportBundle {
   ratings: RatingImport[];
   favorites: FavoriteImport[];
   lists: ListImport[];
+  dropped: DroppedImport[];
   warnings: { row?: number; reason: string }[];
   listDiagnostics: ListImportDiagnostics;
+  droppedDiagnostics: DroppedImportDiagnostics;
 }
 
 export function emptyBundle(): NormalizedImportBundle {
@@ -168,8 +199,10 @@ export function emptyBundle(): NormalizedImportBundle {
     ratings: [],
     favorites: [],
     lists: [],
+    dropped: [],
     warnings: [],
     listDiagnostics: emptyListImportDiagnostics(),
+    droppedDiagnostics: emptyDroppedImportDiagnostics(),
   };
 }
 
@@ -184,6 +217,7 @@ export function mergeBundles(
     result.ratings.push(...b.ratings);
     result.favorites.push(...b.favorites);
     result.lists.push(...b.lists);
+    result.dropped.push(...b.dropped);
     result.warnings.push(...b.warnings);
     result.listDiagnostics.listsDiscovered += b.listDiagnostics.listsDiscovered;
     result.listDiagnostics.unmatchedSKeys.push(
@@ -200,6 +234,10 @@ export function mergeBundles(
       ...b.listDiagnostics.unresolvedMovieUuids,
     );
     result.listDiagnostics.perList.push(...b.listDiagnostics.perList);
+    result.droppedDiagnostics.archivedRowsFound +=
+      b.droppedDiagnostics.archivedRowsFound;
+    result.droppedDiagnostics.droppedMovies += b.droppedDiagnostics.droppedMovies;
+    result.droppedDiagnostics.droppedSeries += b.droppedDiagnostics.droppedSeries;
   }
   return result;
 }

@@ -265,7 +265,8 @@ export async function runZipImport(
         bundle.reviews.length +
         bundle.ratings.length +
         bundle.favorites.length +
-        bundle.lists.length;
+        bundle.lists.length +
+        bundle.dropped.length;
       file.unsupported = false;
 
       if (filename === "lists-prod-lists.csv") {
@@ -285,6 +286,18 @@ export async function runZipImport(
             `  Items: ${l.items}  Resolved: ${l.resolved}  Skipped: ${l.skipped}`,
           ]),
         ];
+      }
+
+      if (filename === "tracking-prod-records-v2.csv") {
+        const dd = bundle.droppedDiagnostics;
+        if (dd.archivedRowsFound > 0) {
+          file.diagnosticLines = [
+            ...(file.diagnosticLines ?? []),
+            `Dropped records found: ${dd.archivedRowsFound}`,
+            `Dropped movies: ${dd.droppedMovies}`,
+            `Dropped TV series: ${dd.droppedSeries}`,
+          ];
+        }
       }
     }
     bundles.push(bundle);
