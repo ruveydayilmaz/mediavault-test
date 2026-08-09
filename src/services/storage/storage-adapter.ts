@@ -38,7 +38,7 @@ function fileNameForGroup(group: StorageGroup): string {
 export class StorageAdapter {
   private plugin: Plugin;
   private data: VaultData = createEmptyVaultData();
-  private saveTimeout: ReturnType<typeof setTimeout> | null = null;
+  private saveTimeout: number | null = null;
   private savePromise: Promise<void> | null = null;
   private resolveSavePromise: (() => void) | null = null;
 
@@ -74,7 +74,7 @@ export class StorageAdapter {
       return;
     }
 
-    const legacy = await this.plugin.loadData();
+    const legacy: unknown = await this.plugin.loadData();
     if (!legacy) {
       this.data = createEmptyVaultData();
       await this.writeAllGroups();
@@ -185,18 +185,9 @@ export class StorageAdapter {
     return this.data;
   }
 
-  /**
-   * Wipes every MediaVault storage file (split group files, meta.json, and
-   * the legacy pre-split data.json if it's still on disk) and rewrites a
-   * brand-new empty state, so the plugin behaves exactly like a fresh
-   * installation without requiring an Obsidian restart. Never touches
-   * anything outside the plugin's own storage directory — generated
-   * Markdown notes live in the vault proper and this method has no path
-   * into that tree at all.
-   */
   async factoryReset(): Promise<void> {
     if (this.saveTimeout) {
-      clearTimeout(this.saveTimeout);
+      window.clearTimeout(this.saveTimeout);
       this.saveTimeout = null;
     }
     this.savePromise = null;
@@ -234,7 +225,7 @@ export class StorageAdapter {
 
   requestSave(): Promise<void> {
     if (this.saveTimeout) {
-      clearTimeout(this.saveTimeout);
+      window.clearTimeout(this.saveTimeout);
     }
 
     if (!this.savePromise) {
@@ -243,7 +234,7 @@ export class StorageAdapter {
       });
     }
 
-    this.saveTimeout = setTimeout(() => {
+    this.saveTimeout = window.setTimeout(() => {
       void this.flush().then(() => {
         this.resolveSavePromise?.();
         this.savePromise = null;
@@ -256,7 +247,7 @@ export class StorageAdapter {
 
   async flush(): Promise<void> {
     if (this.saveTimeout) {
-      clearTimeout(this.saveTimeout);
+      window.clearTimeout(this.saveTimeout);
       this.saveTimeout = null;
     }
     this.data.version = CURRENT_SCHEMA_VERSION;

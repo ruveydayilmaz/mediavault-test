@@ -62,62 +62,64 @@ export function renderDiscoverCard(
 
   const owned = card.mediaId != null || (deps.isOwned?.(card) ?? false);
 
-  poster.addEventListener("click", async () => {
-    if (card.mediaId) {
-      const media = await deps.storage.media.findById(card.mediaId);
-      if (media) {
+  poster.addEventListener("click", () => {
+    void (async () => {
+      if (card.mediaId) {
+        const media = await deps.storage.media.findById(card.mediaId);
+        if (media) {
+          new MediaDetailModal(
+            deps.app,
+            deps.storage,
+            deps.tmdb,
+            media,
+            undefined,
+            deps.plugin,
+          ).open();
+          return;
+        }
+      }
+      const type =
+        card.mediaKind === "movie" ? MediaType.Movie : MediaType.TVShow;
+      const existing = await deps.storage.media.findByTmdbId(card.tmdbId, type);
+      if (existing) {
         new MediaDetailModal(
           deps.app,
           deps.storage,
           deps.tmdb,
-          media,
+          existing,
           undefined,
           deps.plugin,
         ).open();
         return;
       }
-    }
-    const type =
-      card.mediaKind === "movie" ? MediaType.Movie : MediaType.TVShow;
-    const existing = await deps.storage.media.findByTmdbId(card.tmdbId, type);
-    if (existing) {
-      new MediaDetailModal(
-        deps.app,
-        deps.storage,
-        deps.tmdb,
-        existing,
-        undefined,
-        deps.plugin,
-      ).open();
-      return;
-    }
-    try {
-      const details =
-        card.mediaKind === "movie"
-          ? await deps.tmdb.getMovie(card.tmdbId)
-          : await deps.tmdb.getTV(card.tmdbId);
-      const previewMedia = buildMediaItemFromTMDB(details);
-      new MediaDetailModal(
-        deps.app,
-        deps.storage,
-        deps.tmdb,
-        previewMedia,
-        () => deps.onAdded?.(card),
-        deps.plugin,
-        "cast",
-        undefined,
-        undefined,
-        true,
-        details.tmdbRating,
-      ).open();
-    } catch (err) {
-      new Notice(
-        t("notice.couldNotLoad", {
-          title: card.title,
-          error: (err as Error).message,
-        }),
-      );
-    }
+      try {
+        const details =
+          card.mediaKind === "movie"
+            ? await deps.tmdb.getMovie(card.tmdbId)
+            : await deps.tmdb.getTV(card.tmdbId);
+        const previewMedia = buildMediaItemFromTMDB(details);
+        new MediaDetailModal(
+          deps.app,
+          deps.storage,
+          deps.tmdb,
+          previewMedia,
+          () => deps.onAdded?.(card),
+          deps.plugin,
+          "cast",
+          undefined,
+          undefined,
+          true,
+          details.tmdbRating,
+        ).open();
+      } catch (err) {
+        new Notice(
+          t("notice.couldNotLoad", {
+            title: card.title,
+            error: (err as Error).message,
+          }),
+        );
+      }
+    })();
   });
 
   if (owned) {
@@ -133,28 +135,32 @@ export function renderDiscoverCard(
     addBtn.setAttr("title", t("common.addToLibraryAria"));
     setIcon(addBtn, "plus");
 
-    addBtn.addEventListener("click", async (evt) => {
-      evt.stopPropagation();
-      try {
-        const result = await addMediaFromTMDB(
-          deps.storage,
-          deps.tmdb,
-          card.tmdbId,
-          card.mediaKind,
-        );
-        new Notice(
-          result.alreadyExisted
-            ? t("notice.alreadyInLibrary", { title: result.mediaItem.title })
-            : t("notice.addedToLibrary", { title: result.mediaItem.title }),
-        );
-        addBtn.addClass("is-added");
-        setIcon(addBtn, "check");
-        addBtn.setAttr("aria-label", t("common.inLibrary"));
-        addBtn.setAttr("title", t("common.inLibrary"));
-        deps.onAdded?.(card);
-      } catch (err) {
-        new Notice(t("notice.failedToAdd", { error: (err as Error).message }));
-      }
+    addBtn.addEventListener("click", (evt) => {
+      void (async () => {
+        evt.stopPropagation();
+        try {
+          const result = await addMediaFromTMDB(
+            deps.storage,
+            deps.tmdb,
+            card.tmdbId,
+            card.mediaKind,
+          );
+          new Notice(
+            result.alreadyExisted
+              ? t("notice.alreadyInLibrary", { title: result.mediaItem.title })
+              : t("notice.addedToLibrary", { title: result.mediaItem.title }),
+          );
+          addBtn.addClass("is-added");
+          setIcon(addBtn, "check");
+          addBtn.setAttr("aria-label", t("common.inLibrary"));
+          addBtn.setAttr("title", t("common.inLibrary"));
+          deps.onAdded?.(card);
+        } catch (err) {
+          new Notice(
+            t("notice.failedToAdd", { error: (err as Error).message }),
+          );
+        }
+      })();
     });
   }
 }

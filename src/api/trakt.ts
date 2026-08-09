@@ -56,9 +56,73 @@ export interface TraktRatingItem {
   episode?: { season: number; number: number; title: string };
 }
 
-function normalizeIds(
-  raw: { trakt: number; tmdb?: number; imdb?: string } | undefined,
-): TraktIds {
+interface TraktRawIds {
+  trakt: number;
+  tmdb?: number;
+  imdb?: string;
+}
+
+interface TraktRawMovie {
+  title: string;
+  year?: number;
+  ids: TraktRawIds;
+}
+
+interface TraktRawShow {
+  title: string;
+  year?: number;
+  ids: TraktRawIds;
+}
+
+interface TraktRawEpisode {
+  season: number;
+  number: number;
+  title: string;
+}
+
+interface TraktRawHistoryEntry {
+  id: number;
+  watched_at: string;
+  type: "movie" | "episode";
+  movie?: TraktRawMovie;
+  show?: TraktRawShow;
+  episode?: TraktRawEpisode;
+}
+
+interface TraktRawRatingEntry {
+  rated_at: string;
+  rating: number;
+  type: "movie" | "episode" | "show";
+  movie?: TraktRawMovie;
+  show?: TraktRawShow;
+  episode?: TraktRawEpisode;
+}
+
+interface TraktRawSearchResult {
+  movie?: { ids: TraktRawIds };
+  show?: { ids: TraktRawIds };
+}
+
+interface TraktRawComment {
+  id: number;
+  comment: string;
+  created_at: string;
+  spoiler?: boolean;
+  review?: boolean;
+  likes?: number;
+  user?: {
+    username?: string;
+    images?: { avatar?: { full?: string } };
+  };
+  language?: string;
+  user_rating?: number;
+}
+
+interface TraktRawUserSettings {
+  user?: { username?: string };
+}
+
+function normalizeIds(raw: TraktRawIds | undefined): TraktIds {
   return {
     trakt: raw?.trakt ?? 0,
     tmdb: raw?.tmdb ?? null,
@@ -68,15 +132,15 @@ function normalizeIds(
 
 export function describeTraktError(err: unknown): string {
   if (err instanceof TraktAuthError)
-    return "your Trakt connection has expired — reconnect in Settings.";
+    return "your Trakt connection has expired. Reconnect in Settings.";
   if (err instanceof TraktApiError) {
     if (err.status === 429)
-      return "Trakt is rate-limiting requests right now — try again in a moment.";
+      return "Trakt is rate-limiting requests right now. Try again in a moment.";
     if (err.status === 409) return "Trakt already has this.";
     if (err.status === 422)
       return "Trakt rejected the comment (check its length and content).";
     if (err.status !== null && err.status >= 500)
-      return "Trakt's servers are having trouble — try again shortly.";
+      return "Trakt's servers are having trouble. Try again shortly.";
     return err.message;
   }
   return err instanceof Error ? err.message : "an unknown error occurred.";
@@ -107,7 +171,7 @@ export class TraktService {
     page = 1,
     limit = 100,
   ): Promise<TraktHistoryItem[]> {
-    const raw = await this.http.request<any[]>(
+    const raw = await this.http.request<TraktRawHistoryEntry[]>(
       `/sync/history/${type}?page=${page}&limit=${limit}`,
     );
     return raw.map((r) => ({
@@ -141,7 +205,7 @@ export class TraktService {
   async getRatings(
     type: "movies" | "episodes" | "shows",
   ): Promise<TraktRatingItem[]> {
-    const raw = await this.http.request<any[]>(`/sync/ratings/${type}`);
+    const raw = await this.http.request<TraktRawRatingEntry[]>(`/sync/ratings/${type}`);
     return raw.map((r) => ({
       ratedAt: r.rated_at,
       rating: r.rating,
@@ -225,7 +289,7 @@ export class TraktService {
     kind: "movie" | "show",
   ): Promise<number | null> {
     return this.cached(`resolve:${kind}:${tmdbId}`, async () => {
-      const raw = await this.http.request<any[]>(
+      const raw = await this.http.request<TraktRawSearchResult[]>(
         `/search/tmdb/${tmdbId}?type=${kind}`,
         {
           authenticated: false,
@@ -237,7 +301,7 @@ export class TraktService {
     });
   }
 
-  private normalizeComments(raw: any[]): TraktComment[] {
+  private normalizeComments(raw: TraktRawComment[]): TraktComment[] {
     return raw.map((c) => ({
       id: c.id,
       comment: c.comment,
@@ -262,7 +326,7 @@ export class TraktService {
     return this.cached(`comments:movie:${tmdbId}`, async () => {
       const traktId = await this.resolveTraktId(tmdbId, "movie");
       if (traktId === null) return [];
-      const raw = await this.http.request<any[]>(
+      const raw = await this.http.request<TraktRawComment[]>(
         `/movies/${traktId}/comments/newest?extended=full`,
         {
           authenticated: false,
@@ -276,7 +340,7 @@ export class TraktService {
     return this.cached(`comments:show:${tmdbId}`, async () => {
       const traktId = await this.resolveTraktId(tmdbId, "show");
       if (traktId === null) return [];
-      const raw = await this.http.request<any[]>(
+      const raw = await this.http.request<TraktRawComment[]>(
         `/shows/${traktId}/comments/newest?extended=full`,
         {
           authenticated: false,
@@ -296,7 +360,7 @@ export class TraktService {
       async () => {
         const traktId = await this.resolveTraktId(showTmdbId, "show");
         if (traktId === null) return [];
-        const raw = await this.http.request<any[]>(
+        const raw = await this.http.request<TraktRawComment[]>(
           `/shows/${traktId}/seasons/${season}/episodes/${episode}/comments/newest?extended=full`,
           { authenticated: false },
         );
@@ -308,9 +372,10 @@ export class TraktService {
   async getCurrentUser(): Promise<{ username: string } | null> {
     return this.cached("me:settings", async () => {
       try {
-        const raw = await this.http.request<any>("/users/settings");
+        const raw =
+          await this.http.request<TraktRawUserSettings>("/users/settings");
         return raw?.user?.username
-          ? { username: raw.user.username as string }
+          ? { username: raw.user.username }
           : null;
       } catch {
         return null;
@@ -329,7 +394,7 @@ export class TraktService {
       body.show = { ids: { tmdb: target.tmdbId } };
     else body.episode = { ids: { tmdb: target.episodeTmdbId } };
 
-    const raw = await this.http.request<any>("/comments", {
+    const raw = await this.http.request<TraktRawComment>("/comments", {
       method: "POST",
       body,
     });
@@ -342,7 +407,7 @@ export class TraktService {
     text: string,
     spoiler = false,
   ): Promise<TraktComment> {
-    const raw = await this.http.request<any>(`/comments/${commentId}`, {
+    const raw = await this.http.request<TraktRawComment>(`/comments/${commentId}`, {
       method: "PUT",
       body: { comment: text, spoiler },
     });

@@ -7,7 +7,6 @@ export const SUPPORTED_LOCALES: { code: Locale; label: string }[] = [
 
 export const DEFAULT_LOCALE: Locale = "en";
 
-// Nested dictionary shape shared by every language pack.
 export type TranslationDict = { [key: string]: string | TranslationDict };
 
 export type TranslationParams = Record<string, string | number>;

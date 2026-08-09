@@ -1,4 +1,4 @@
-import { App, Modal, Notice, Menu } from "obsidian";
+import { App, Modal, Notice, Menu, setIcon } from "obsidian";
 import { renderInlineBackButton } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import type MediaVaultPlugin from "../../main";
@@ -132,7 +132,7 @@ export class ListDetailModal extends Modal {
         cls: "mediavault-list-detail-menu-btn clickable-icon",
         attr: { "aria-label": t("lists.listActions") },
       });
-      menuBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>`;
+      setIcon(menuBtn, "more-vertical");
       menuBtn.addEventListener("click", (evt) =>
         this.openListMenu(evt, titleEl, descEl),
       );
@@ -175,25 +175,8 @@ export class ListDetailModal extends Modal {
         sortSelect.createEl("option", { value: opt.value, text: opt.label }),
       );
       sortSelect.value = this.list.sortMode;
-      sortSelect.addEventListener("change", async () => {
-        const mode = sortSelect.value as ListSortMode;
-        if (this.list.isSystem) {
-          const key =
-            this.list.id === SYSTEM_FAVORITE_MOVIES_ID ? "movies" : "tv";
-          await this.storage.settings.update({
-            favoriteListSortModes: {
-              ...this.storage.settings.get().favoriteListSortModes,
-              [key]: mode,
-            },
-          });
-        } else {
-          const updated = await this.storage.customLists.update(this.list.id, {
-            sortMode: mode,
-          });
-          if (updated) this.list = updated;
-        }
-        this.notifyChanged();
-        await this.render();
+      sortSelect.addEventListener("change", () => {
+        void this.handleSortChange(sortSelect.value as ListSortMode);
       });
     }
 
@@ -249,6 +232,30 @@ export class ListDetailModal extends Modal {
     renderBatch();
   }
 
+  private async handleSortChange(mode: ListSortMode): Promise<void> {
+    if (this.list.isSystem) {
+      const key = this.list.id === SYSTEM_FAVORITE_MOVIES_ID ? "movies" : "tv";
+
+      await this.storage.settings.update({
+        favoriteListSortModes: {
+          ...this.storage.settings.get().favoriteListSortModes,
+          [key]: mode,
+        },
+      });
+    } else {
+      const updated = await this.storage.customLists.update(this.list.id, {
+        sortMode: mode,
+      });
+
+      if (updated) {
+        this.list = updated;
+      }
+    }
+
+    this.notifyChanged();
+    await this.render();
+  }
+
   private openListMenu(
     evt: MouseEvent,
     titleEl: HTMLElement,
@@ -292,17 +299,15 @@ export class ListDetailModal extends Modal {
   }
 
   private enterEditMode(titleEl: HTMLElement, descEl: HTMLElement): void {
-    const header = titleEl.closest(
-      ".mediavault-list-detail-header",
-    ) as HTMLElement | null;
+    const header = titleEl.closest(".mediavault-list-detail-header");
 
-    const titleInput = document.createElement("input");
+    const titleInput = createEl("input");
     titleInput.type = "text";
     titleInput.value = this.list.title;
     titleInput.className = "mediavault-list-title-input";
     titleEl.replaceWith(titleInput);
 
-    const descInput = document.createElement("textarea");
+    const descInput = createEl("textarea");
     descInput.className = "mediavault-list-description-input";
     descInput.value = this.list.description ?? "";
     descInput.placeholder = t("lists.descPlaceholder");
@@ -311,23 +316,6 @@ export class ListDetailModal extends Modal {
     titleInput.focus();
     titleInput.select();
 
-    // Root cause of the original bug: each field used to save-and-fully-
-    // re-render on its own `blur`. A full re-render tears down and rebuilds
-    // the header's DOM — including whichever input the user had just
-    // clicked/tapped into — so moving focus from the title straight into
-    // the description (a completely ordinary focus change *within* edit
-    // mode) made edit mode appear to close the instant the description was
-    // touched, because the re-render triggered by the title's blur
-    // destroyed the description input before it could ever receive focus.
-    //
-    // The fix is to only exit edit mode (save + re-render) when focus
-    // actually leaves the whole edit UI — not on every individual field's
-    // blur. `focusout` bubbles and exposes `relatedTarget` (the element
-    // gaining focus), so a single shared handler on both fields can tell
-    // "moved to the other field in edit mode" (relatedTarget is inside
-    // `header`) apart from "left edit mode entirely" (it isn't) and
-    // preserve the existing outside-click-closes-edit-mode behavior for
-    // the latter case only.
     let exited = false;
     const exitEditMode = async (): Promise<void> => {
       if (exited) return;
@@ -350,15 +338,11 @@ export class ListDetailModal extends Modal {
     const handleFocusOut = (evt: FocusEvent): void => {
       const next = evt.relatedTarget as Node | null;
       if (next) {
-        if (header?.contains(next)) return; // moved within edit UI — stay
+        if (header?.contains(next)) return;
         void exitEditMode();
         return;
       }
-      // Some mobile WebViews don't reliably populate `relatedTarget` for
-      // touch-initiated focus changes. Fall back to checking where focus
-      // actually landed on the next tick instead of assuming it left the
-      // header — this keeps the same "click outside closes, click between
-      // fields doesn't" behavior on iOS/Android touch as on desktop mouse.
+
       window.setTimeout(() => {
         if (header && header.contains(document.activeElement)) return;
         void exitEditMode();
@@ -380,15 +364,23 @@ export class ListDetailModal extends Modal {
       new Notice(t("lists.everyItemAlreadyInList"));
       return;
     }
-    new SelectMediaModal(this.app, candidates, async (media) => {
-      const updated = await this.storage.customLists.addMedia(
-        this.list.id,
-        media.id,
-      );
-      if (updated) this.list = updated;
-      this.notifyChanged();
-      await this.render();
+    new SelectMediaModal(this.app, candidates, (media) => {
+      void this.handleAddMedia(media);
     }).open();
+  }
+
+  private async handleAddMedia(media: MediaItem): Promise<void> {
+    const updated = await this.storage.customLists.addMedia(
+      this.list.id,
+      media.id,
+    );
+
+    if (updated) {
+      this.list = updated;
+    }
+
+    this.notifyChanged();
+    await this.render();
   }
 
   private async duplicateList(): Promise<void> {
@@ -443,11 +435,6 @@ export class ListDetailModal extends Modal {
     const useNativeDnd = isManual && !isAndroidDevice();
     const useTouchDrag = isManual && isAndroidDevice();
     card.setAttr("draggable", useNativeDnd ? "true" : "false");
-    // Two distinct classes, not one shared "is-draggable" — the two paths
-    // use fundamentally different gesture mechanisms (native HTML5 DnD vs.
-    // JS-driven pointer capture) and need different touch-action handling;
-    // a single shared class previously coupled Android's CSS needs to iOS
-    // and vice versa (see styles.css).
     card.toggleClass("is-draggable", useNativeDnd);
     card.toggleClass("is-touch-draggable", useTouchDrag);
 
@@ -458,12 +445,14 @@ export class ListDetailModal extends Modal {
       });
       card.addEventListener("dragend", () => card.removeClass("is-dragging"));
       card.addEventListener("dragover", (evt) => evt.preventDefault());
-      card.addEventListener("drop", async (evt) => {
+      card.addEventListener("drop", (evt) => {
         evt.preventDefault();
+
         if (!this.dragMediaId) return;
+
         const fromId = this.dragMediaId;
         this.dragMediaId = null;
-        await this.reorderListManually(orderedMedia, fromId, media.id);
+        void this.reorderListManually(orderedMedia, fromId, media.id);
       });
     } else if (useTouchDrag) {
       this.setupAndroidManualDrag(card, grid, media, orderedMedia);
@@ -476,7 +465,7 @@ export class ListDetailModal extends Modal {
       renderProgressOverlay(poster, percent, media.status);
     });
 
-    let removeBtn: HTMLElement | null = null;
+    const removeBtn: HTMLElement | null = null;
 
     card.addEventListener("click", (evt) => {
       if (evt.target === removeBtn) return;
@@ -534,7 +523,6 @@ export class ListDetailModal extends Modal {
       }
       if (dragging) {
         card.removeClass("is-dragging");
-        card.style.touchAction = "";
         card.dataset.justDragged = "1";
       }
       dragging = false;
@@ -599,17 +587,14 @@ export class ListDetailModal extends Modal {
           await this.reorderListManually(orderedMedia, media.id, targetId);
         }
       };
-      card.addEventListener(
-        "pointerup",
-        (upEvt) => void finish(upEvt as PointerEvent),
-        { signal },
-      );
+      card.addEventListener("pointerup", (upEvt) => void finish(upEvt), {
+        signal,
+      });
       card.addEventListener("pointercancel", () => endSession(), { signal });
       card.addEventListener("lostpointercapture", () => endSession(), {
         signal,
       });
-      // Android's native long-press (context menu / callout) can otherwise
-      // fire mid-gesture and steal the touch before LONG_PRESS_MS elapses.
+
       card.addEventListener("contextmenu", (evt) => evt.preventDefault(), {
         signal,
       });
@@ -619,7 +604,6 @@ export class ListDetailModal extends Modal {
         if (activePointerId !== pointerId) return;
         dragging = true;
         card.addClass("is-dragging");
-        card.style.touchAction = "none";
         try {
           card.setPointerCapture(pointerId);
         } catch {

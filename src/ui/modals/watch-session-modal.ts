@@ -64,14 +64,16 @@ export class WatchSessionModal extends Modal {
       });
     }
 
-    new Setting(contentEl).setName(t("watchSession.watchDate")).addText((text) =>
-      text
-        .setValue(this.watchDate)
-        .onChange((value) => {
-          this.watchDate = value;
-        })
-        .inputEl.setAttribute("type", "date"),
-    );
+    new Setting(contentEl)
+      .setName(t("watchSession.watchDate"))
+      .addText((text) =>
+        text
+          .setValue(this.watchDate)
+          .onChange((value) => {
+            this.watchDate = value;
+          })
+          .inputEl.setAttribute("type", "date"),
+      );
 
     new Setting(contentEl).setName(t("watchSession.rating")).addText((text) =>
       text
@@ -83,32 +85,34 @@ export class WatchSessionModal extends Modal {
         }),
     );
 
-    new Setting(contentEl).setName(t("watchSession.mood")).addDropdown((dropdown) => {
-      dropdown.addOption("", "—");
-      Object.values(Mood).forEach((m) =>
-        dropdown.addOption(m, m[0].toUpperCase() + m.slice(1)),
-      );
-      dropdown.setValue(this.mood ?? "");
-      dropdown.onChange((value) => {
-        this.mood = (value as Mood) || null;
+    new Setting(contentEl)
+      .setName(t("watchSession.mood"))
+      .addDropdown((dropdown) => {
+        dropdown.addOption("", "—");
+        Object.values(Mood).forEach((m) => {
+          dropdown.addOption(m, m.charAt(0).toUpperCase() + m.slice(1));
+        });
+        dropdown.setValue(this.mood ?? "");
+        dropdown.onChange((value) => {
+          this.mood = (value as Mood) || null;
+        });
       });
-    });
 
     new Setting(contentEl)
       .setName(t("watchSession.watchSource"))
       .addDropdown((dropdown) => {
-      dropdown.addOption("", "—");
-      Object.values(WatchSource).forEach((s) =>
-        dropdown.addOption(
-          s,
-          s.replace("_", " ").replace(/^./, (c) => c.toUpperCase()),
-        ),
-      );
-      dropdown.setValue(this.watchSource ?? "");
-      dropdown.onChange((value) => {
-        this.watchSource = (value as WatchSource) || null;
+        dropdown.addOption("", "—");
+        Object.values(WatchSource).forEach((s) => {
+          dropdown.addOption(
+            s,
+            s.replace("_", " ").replace(/^./, (c) => c.toUpperCase()),
+          );
+        });
+        dropdown.setValue(this.watchSource ?? "");
+        dropdown.onChange((value) => {
+          this.watchSource = (value as WatchSource) || null;
+        });
       });
-    });
 
     new Setting(contentEl)
       .setName(t("watchSession.context"))
@@ -119,23 +123,29 @@ export class WatchSessionModal extends Modal {
         }),
       );
 
-    new Setting(contentEl).setName(t("watchSession.review")).addTextArea((textarea) => {
-      textarea.setValue(this.review).onChange((value) => {
-        this.review = value;
+    new Setting(contentEl)
+      .setName(t("watchSession.review"))
+      .addTextArea((textarea) => {
+        textarea.setValue(this.review).onChange((value) => {
+          this.review = value;
+        });
+        textarea.inputEl.rows = 6;
+        textarea.inputEl.addClass("mediavault-review-textarea");
       });
-      textarea.inputEl.rows = 6;
-      textarea.inputEl.addClass("mediavault-review-textarea");
-    });
 
     const buttonRow = contentEl.createDiv({ cls: "mediavault-modal-buttons" });
 
     const saveBtn = buttonRow.createEl("button", {
-      text: isEdit ? t("watchSession.saveChanges") : t("watchSession.logWatchBtn"),
+      text: isEdit
+        ? t("watchSession.saveChanges")
+        : t("watchSession.logWatchBtn"),
       cls: "mod-cta",
     });
     saveBtn.addEventListener("click", () => void this.save());
 
-    const cancelBtn = buttonRow.createEl("button", { text: t("common.cancel") });
+    const cancelBtn = buttonRow.createEl("button", {
+      text: t("common.cancel"),
+    });
     cancelBtn.addEventListener("click", () => this.close());
   }
 

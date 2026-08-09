@@ -43,12 +43,6 @@ export interface ZipFileResult {
   detection: DetectionResult;
   rowCount: number;
   unsupported: boolean;
-  /**
-   * Extra human-readable diagnostic lines shown under this file's row in
-   * the preview (currently only populated for `lists-prod-lists.csv`,
-   * whose single `rowCount` number hides the collection/item-row/list-item
-   * breakdown that's most useful for debugging a new GDPR export).
-   */
   diagnosticLines?: string[];
 }
 
@@ -78,31 +72,31 @@ const KNOWN_NON_IMPORTABLE = new Set([
 
 const NON_IMPORTABLE_REASONS: Record<string, string> = {
   "comment_translation.csv":
-    "Machine-translated copies of comments already imported from their source file — ignored to avoid duplicates.",
+    "Machine-translated copies of comments already imported from their source file, ignored to avoid duplicates.",
   "tracking-deployment-prod-tracks.csv":
-    "App deployment/version tracking, not user watch activity — ignored.",
+    "App deployment/version tracking, not user watch activity: ignored.",
   "tracking-prod-count-by-timeframe.csv":
-    "Pre-aggregated stat counters TV Time computed for its own UI — MediaVault derives the same stats live from imported watch history, so this is ignored.",
+    "Pre-aggregated stat counters TV Time computed for its own UI: MediaVault derives the same stats live from imported watch history, so this is ignored.",
   "recommendations-prod-user-scores.csv":
-    "TV Time's internal recommendation-engine scores — not user activity, ignored.",
+    "TV Time's internal recommendation-engine scores: not user activity, ignored.",
   "recommendations-prod-user-shows.csv":
-    "TV Time's internal recommendation-engine inputs — not user activity, ignored.",
+    "TV Time's internal recommendation-engine inputs: not user activity, ignored.",
   "episode_comment_like.csv":
-    "Likes on other users' comments — no corresponding concept in MediaVault, ignored.",
+    "Likes on other users' comments: no corresponding concept in MediaVault, ignored.",
   "followed_tv_show_source.csv":
-    "Attribution for how a follow happened (search, notification, etc.) — the follow itself is read from followed_tv_show.csv; this file adds no importable data.",
+    "Attribution for how a follow happened (search, notification, etc.). The follow itself is read from followed_tv_show.csv; this file adds no importable data.",
   "show_character_episode_vote.csv":
-    "Character popularity votes — no corresponding concept in MediaVault, ignored.",
+    "Character popularity votes: no corresponding concept in MediaVault, ignored.",
   "emotions-3-prod-episode_votes.csv":
-    "Emotion reactions on episodes — no corresponding concept in MediaVault, ignored.",
+    "Emotion reactions on episodes: no corresponding concept in MediaVault, ignored.",
   "emotions-live-votes.csv":
-    "Emotion reactions on movies — no corresponding concept in MediaVault, ignored.",
+    "Emotion reactions on movies: no corresponding concept in MediaVault, ignored.",
   "emotions-v2-prod-votes.csv":
-    "Emotion reactions — no corresponding concept in MediaVault, ignored.",
+    "Emotion reactions: no corresponding concept in MediaVault, ignored.",
   "episode_emotion.csv":
-    "Emotion reactions on episodes — no corresponding concept in MediaVault, ignored.",
+    "Emotion reactions on episodes: no corresponding concept in MediaVault, ignored.",
   "users-customization-prod-data.csv":
-    "TV Time app theme/UI preferences — not importable data, ignored.",
+    "TV Time app theme/UI preferences: not importable data, ignored.",
 };
 
 const GDPR_RELATIONAL_FILES = new Set([
@@ -147,7 +141,7 @@ export async function runZipImport(
     zip = await timer.time("ZIP extraction", () => JSZip.loadAsync(zipData));
   } catch (err) {
     throw new Error(
-      `Couldn't open this ZIP file — it may be corrupted. (${(err as Error).message})`,
+      `Couldn't open this ZIP file, it may be corrupted. (${(err as Error).message})`,
     );
   }
 
@@ -173,7 +167,7 @@ export async function runZipImport(
           category: "unknown",
           label:
             NON_IMPORTABLE_REASONS[name.toLowerCase()] ??
-            "Not user activity data — ignored.",
+            "Not user activity data, ignored.",
         },
         rowCount: 0,
         unsupported: true,

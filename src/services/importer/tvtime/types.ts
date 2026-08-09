@@ -75,14 +75,6 @@ export interface FavoriteImport {
   match?: MatchMetadata;
 }
 
-/**
- * A media item that TV Time's export marked `is_archived` on at least one
- * of its tracking rows — TV Time's closest equivalent to MediaVault's
- * "Dropped" status. Deliberately its own import category (like
- * `FavoriteImport`) rather than a flag on `WatchImport`: dropped-ness is a
- * property of the *media item*, aggregated across every tracking row that
- * references it, not of any single watch event.
- */
 export interface DroppedImport {
   kind: ImportMediaKind;
   ids: ExternalIds;
@@ -105,12 +97,6 @@ export interface ListImport {
   name: string;
   description: string | null;
   items: ListImportItem[];
-  /**
-   * Stable identity for this list, independent of the (mutable, possibly
-   * duplicated) display `name`. Used to match a list across re-imports so
-   * distinct lists never collapse into one, and so the same list updates
-   * in place instead of duplicating on re-import.
-   */
   sourceKey: string;
 
   createdAt?: string | null;
@@ -119,31 +105,17 @@ export interface ListImport {
   posterUrl?: string | null;
   bannerUrl?: string | null;
 
-  /**
-   * Non-null when this list is one of TV Time's built-in favorite lists
-   * (`favorite-movies` / `favorite-series`). These map onto MediaVault's
-   * own built-in Favorite Movies / Favorite TV Series lists rather than
-   * becoming a new custom list.
-   */
   builtIn?: ListBuiltInKind;
 }
 
 export interface ListImportDiagnostics {
-  /** Number of list-metadata entries found in the `collection` row. */
   listsDiscovered: number;
-  /** `s_key`s from `collection` metadata with no matching item row. */
   unmatchedSKeys: string[];
-  /** Number of item rows (excluding `collection`/`count`) found in the file. */
   listItemRows: number;
-  /** Of the discovered lists, how many resolved to a built-in favorites list. */
   builtInListsDiscovered: number;
-  /** Of the discovered lists, how many resolved to a custom list. */
   customListsDiscovered: number;
-  /** Total raw list items parsed across every item row, before match resolution. */
   totalListItemsParsed: number;
-  /** Movie item UUIDs that had no title/year match in the GDPR movie datasets. */
   unresolvedMovieUuids: string[];
-  /** Per-list item resolution breakdown, for detailed debugging output. */
   perList: {
     name: string;
     items: number;
@@ -166,11 +138,8 @@ export function emptyListImportDiagnostics(): ListImportDiagnostics {
 }
 
 export interface DroppedImportDiagnostics {
-  /** Raw tracking rows where `is_archived` was truthy (before dedup). */
   archivedRowsFound: number;
-  /** Distinct dropped movies, after aggregating rows by media identity. */
   droppedMovies: number;
-  /** Distinct dropped TV series, after aggregating rows by media identity. */
   droppedSeries: number;
 }
 
@@ -236,8 +205,10 @@ export function mergeBundles(
     result.listDiagnostics.perList.push(...b.listDiagnostics.perList);
     result.droppedDiagnostics.archivedRowsFound +=
       b.droppedDiagnostics.archivedRowsFound;
-    result.droppedDiagnostics.droppedMovies += b.droppedDiagnostics.droppedMovies;
-    result.droppedDiagnostics.droppedSeries += b.droppedDiagnostics.droppedSeries;
+    result.droppedDiagnostics.droppedMovies +=
+      b.droppedDiagnostics.droppedMovies;
+    result.droppedDiagnostics.droppedSeries +=
+      b.droppedDiagnostics.droppedSeries;
   }
   return result;
 }

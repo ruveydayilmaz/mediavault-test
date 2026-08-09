@@ -5,7 +5,7 @@ export function makeClearable(
   input: HTMLInputElement | HTMLTextAreaElement,
 ): HTMLElement {
   const parent = input.parentElement;
-  const wrapper = document.createElement("div");
+  const wrapper = createDiv();
   wrapper.className = input.className;
   wrapper.addClass("mediavault-clearable-wrap");
   if (input.tagName === "TEXTAREA") {

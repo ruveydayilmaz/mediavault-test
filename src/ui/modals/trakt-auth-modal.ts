@@ -7,7 +7,7 @@ import { t } from "../../i18n";
 export class TraktAuthModal extends Modal {
   private storage: StorageService;
   private onConnected?: () => void;
-  private pollTimer: ReturnType<typeof setTimeout> | null = null;
+  private pollTimer: number | null = null;
   private cancelled = false;
 
   constructor(app: App, storage: StorageService, onConnected?: () => void) {
@@ -48,7 +48,7 @@ export class TraktAuthModal extends Modal {
       link.setAttr("target", "_blank");
       statusEl.createEl("p", { text: t("settings.enterThisCode") });
       const codeRow = statusEl.createDiv({ cls: "mediavault-trakt-code-row" });
-      codeRow.createEl("div", {
+      codeRow.createDiv({
         text: device.userCode,
         cls: "mediavault-trakt-code",
       });
@@ -57,21 +57,8 @@ export class TraktAuthModal extends Modal {
       });
       setIcon(copyBtn, "copy");
       copyBtn.setAttr("aria-label", t("settings.copyCode"));
-      copyBtn.addEventListener("click", async () => {
-        if (!navigator.clipboard?.writeText) {
-          new Notice(
-            t("settings.errorPrefix", { error: t("settings.copyCode") }),
-          );
-          return;
-        }
-        try {
-          await navigator.clipboard.writeText(device.userCode);
-          new Notice(t("settings.codeCopied"));
-        } catch {
-          new Notice(
-            t("settings.errorPrefix", { error: t("settings.copyCode") }),
-          );
-        }
+      copyBtn.addEventListener("click", () => {
+        void this.copyDeviceCode(device.userCode);
       });
       statusEl.createEl("p", {
         text: t("settings.waitingForApproval"),
@@ -88,6 +75,20 @@ export class TraktAuthModal extends Modal {
       statusEl.setText(
         t("settings.failedToStartAuth", { error: (err as Error).message }),
       );
+    }
+  }
+
+  private async copyDeviceCode(userCode: string): Promise<void> {
+    if (!navigator.clipboard?.writeText) {
+      new Notice(t("settings.errorPrefix", { error: t("settings.copyCode") }));
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(userCode);
+      new Notice(t("settings.codeCopied"));
+    } catch {
+      new Notice(t("settings.errorPrefix", { error: t("settings.copyCode") }));
     }
   }
 
@@ -117,7 +118,9 @@ export class TraktAuthModal extends Modal {
         );
 
         if (result.status === "pending") {
-          this.pollTimer = setTimeout(poll, device.interval * 1000);
+          this.pollTimer = window.setTimeout(() => {
+            void poll();
+          }, device.interval * 1000);
           return;
         }
 
@@ -162,7 +165,7 @@ export class TraktAuthModal extends Modal {
 
   onClose(): void {
     this.cancelled = true;
-    if (this.pollTimer) clearTimeout(this.pollTimer);
+    if (this.pollTimer) window.clearTimeout(this.pollTimer);
     this.contentEl.empty();
   }
 }

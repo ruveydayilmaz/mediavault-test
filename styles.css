@@ -61,7 +61,7 @@
   font-size: 0.9em;
 }
 
-/* --- Library dashboard --- */
+/* Library dashboard */
 
 .mediavault-library-root {
   display: flex;
@@ -307,7 +307,8 @@
   background: var(--background-modifier-hover);
 }
 
-/* --- Media detail modal --- */
+/* Media detail modal */
+/* !important is required here */
 .modal.mediavault-modal-shell .modal-header,
 .modal.mediavault-modal-shell .modal-header-button {
   display: none !important;
@@ -1074,7 +1075,7 @@
   padding: 2px 8px;
 }
 
-/* --- Episode tracker --- */
+/* Episode tracker */
 .mediavault-episode-summary {
   margin: 8px 0 16px;
 }
@@ -1191,6 +1192,10 @@
   padding-left: 22px;
 }
 
+.mediavault-season-episodes.is-hidden {
+  display: none;
+}
+
 .mediavault-episode-row {
   display: flex;
   align-items: center;
@@ -1259,7 +1264,7 @@
   margin-bottom: 10px;
 }
 
-/* --- Import modal --- */
+/* Import modal */
 .mediavault-import-hint {
   color: var(--text-muted);
   font-size: 0.9em;
@@ -1324,7 +1329,7 @@
   margin-top: 10px;
 }
 
-/* --- Trakt auth modal --- */
+/* Trakt auth modal */
 .mediavault-trakt-auth-modal {
   text-align: center;
 }
@@ -1359,7 +1364,7 @@
   color: var(--text-error, #e05252);
 }
 
-/* --- Analytics summary modal --- */
+/* Analytics summary modal */
 
 .mediavault-analytics-headline {
   font-size: 1.3em;
@@ -1442,7 +1447,7 @@
   color: var(--text-muted);
 }
 
-/* --- Analytics dashboard --- */
+/* Analytics dashboard */
 .mediavault-analytics-view {
   padding: 16px;
   overflow-y: auto;
@@ -1559,7 +1564,7 @@
   background: var(--interactive-accent);
 }
 
-/* --- Comfort profile editor --- */
+/* Comfort profile editor */
 .mediavault-comfort-slider-value {
   min-width: 24px;
   text-align: center;
@@ -1610,7 +1615,7 @@ body.mediavault-android .mediavault-comfort-flags .setting-item {
   border-color: var(--interactive-accent);
 }
 
-/* --- Comfort Finder --- */
+/* Comfort Finder */
 .mediavault-comfort-finder-empty,
 .mediavault-comfort-no-results {
   color: var(--text-muted);
@@ -1710,7 +1715,7 @@ body.mediavault-android .mediavault-comfort-flags .setting-item {
   color: var(--text-muted);
 }
 
-/* --- Recommendations modal --- */
+/* Recommendations modal */
 .mediavault-rec-loading,
 .mediavault-rec-empty {
   color: var(--text-muted);
@@ -1731,7 +1736,7 @@ body.mediavault-android .mediavault-comfort-flags .setting-item {
   position: relative;
 }
 
-/* --- Virtual list --- */
+/* Virtual list */
 .mediavault-virtual-viewport {
   height: 100%;
   overflow-y: auto;
@@ -1760,7 +1765,7 @@ body.mediavault-android .mediavault-comfort-flags .setting-item {
   margin-left: 4px;
 }
 
-/* --- Import modal --- */
+/* Import modal */
 .mediavault-import-detection {
   margin: 10px 0;
   padding: 10px;
@@ -1864,7 +1869,7 @@ body.mediavault-android .mediavault-comfort-flags .setting-item {
   padding: 2px 0;
 }
 
-/* --- Media detail --- */
+/* Media detail */
 .mediavault-detail-title-row {
   display: flex;
   align-items: center;
@@ -1875,7 +1880,7 @@ body.mediavault-android .mediavault-comfort-flags .setting-item {
   margin: 0;
 }
 
-/* --- Import progress indicator --- */
+/* Import progress indicator */
 .mediavault-import-progress-track {
   width: 100%;
   height: 10px;
@@ -2155,13 +2160,13 @@ body.mediavault-android .mediavault-comfort-flags .setting-item {
   color: var(--interactive-accent);
 }
 
-.mediavault-lists-carousel-container {
-  /* margin: 0 24px; */
+/* .mediavault-lists-carousel-container {
+  margin: 0 24px;
 }
 
 .mediavault-carousel-mobile.mediavault-lists-carousel-container {
-  /* margin: 0 4px; */
-}
+  margin: 0 4px;
+} */
 
 .mediavault-lists-track {
   scroll-snap-type: x mandatory;
@@ -2298,7 +2303,7 @@ body.mediavault-android .mediavault-comfort-flags .setting-item {
   white-space: nowrap;
 }
 
-/* --- Progress Tabs --- */
+/* Progress Tabs */
 .mediavault-tabs-container {
   margin-bottom: 4px;
 }
@@ -2334,7 +2339,7 @@ body.mediavault-android .mediavault-comfort-flags .setting-item {
   font-weight: 600;
 }
 
-/* --- Media Detail Tabs --- */
+/* Media Detail Tabs */
 .mediavault-detail-tabs {
   display: flex;
   flex-shrink: 0;
@@ -2376,7 +2381,7 @@ body.mediavault-android .mediavault-comfort-flags .setting-item {
   color: var(--text-muted);
 }
 
-/* --- Clearable text inputs --- */
+/* Clearable text inputs */
 .mediavault-clearable-wrap {
   position: relative;
   display: flex;
@@ -2431,7 +2436,7 @@ body.mediavault-android .mediavault-comfort-flags .setting-item {
   display: flex;
 }
 
-/* --- Universal Filtering panel --- */
+/* Universal Filtering panel */
 .mediavault-filters-toggle.is-active {
   color: var(--interactive-accent);
   position: relative;
@@ -2862,11 +2867,6 @@ body.mediavault-android .mediavault-filter-panel select {
   margin: 8px 0 16px 0;
 }
 
-/* Modal cards render much wider than Lists-page grid columns (single
-   column at typical modal width), which stretched the 16:9 banner tall
-   enough to push the title far from the visible fold. Cap the banner
-   height here so the title stays clearly readable, matching how it
-   reads on the Lists page. */
 .mediavault-add-to-list-options.mediavault-lists-grid {
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 10px;
@@ -2902,7 +2902,7 @@ body.mediavault-android .mediavault-filter-panel select {
   padding: 20px 24px 24px;
 }
 
-/* --- Header --- */
+/* Header */
 .mediavault-list-detail-header {
   display: flex;
   flex-direction: column;
@@ -3067,7 +3067,7 @@ body.mediavault-android .mediavault-filter-panel select {
   margin: 12px auto;
 }
 
-/* --- Cards --- */
+/* Cards */
 .mediavault-list-detail-card {
   position: relative;
   cursor: pointer;
@@ -3085,14 +3085,6 @@ body.mediavault-android .mediavault-filter-panel select {
 
 .mediavault-list-detail-card.is-touch-draggable {
   cursor: grab;
-  /* Unlike the native-DnD (iOS) path above, this path drives dragging
-     entirely from JS pointer events. `touch-action: pan-y` here would let
-     the browser treat the very first bit of finger jitter as a native
-     vertical scroll and fire `pointercancel`, killing the long-press
-     before it can complete — so this needs `none`, sampled at touch
-     start, not toggled later at drag-start (too late for the gesture
-     already in progress). Scrolling this list on touch still works by
-     starting the swipe off a card (grid padding, header, etc.). */
   touch-action: none;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
@@ -3101,6 +3093,7 @@ body.mediavault-android .mediavault-filter-panel select {
 
 .mediavault-list-detail-card.is-dragging {
   opacity: 0.4;
+  touch-action: none;
 }
 
 .mediavault-list-detail-card.is-drop-target {
@@ -3133,7 +3126,7 @@ body.mediavault-android .mediavault-filter-panel select {
   white-space: nowrap;
 }
 
-/* --- Responsive --- */
+/* Responsive */
 @media (max-width: 600px) {
   .mediavault-list-detail-modal {
     padding: 14px 16px 18px;
@@ -3978,9 +3971,6 @@ body.mediavault-android .mediavault-explore-filter-bar select {
   min-width: 0;
 }
 
-/* Standalone inputs/selects on their own filter row take full width on mobile;
-   paired inputs (Min/Max, From/To) stay side by side inside their group.
-   The genre carousel and the Favorites checkbox row keep their own layout. */
 .is-phone
   .mediavault-filter-row:not(.mediavault-filter-sort-size-row):not(
     .mediavault-filter-genre-row
@@ -4200,33 +4190,6 @@ body.mediavault-android .mediavault-detail-menu-btn {
   flex-direction: column;
 }
 
-/*
- * Desktop-only fix for the media detail modal's back/menu buttons
- * (`.mediavault-modal-back`, `.mediavault-detail-menu-btn`) rendering
- * outside the modal.
- *
- * Root cause: those buttons use `position: fixed`, whose containing block
- * is normally the viewport. On mobile this was never visible as a bug
- * because the rule above makes `.modal` itself fill the viewport
- * (`inset: 0; width: 100vw; height: 100vh`) — a viewport-relative fixed
- * position and a modal-relative one are the same rect there, so it *looked*
- * modal-relative by coincidence. On desktop the modal is centered and
- * narrower than the viewport, so the same viewport-relative fixed position
- * lands outside the modal's actual box whenever the modal isn't centered
- * exactly where the fixed offsets assume.
- *
- * Fix: give the modal itself a `transform`, which per spec makes it the
- * containing block for any `position: fixed` descendant (instead of the
- * viewport) — without changing anything about how Obsidian centers/sizes
- * the modal, since `translateZ(0)` doesn't move it. The buttons stay
- * `position: fixed` (so they don't need to be pulled out of the scrolling
- * `.modal-content`), but now resolve their offsets against the modal's own
- * box, and they don't scroll with `.modal-content`'s internal scrolling
- * either — a fixed-position descendant never moves with an ancestor's
- * scroll regardless of which element is its containing block. Scoped to
- * `:not(.is-phone)` so mobile — which already has the right on-screen
- * result — is untouched.
- */
 body:not(.is-phone)
   .modal:has(
     > .modal-content > .mediavault-detail-menu-btn,

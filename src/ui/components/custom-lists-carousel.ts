@@ -64,7 +64,7 @@ function buildListTile(
   allMedia: MediaItem[],
   onOpenList: (list: CustomList) => void,
 ): HTMLElement {
-  const card = document.createElement("div");
+  const card = createDiv();
   card.addClass("mediavault-list-tile");
   card.onclick = () => onOpenList(list);
 

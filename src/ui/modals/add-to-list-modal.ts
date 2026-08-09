@@ -1,5 +1,6 @@
 import { App, Modal, Notice } from "obsidian";
 import { renderModalHeader } from "./modal-chrome";
+import { confirmDialog } from "./confirm-modal";
 import type { StorageService } from "../../services/storage";
 import { MediaItem } from "../../models/media";
 import { t } from "../../i18n";
@@ -27,16 +28,25 @@ export class AddToListModal extends Modal {
     void this.render();
   }
 
+  private async createAndAddList(input: HTMLInputElement): Promise<void> {
+    const title = input.value.trim();
+
+    if (!title) {
+      new Notice(t("notice.enterListName"));
+      return;
+    }
+
+    const list = await this.storage.customLists.create({ title });
+    await this.storage.customLists.addMedia(list.id, this.media.id);
+    this.onChanged?.();
+    await this.render();
+  }
+
   private async render(): Promise<void> {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("mediavault-add-to-list-modal");
-    renderModalHeader(
-      this,
-      contentEl,
-      t("addToList.addToListTitle"),
-      "h3",
-    );
+    renderModalHeader(this, contentEl, t("addToList.addToListTitle"), "h3");
 
     const [lists, allMedia] = await Promise.all([
       this.storage.customLists.getAll(),
@@ -60,41 +70,44 @@ export class AddToListModal extends Modal {
         list,
         allMedia,
         (cardEl) => {
-          const isSelected = cardEl.hasClass("is-selected");
+          void (async () => {
+            const isSelected = cardEl.hasClass("is-selected");
 
-          if (isSelected) {
-            const confirmed = confirm(
-              t("addToList.removeConfirm", {
-                title: this.media.title,
-                list: list.title,
-              }),
-            );
-            if (!confirmed) return;
+            if (isSelected) {
+              const confirmed = await confirmDialog(
+                this.app,
+                t("addToList.removeConfirm", {
+                  title: this.media.title,
+                  list: list.title,
+                }),
+              );
+              if (!confirmed) return;
+              void this.storage.customLists
+                .removeMedia(list.id, this.media.id)
+                .then((updated) => {
+                  this.onChanged?.();
+                  cardEl.removeClass("is-selected");
+                  if (updated) {
+                    updateListCardBanner(cardEl, updated, allMedia);
+                  }
+                });
+              return;
+            }
+
             void this.storage.customLists
-              .removeMedia(list.id, this.media.id)
+              .addMedia(list.id, this.media.id)
               .then((updated) => {
                 this.onChanged?.();
-                cardEl.removeClass("is-selected");
+                cardEl.addClass("is-selected");
+                cardEl.addClass("is-added-flash");
+                window.setTimeout(() => {
+                  cardEl.removeClass("is-added-flash");
+                }, 900);
                 if (updated) {
                   updateListCardBanner(cardEl, updated, allMedia);
                 }
               });
-            return;
-          }
-
-          void this.storage.customLists
-            .addMedia(list.id, this.media.id)
-            .then((updated) => {
-              this.onChanged?.();
-              cardEl.addClass("is-selected");
-              cardEl.addClass("is-added-flash");
-              window.setTimeout(() => {
-                cardEl.removeClass("is-added-flash");
-              }, 900);
-              if (updated) {
-                updateListCardBanner(cardEl, updated, allMedia);
-              }
-            });
+          })();
         },
         { selected: alreadyIn },
       );
@@ -112,17 +125,8 @@ export class AddToListModal extends Modal {
       text: t("addToList.createAndAdd"),
       cls: "mod-cta",
     });
-    createBtn.addEventListener("click", async () => {
-      const title = newListInput.value.trim();
-      if (!title) {
-        new Notice(t("notice.enterListName"));
-        return;
-      }
-      const list = await this.storage.customLists.create({ title });
-      await this.storage.customLists.addMedia(list.id, this.media.id);
-      this.onChanged?.();
-      await this.render();
+    createBtn.addEventListener("click", () => {
+      void this.createAndAddList(newListInput);
     });
   }
 }
-

@@ -109,7 +109,7 @@ export async function renderFavoritesSection(
 }
 
 function buildPlaceholderCard(): HTMLElement {
-  const card = document.createElement("div");
+  const card = createDiv();
   card.addClass(
     "mediavault-favorite-card",
     "mediavault-favorite-card-placeholder",
@@ -122,7 +122,7 @@ function buildFavoriteCard(
   item: MediaItem,
   onOpen: (item: MediaItem) => void,
 ): HTMLElement {
-  const card = document.createElement("div");
+  const card = createDiv();
   card.addClass("mediavault-favorite-card");
 
   card.onclick = () => onOpen(item);

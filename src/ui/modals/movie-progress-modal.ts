@@ -32,18 +32,20 @@ export class MoviePartialWatchModal extends Modal {
     contentEl.addClass("mediavault-movie-progress-modal");
     renderModalHeader(this, contentEl, t("movieProgress.title"), "h3");
 
-    new Setting(contentEl).setName(t("movieProgress.minutesIn")).addText((text) => {
-      text.inputEl.type = "number";
-      text.inputEl.min = "0";
-      text
-        .setPlaceholder("74")
-        .setValue(this.minute !== null ? String(this.minute) : "")
-        .onChange((value) => {
-          const parsed = parseInt(value, 10);
-          this.minute = value.trim() === "" || isNaN(parsed) ? null : parsed;
-        });
-      text.inputEl.focus();
-    });
+    new Setting(contentEl)
+      .setName(t("movieProgress.minutesIn"))
+      .addText((text) => {
+        text.inputEl.type = "number";
+        text.inputEl.min = "0";
+        text
+          .setPlaceholder("74")
+          .setValue(this.minute !== null ? String(this.minute) : "")
+          .onChange((value) => {
+            const parsed = parseInt(value, 10);
+            this.minute = value.trim() === "" || isNaN(parsed) ? null : parsed;
+          });
+        text.inputEl.focus();
+      });
 
     const buttons = contentEl.createDiv({ cls: "mediavault-modal-buttons" });
     buttons
@@ -54,15 +56,17 @@ export class MoviePartialWatchModal extends Modal {
       cls: "mod-cta",
       text: t("common.save"),
     });
-    saveBtn.addEventListener("click", async () => {
-      if (this.minute === null || this.minute < 0) {
-        new Notice(t("notice.enterMinutesStopped"));
-        return;
-      }
-      await setMovieProgress(this.storage, this.options.media, this.minute);
-      new Notice(t("notice.savedProgress", { minute: this.minute as number }));
-      this.options.onSaved();
-      this.close();
+    saveBtn.addEventListener("click", () => {
+      void (async () => {
+        if (this.minute === null || this.minute < 0) {
+          new Notice(t("notice.enterMinutesStopped"));
+          return;
+        }
+        await setMovieProgress(this.storage, this.options.media, this.minute);
+        new Notice(t("notice.savedProgress", { minute: this.minute }));
+        this.options.onSaved();
+        this.close();
+      })();
     });
   }
 

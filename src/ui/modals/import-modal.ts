@@ -92,16 +92,8 @@ export class ImportModal extends Modal {
         accept: ".json,.csv,.zip,text/csv,application/json,application/zip",
       },
     });
-    fileInput.addEventListener("change", async () => {
-      const file = fileInput.files?.[0];
-      if (!file) return;
-      this.fileName = file.name;
-
-      if (/\.zip$/i.test(file.name)) {
-        await this.runZipDetectionAndPreview(await file.arrayBuffer());
-      } else {
-        await this.runDetectionAndPreview(await file.text());
-      }
+    fileInput.addEventListener("change", () => {
+      void this.handleFileChange(fileInput);
     });
 
     if (this.zip && this.zipPreview) {
@@ -126,6 +118,19 @@ export class ImportModal extends Modal {
     }
   }
 
+  private async handleFileChange(fileInput: HTMLInputElement): Promise<void> {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+
+    this.fileName = file.name;
+
+    if (/\.zip$/i.test(file.name)) {
+      await this.runZipDetectionAndPreview(await file.arrayBuffer());
+    } else {
+      await this.runDetectionAndPreview(await file.text());
+    }
+  }
+
   private renderProgress(
     container: HTMLElement,
     label = t("import.importingLarge"),
@@ -138,7 +143,7 @@ export class ImportModal extends Modal {
     this.progressBarEl = track.createDiv({
       cls: "mediavault-import-progress-bar",
     });
-    this.progressBarEl.style.width = "0%";
+    this.progressBarEl.setCssStyles({ width: "0%" });
 
     this.progressTextEl = container.createDiv({
       cls: "mediavault-import-progress-text",
@@ -149,7 +154,7 @@ export class ImportModal extends Modal {
   private updateProgress(done: number, total: number, stage: string): void {
     if (!this.progressBarEl || !this.progressTextEl) return;
     const percent = total > 0 ? Math.round((done / total) * 100) : 0;
-    this.progressBarEl.style.width = `${percent}%`;
+    this.progressBarEl.setCssStyles({ width: `${percent}%` });
     this.progressTextEl.setText(`${stage}: ${done} / ${total}`);
   }
 
@@ -469,10 +474,6 @@ export class ImportModal extends Modal {
       });
     }
 
-    if (report.matchLog.length > 0) {
-      console.info("MediaVault import match log:", report.matchLog);
-    }
-
     if (report.errors.length > 0) {
       const errBox = container.createDiv({ cls: "mediavault-import-errors" });
       errBox.createEl("h4", { text: t("import.otherErrors") });
@@ -536,27 +537,18 @@ export class ImportModal extends Modal {
           merged: this.report.duplicatesMerged,
         }),
       );
-      // Record the import-completion date used to establish the
-      // notification baseline (see notification-service.ts). Deliberately
-      // set only here, on a *successful* commit — not when the modal opens
-      // or a file is selected — and only overwritten by a *later* completed
-      // import, so an aborted/failed import never regresses the baseline.
+
       const today = new Date().toISOString().slice(0, 10);
-      const priorImportDate = this.storage.settings.get()
-        .notificationDataImportDate;
+      const priorImportDate =
+        this.storage.settings.get().notificationDataImportDate;
       if (!priorImportDate || priorImportDate < today) {
         await this.storage.settings.update({
           notificationDataImportDate: today,
         });
-        console.log(
-          `MediaVault: notification data-import date set to ${today}`,
-        );
       }
       this.onImported?.();
     } catch (err) {
-      new Notice(
-        t("import.importFailed", { error: (err as Error).message }),
-      );
+      new Notice(t("import.importFailed", { error: (err as Error).message }));
     } finally {
       this.importing = false;
       this.render();

@@ -1,102 +1,153 @@
 # MediaVault
 
-An Obsidian plugin for tracking movies and TV shows: reviews and rewatches
-(with full rating history — never overwritten), episode-by-episode progress,
-TV Time / Trakt import and sync, mood-based "comfort media" recommendations,
-and a full analytics dashboard — all stored directly inside your vault.
+An [Obsidian](https://obsidian.md) plugin for tracking movies and TV shows: reviews and rewatches
+(with full rating history that's never overwritten), episode-by-episode
+progress, custom lists and favorites, a discovery/Explore page, TV Time
+GDPR / Trakt import and sync, cast and filmography browsing, notifications
+for new releases, mood-based "comfort media" recommendations, and a full
+analytics dashboard. Built for desktop, Android, and iOS, with all data
+stored directly inside your vault.
 
-**Status: v1.0.0 — feature-complete.** All 17 planned milestones are built,
-tested, and wired together. See [CHANGELOG.md](./CHANGELOG.md) for the full
-list of what's included and known limitations.
+<p align="center">
+  <img src="./screenshots/mediavault-ios-library.jpeg" alt="MediaVault iOS Library" height="500">
+  <img src="./screenshots/mediavault-desktop.png" alt="MediaVault Desktop" height="500">
+</p>
 
-## Features at a glance
+## Features
 
 - **Library**: TMDB-backed search/add, grid/list/table views, filters, sort, pagination
+- **Favorites & Lists**: favorites carousel, built-in favorite-movies/favorite-series
+  smart lists, custom lists with manual/automatic sorting and drag-to-reorder
+- **Explore**: TMDB discovery page (trending/popular/recommended), shared
+  card rendering with Recommendations
+- **Partially Watch**: You can mark a movie as partially watched, similar to a TV show, and record the point where you stopped watching
 - **Reviews**: unlimited watch sessions per title, rating-evolution chart, full timeline
-- **TV tracking**: season/episode hierarchy, batch mark-watched, favorite episodes
-- **Import**: TV Time / CSV / JSON, with dry-run preview and safe re-import
-- **Trakt sync**: OAuth, bi-directional history/rating sync, generated history note
+- **TV tracking**: season/episode hierarchy, batch mark-watched, favorite episodes,
+  season/episode rewatch tracking, dropped-show workflow with resume support
+- **Cast & Filmography**: cast tab, actor details with biography, filmography
+  browsing with preview-before-import
+- **Import**: TV Time GDPR ZIP export (watch history, ratings, reviews,
+  favorites, custom lists, dropped/archived status), CSV, and JSON, with
+  dry-run preview, per-file diagnostics, and safe re-import
+- **Trakt sync**: OAuth, bi-directional history/rating sync, public and
+  personal comments, generated history note
+- **Notifications**: new episode/season/movie alerts with a baseline date
+  (install/import time) so existing history never generates a backlog of
+  "new" notifications
 - **Notes**: auto-generated per-title markdown notes with frontmatter, safely
   regenerated without ever touching what you write in them
 - **Analytics**: genre/actor/studio breakdowns, watch trends, calendar heatmap
 - **Comfort Finder**: mood-based filtering (energy, attention, heaviness, tags) with presets
 - **Recommendations**: TMDB discovery scored against your taste, plus comfort-based picks from your own library
+- **i18n**: English and Turkish, with all UI strings routed through a shared locale system
+- **Theme Support**: MediaVault automatically detects themes installed in Obsidian, giving you hundreds of themes to choose from. Some themes may not be fully compatible with the plugin.
 
-## Development
+## MediaVault Setup Roadmap
 
-```bash
-npm install
-npm run dev     # watch mode, rebuilds on change
-npm run build   # type-check + production build
-npm test        # run the Vitest suite
-```
+Follow these steps to get MediaVault up and running in Obsidian.
 
-## Testing
+### 1. Install MediaVault
 
-The test suite (`tests/unit/*.test.ts`, run via `npm test`) focuses on the
-invariants that matter most for a media-tracking tool:
+Install **MediaVault** from the Obsidian Community Plugins:
 
-- **Never overwrite reviews** — rewatches always create a new `WatchSession`
-- **Idempotent imports** — re-importing the same TV Time file or re-running
-  a Trakt sync never creates duplicates
-- **Note regeneration never destroys user content** — content written before,
-  inside, or after the plugin-managed section of a note survives regeneration
-- Broad coverage of analytics, comfort filtering/ranking, and the
-  recommendation engine
+* Open **Settings → Community plugins**
+* Search for **`MediaVault`**
+* Install and enable the plugin
 
-A minimal `tests/mocks/obsidian.ts` stands in for the real Obsidian API
-(only available inside the app at runtime) so the suite can run in plain
-Node via Vitest.
+You can also install it directly from the [Community Plugins page](https://community.obsidian.md/plugins/mediavault).
 
-## Installing into a vault
+### 2. Create a TMDB API Key
 
-1. Run `npm run build` (produces `main.js` in this folder).
-2. Create a folder in your vault: `<Vault>/.obsidian/plugins/mediavault/`
-3. Copy `manifest.json`, `main.js`, and `styles.css` into that folder.
-4. In Obsidian: Settings → Community plugins → enable "MediaVault".
-5. Add your TMDB API key in the plugin's settings tab (required for search/import).
-   Trakt sync is optional and configured in the same tab.
+MediaVault uses [TMDB](https://www.themoviedb.org/) to fetch movie and TV show information.
 
-Alternatively, symlink this whole repo into
-`<Vault>/.obsidian/plugins/mediavault/` and run `npm run dev` for hot
-reloading (requires the "Hot Reload" community plugin).
+1. Create a TMDB account if you don't have one.
+2. Create an API key from your TMDB account.
+3. Copy your **TMDB API key**.
+
+### 3. Add Your TMDB API Key to MediaVault
+
+In Obsidian:
+
+**Settings → MediaVault → TMDB API Key**
+
+Paste the API key you copied from TMDB into the input field.
+
+### 4. (Optional) Set Up Trakt
+
+If you want to:
+
+* View your **Trakt comments**
+* Post comments to **Trakt**
+
+you'll also need to create a Trakt API application.
+
+1. Go to [Trakt](https://trakt.tv/).
+2. Create an API application.
+3. Copy your **Client ID (Access Key)** and **Client Secret (Secret Key)**.
+4. Open **Settings → MediaVault** in Obsidian.
+5. Paste both keys into their corresponding fields.
+
+> **Note:** Trakt setup is optional. You only need it if you want to use MediaVault's Trakt-related features.
+
+### 5. Import Your GDPR Export
+
+Once MediaVault is configured, you can import your data.
+
+Open the **Obsidian command palette**:
+
+* **Desktop:** Press `Ctrl/Cmd + P`
+* **Mobile:** Scroll down to access the commands list
+
+Search for **`Import`**.
+
+You should see the MediaVault import command. Select it and choose your **`gdpr.zip`** file to start the import.
+
+### 6. You're Ready!
+
+That's it! Your MediaVault setup is complete.
+
+After importing your data, you can explore everything MediaVault has to offer through the **Obsidian command palette**.
+
+Open the commands list (`Ctrl/Cmd + P` on desktop, or the commands list on mobile) and search for **MediaVault** to discover the available commands and features.
+
 
 ## Project structure
 
 ```
 src/
-  main.ts             Plugin entry point — commands, ribbon, view registration
+  main.ts             Plugin entry point
   constants.ts        Shared constants (view types, ribbon icon, etc.)
   types/              Shared TypeScript types + enums
-  models/             Data model interfaces (MediaItem, WatchSession, Episode, ComfortProfile...)
+  models/             Data model interfaces
+  i18n/                Locale service + en/tr translation files
+  utils/
+    platform.ts          Android/iOS detection, dynamic safe-area inset handling
   services/
-    storage/            Repositories (indexed CRUD over VaultData), migrations
+    storage/            Repositories (split-file storage adapter), migrations, settings
     analytics/          Pure analytics computation + memoization
     comfort/             Filter/rank/join logic for comfort media
-    recommendation/      Affinity scoring + recommendation orchestration
-    importer/            TV Time / CSV / JSON import pipeline
+    recommendation/      Affinity scoring + recommendation
+    importer/
+      tvtime/              TV Time GDPR ZIP importer (parsing, list/dropped-status
+                           resolution, commit, diagnostics), CSV/JSON importers
     note-generator/       Markdown note generation with safe regeneration
     review-logic.ts       Rewatch numbering, rating evolution
     watch-session-service.ts  Add/edit/delete watch sessions
     episode-import.ts     TMDB episode metadata import
+    drop-series-service.ts, movie-progress-service.ts  Dropped/resume workflow
+    notification-service.ts  New-release detection with notification baseline
+    status-service.ts     Live-derived media status with manual-override handling
     trakt-sync.ts, trakt-token.ts, trakt-note-generator.ts
     media-import.ts       TMDB → MediaItem conversion
+    media-delete-service.ts  Cascading delete across watches/lists/favorites
     library-query.ts      Filter/sort/search/paginate
   api/                TMDB and Trakt HTTP clients + normalization
   ui/
     views/              Library dashboard, Analytics dashboard (workspace tabs)
     modals/             Add media, watch session, episode tracker, comfort finder,
-                         recommendations, import, Trakt auth, etc.
-    components/         Shared rendering: charts, heatmap, virtual list, poster cards
+                         recommendations, import, Trakt auth, list detail,
+                         actor details, media detail, notification history, etc.
+    components/         Shared rendering: charts, heatmap, virtual list,
+                         poster cards, discover cards
   settings/           Plugin settings + settings tab
-tests/
-  unit/               Vitest test suite
-  mocks/              Minimal "obsidian" module mock for tests
 ```
-
-## Development philosophy
-
-Built in vertical slices — each milestone (0 through 17) produced a working
-plugin, from scaffold → data layer → core library UI → integrations →
-advanced analytics/recommendations, in that order. See `CHANGELOG.md` for
-what shipped at each stage.

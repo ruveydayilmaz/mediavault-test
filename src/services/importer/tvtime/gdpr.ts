@@ -73,10 +73,7 @@ export async function parseGdprArchive(
     for (const row of parsed.get(name) ?? []) {
       addSeries(seriesById, row.tv_show_id, row.tv_show_name);
     }
-    // Register the file as recognized/parsed even when it contributes no
-    // watches/favorites/etc of its own (e.g. `followed_tv_show.csv` is
-    // used only to build the series id → title lookup above) — otherwise
-    // it would be silently absent from the import diagnostics report.
+
     bundleFor(name);
   }
   for (const row of parsed.get("tracking-prod-records-v2.csv") ?? []) {
@@ -86,16 +83,10 @@ export async function parseGdprArchive(
     addSeries(seriesById, row.series_id, row.series_name, row.series_uuid);
   }
 
-  // Movie list items (`lists-prod-lists.csv`) carry only a TV Time `uuid` —
-  // unlike series items they have no numeric `id` — so resolving one to a
-  // title requires a uuid → title/year lookup built from the GDPR movie
-  // datasets that actually pair a movie's uuid with its name:
-  // `ratings-live-votes.csv` (movie reactions) and the movie-entity rows of
-  // `comments-prod-comments.csv`. Without this table, movie list items had
-  // no way to recover a real title and silently fell back to the list's own
-  // name, which is virtually never the movie's title and made TMDB matching
-  // fail for every movie in every list.
-  const moviesByUuid = new Map<string, { title: string; year: number | null }>();
+  const moviesByUuid = new Map<
+    string,
+    { title: string; year: number | null }
+  >();
   const addMovie = (uuid: string | undefined, rawTitle: string | undefined) => {
     const key = clean(uuid);
     const title = clean(rawTitle);
@@ -113,21 +104,14 @@ export async function parseGdprArchive(
 
   const v2Records = parsed.get("tracking-prod-records-v2.csv") ?? [];
 
-  // `is_archived` is TV Time's closest equivalent to MediaVault's "Dropped"
-  // status. It's collected in its own pass — separate from, and before, the
-  // watch-import loop below — for two reasons: (1) that loop `continue`s
-  // early on rows missing season/episode/series_name (e.g. movie rows),
-  // which would otherwise silently lose any `is_archived` flag on them; and
-  // (2) a media item can have many tracking rows (one per episode watched),
-  // so its dropped state has to be aggregated across all of them — a single
-  // `is_archived:true` row anywhere for that item means dropped, and no
-  // later `is_archived:false` row for the same item should undo that once
-  // recorded (Milestone 4). The literal representation of "true" isn't
-  // assumed to be the string "true": TV Time's exports have been observed
-  // using "1"/"0" as often as "true"/"false", and this normalizes case too.
   const droppedAgg = new Map<
     string,
-    { kind: ImportMediaKind; ids: ExternalIds; title: string; year: number | null }
+    {
+      kind: ImportMediaKind;
+      ids: ExternalIds;
+      title: string;
+      year: number | null;
+    }
   >();
   let archivedRowsFound = 0;
   for (const row of v2Records) {
@@ -160,10 +144,6 @@ export async function parseGdprArchive(
         });
       }
     }
-    // A row with is_archived=true but neither a series nor movie title is
-    // uncommon but not silently discarded from the diagnostics count above
-    // — it just can't be resolved to a specific item, so it isn't (and
-    // can't be) added to `droppedAgg`.
   }
   {
     const droppedBundle = bundleFor("tracking-prod-records-v2.csv");
@@ -193,12 +173,6 @@ export async function parseGdprArchive(
         title,
         season,
         episode,
-        // `updated_at` reflects the last time this tracking row was
-        // touched (e.g. a bulk/rewatch bump); when it's later than
-        // `created_at` it's the truer "last watched" instant, so prefer
-        // whichever of the two is more recent rather than always trusting
-        // `created_at`. This never moves a watch date earlier than what
-        // `created_at` alone would have given.
         watchedAt: laterOf(row.created_at, row.updated_at),
         tvTimeId: row.s_id,
         tvTimeUuid: row.uuid,
@@ -557,46 +531,6 @@ const LIST_SKEY_COLLECTION = "collection";
 const LIST_SKEY_FAVORITE_MOVIES = "favorite-movies";
 const LIST_SKEY_FAVORITE_SERIES = "favorite-series";
 
-/**
- * The GDPR `lists-prod-lists.csv` export doesn't hold one list per row.
- * Instead every row is keyed by `s_key`, and rows serve one of three
- * distinct purposes:
- *
- *  - `count`                      → a row count / stat, not list data at all.
- *  - `collection`                 → the *only* source of list metadata: an
- *                                    `objects` array of entries, one per
- *                                    list, each carrying its own `s_key`.
- *  - `favorite-movies` /
- *    `favorite-series` / `<uuid>` → item rows. Each holds only the items
- *                                    (`uuid`, `type`, `created_at`) for the
- *                                    single list whose metadata `s_key`
- *                                    matches this row's `s_key`.
- *
- * This two-stage lookup — metadata from `collection`, items matched in by
- * `s_key` — is required because a row's own item-array format carries no
- * name/description/dates/visibility/artwork; that only exists once, in the
- * `collection` row's metadata entry for the list.
- *
- * Root cause of the "0 lists detected" bug: the `collection` row carries
- * its per-list metadata array in the CSV's dedicated `lists` column, not in
- * `objects` (that column is empty on the `collection` row — `objects` only
- * holds item arrays on item rows). Reading `objects` unconditionally always
- * parsed an empty string, so 0 lists were ever discovered. The `lists`
- * column is preferred here, falling back to `objects` in case a future/older
- * export version lays it out the other way.
- *
- * Each item row's `objects` entries carry a `type` (`series` | `movie`) and
- * a `uuid`, plus an `id` *only* for series (TV Time's internal show id —
- * movies have no equivalent numeric id in this export). Series titles are
- * resolved via `seriesById` (id, falling back to a uuid scan); movies have
- * no `id` to look up by at all, so they're resolved via `moviesByUuid`, a
- * uuid → title/year table built from the GDPR files that actually name a
- * movie by its uuid (see its construction above). A uuid absent from that
- * table cannot be resolved to a title here — the item is still kept (with a
- * clearly-marked placeholder title) rather than silently dropped, matching
- * this importer's "never silently lose data" rule, and the failure is
- * surfaced as a warning instead.
- */
 function parseGdprLists(
   rows: RawImportRow[],
   seriesById: Map<string, { title: string; uuid?: string }>,
@@ -606,7 +540,10 @@ function parseGdprLists(
   const FILE = "lists-prod-lists.csv";
   const bundle = bundleFor(FILE);
 
-  const itemRowsBySKey = new Map<string, { row: RawImportRow; index: number }>();
+  const itemRowsBySKey = new Map<
+    string,
+    { row: RawImportRow; index: number }
+  >();
   const collectionRowEntry =
     rows
       .map((row, index) => ({ row, index }))
@@ -641,7 +578,7 @@ function parseGdprLists(
 
     if (!sKey) {
       bundle.warnings.push({
-        reason: `"${name}": list metadata has no s_key and can't be matched to its items — skipped.`,
+        reason: `"${name}": list metadata has no s_key and can't be matched to its items: skipped.`,
       });
       continue;
     }
@@ -650,7 +587,7 @@ function parseGdprLists(
     if (!itemRow) {
       bundle.listDiagnostics.unmatchedSKeys.push(sKey);
       bundle.warnings.push({
-        reason: `"${name}" (s_key: ${sKey}): no matching item row found — list metadata was discovered but its contents are missing.`,
+        reason: `"${name}" (s_key: ${sKey}): no matching item row found: list metadata was discovered but its contents are missing.`,
       });
       continue;
     }
@@ -678,7 +615,7 @@ function parseGdprLists(
             );
             bundle.warnings.push({
               row: itemRow.index + 2,
-              reason: `"${name}": movie UUID ${item.uuid ?? "(missing)"} not found in GDPR metadata (checked ratings-live-votes.csv and comments-prod-comments.csv) — item kept with a placeholder title, but it likely won't match on TMDB.`,
+              reason: `"${name}": movie UUID ${item.uuid ?? "(missing)"} not found in GDPR metadata (checked ratings-live-votes.csv and comments-prod-comments.csv): item kept with a placeholder title, but it likely won't match on TMDB.`,
             });
             title = `Unknown movie (${item.uuid ?? "no uuid"})`;
           }
@@ -688,7 +625,7 @@ function parseGdprLists(
         }
 
         items.push({
-          kind: (isMovie ? "movie" : "series") as "series" | "movie",
+          kind: (isMovie ? "movie" : "series"),
           ids: { tvTimeUuid: item.uuid, tvTimeId: item.tvTimeId },
           title,
           year,
@@ -719,10 +656,6 @@ function parseGdprLists(
           ? "series"
           : null;
 
-    // A list is preserved even when it has zero resolvable items — an
-    // empty or fully-unresolved list is still a real list, and dropping it
-    // here (as opposed to surfacing it via the warning above) would be
-    // exactly the kind of silent data loss this importer must avoid.
     const listImport: ListImport = {
       name,
       description: meta.description,
@@ -779,13 +712,6 @@ function laterOf(a?: string | null, b?: string | null): string | null {
   return db > da ? db : da;
 }
 
-/**
- * Some GDPR tracking rows tag the event itself as a rewatch — via a
- * `bulk_type` column formatted like `rewatch-episode-...`, or (depending on
- * export version) that same marker showing up in the `uuid` column. Either
- * way, a `rewatch-` prefix on either field means TV Time itself recorded
- * this specific event as a rewatch rather than a first watch.
- */
 function isRewatchRow(row: RawImportRow): boolean {
   return (
     row.bulk_type?.toLowerCase().startsWith("rewatch") === true ||
@@ -793,14 +719,6 @@ function isRewatchRow(row: RawImportRow): boolean {
   );
 }
 
-/**
- * Normalizes `is_archived` (TV Time's "Dropped" flag) without assuming the
- * literal string `"true"`. GDPR CSV exports have been observed representing
- * booleans as `"true"`/`"false"`, `"1"`/`"0"`, and with inconsistent casing
- * (`"TRUE"`); this recognizes all of those as true and treats anything
- * else — including missing/empty values — as false, so a blank or absent
- * column is never mistaken for an archived/dropped row.
- */
 function isArchivedTrue(raw: string | undefined): boolean {
   const v = clean(raw)?.toLowerCase();
   if (!v) return false;

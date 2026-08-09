@@ -207,10 +207,6 @@ export class TMDBService {
         });
       }
 
-      // TMDB's canonical `name` is sometimes stored in native script for
-      // people whose romanized name has no dedicated translation entry.
-      // `also_known_as` frequently contains a romanized alternative in
-      // that case, so fall back to the first Latin-ish entry there.
       let displayName = raw.name;
       let originalName: string | null = null;
       if (!isPersonNameLatinish(raw.name)) {

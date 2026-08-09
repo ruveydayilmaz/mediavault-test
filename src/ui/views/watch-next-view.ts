@@ -252,12 +252,9 @@ export class WatchNextView extends ItemView {
       this.populateNextEpisodeCard(card, replacement);
       card.removeClass("is-leaving");
       card.addClass("is-entering");
-      // Restart the entrance animation without forcing a synchronous
-      // layout read: waiting two animation frames guarantees the
-      // "is-entering" class has been committed in a style flush before we
-      // remove it, without querying layout geometry ourselves.
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => card.removeClass("is-entering"));
+
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => card.removeClass("is-entering"));
       });
       return;
     }
@@ -272,7 +269,7 @@ export class WatchNextView extends ItemView {
   }
 
   private wait(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
   }
 
   private renderUpcomingBody(
@@ -291,18 +288,23 @@ export class WatchNextView extends ItemView {
       const btn = tabBar.createEl("button", {
         cls:
           "mediavault-upcoming-tab" + (activeTab === tab ? " is-active" : ""),
-        text: tab === "episodes" ? t("watchNext.tabEpisodes") : t("watchNext.tabMovies"),
+        text:
+          tab === "episodes"
+            ? t("watchNext.tabEpisodes")
+            : t("watchNext.tabMovies"),
       });
 
-      btn.addEventListener("click", async () => {
+      btn.addEventListener("click", () => {
         if (activeTab === tab) return;
 
-        await this.plugin.storage.settings.update({
-          watchNextUpcomingTab: tab,
-        });
+        void (async () => {
+          await this.plugin.storage.settings.update({
+            watchNextUpcomingTab: tab,
+          });
 
-        container.empty();
-        this.renderUpcomingBody(container, allMedia, episodesByMediaId);
+          container.empty();
+          this.renderUpcomingBody(container, allMedia, episodesByMediaId);
+        })();
       });
     });
 
@@ -344,10 +346,10 @@ export class WatchNextView extends ItemView {
         info.createDiv({
           cls: "mediavault-media-card-subtitle",
           text: t("watchNext.episodeLabel", {
-        season: episode.seasonNumber,
-        episode: episode.episodeNumber,
-        title: episode.title,
-      }),
+            season: episode.seasonNumber,
+            episode: episode.episodeNumber,
+            title: episode.title,
+          }),
         });
 
         const meta = info.createDiv({

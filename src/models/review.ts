@@ -43,12 +43,6 @@ export type NewWatchSessionInput = Pick<WatchSession, "mediaId" | "watchDate"> &
       | "updatedAt"
     >
   > & {
-    /**
-     * Historical timestamp to record `lastActivityAt` as (drives Recent
-     * sorting), instead of "now". Used by bulk importers so Recent
-     * reflects true watch chronology. Omit for live/interactive logging,
-     * which should keep bumping Recent to "now" as before.
-     */
     activityAt?: string;
   };
 

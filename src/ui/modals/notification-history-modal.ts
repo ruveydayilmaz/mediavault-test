@@ -31,9 +31,11 @@ export class NotificationHistoryModal extends Modal {
     const markAllBtn = contentEl.createEl("button", {
       text: t("notifications.markAllRead"),
     });
-    markAllBtn.addEventListener("click", async () => {
-      await this.plugin.storage.notifications.markAllRead();
-      await this.renderList();
+    markAllBtn.addEventListener("click", () => {
+      void (async () => {
+        await this.plugin.storage.notifications.markAllRead();
+        await this.renderList();
+      })();
     });
 
     this.listEl = contentEl.createDiv({ cls: "mediavault-notification-list" });
@@ -66,14 +68,17 @@ export class NotificationHistoryModal extends Modal {
       text: i18n.formatDate(n.createdAt, {
         dateStyle: "medium",
         timeStyle: "short",
-      } as Intl.DateTimeFormatOptions),
+      }),
     });
 
-    row.addEventListener("click", async () => {
-      const media = await this.plugin.storage.media.findById(n.mediaId);
-      if (media) {
-        this.plugin.openMediaDetail(media);
-      }
+    row.addEventListener("click", () => {
+      void (async () => {
+        const media = await this.plugin.storage.media.findById(n.mediaId);
+
+        if (media) {
+          this.plugin.openMediaDetail(media);
+        }
+      })();
     });
   }
 

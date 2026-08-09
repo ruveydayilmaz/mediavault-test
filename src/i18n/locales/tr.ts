@@ -54,6 +54,8 @@ const tr: TranslationDict = {
     addToLibrary: "+ Ekle",
     confirmWithLabel: "{label} onaylansın mı?",
     loadMore: "Daha fazla yükle ({count} kaldı)",
+    en: "en",
+    ja: "ja, de",
   },
   status: {
     currently_watching: "Şu An İzleniyor",
@@ -130,7 +132,7 @@ const tr: TranslationDict = {
     runtime: "Süre",
     rating: "Puan",
     favoriteOnly: "Sadece favoriler",
-    comfortScore: "Rahatlık Puanı",
+    comfortScore: "Komfor Puanı",
     watchCount: "İzlenme Sayısı",
     tags: "Etiketler",
     min: "Min",
@@ -178,8 +180,7 @@ const tr: TranslationDict = {
     duplicateList: "Listeyi kopyala",
     deleteList: "Listeyi sil",
     descPlaceholder: "Bir açıklama ekleyin...",
-    everyItemAlreadyInList:
-      "Kitaplığınızdaki her öge zaten bu listede.",
+    everyItemAlreadyInList: "Kitaplığınızdaki her öge zaten bu listede.",
     duplicatedNotice: '"{title}" kopyalandı.',
     deletedNotice: '"{title}" silindi.',
     removeFromList: "Listeden kaldır",
@@ -244,10 +245,10 @@ const tr: TranslationDict = {
     buildingRecs: "Öneriler oluşturuluyor...",
     failedToBuildRecs: "Öneriler oluşturulamadı: {error}",
     notEnoughData:
-      "Henüz yeterli veri yok. Önerileri görmek için izlediklerinizi puanlayın ve bazı rahatlık profilleri oluşturun.",
+      "Henüz yeterli veri yok. Önerileri görmek için izlediklerinizi puanlayın ve bazı komfor profilleri oluşturun.",
     becauseYouLoved: "Şunu sevdiğiniz için...",
     hiddenGems: "Sizin için gizli hazineler",
-    comfortRewatches: "Rahatlatıcı yeniden izlemeler",
+    comfortRewatches: "Komforlu yeniden izlemeler",
     highEnergyPicks: "Yüksek enerjili seçimler",
     lowAttentionPicks: "Az dikkat gerektiren seçimler",
     addMediaSearchPlaceholder: "TMDB'de bir film veya dizi ara...",
@@ -320,8 +321,8 @@ const tr: TranslationDict = {
     rewatchesLabel: "Yeniden izlemeler",
   },
   comfort: {
-    profileTitle: "Rahatlık profili",
-    comfortScore: "Rahatlık puanı",
+    profileTitle: "Komfor profili",
+    comfortScore: "Komfor puanı",
     energyLevelSlider: "Enerji seviyesi",
     attentionRequiredSlider: "Gereken dikkat",
     emotionalHeaviness: "Duygusal ağırlık",
@@ -330,7 +331,7 @@ const tr: TranslationDict = {
     tags: "Etiketler",
     seasonalAssociations: "Mevsimsel ilişkilendirmeler",
     triggerWarnings: "Tetikleyici uyarıları",
-    failedToSaveProfile: "Rahatlık profili kaydedilemedi: {error}",
+    failedToSaveProfile: "Komfor profili kaydedilemedi: {error}",
     flagSafeAnxious: "Kaygılıyken güvenli",
     flagSafeDepressed: "Depresifken güvenli",
     flagBackgroundNoise: "Arka plan sesi için iyi",
@@ -340,16 +341,16 @@ const tr: TranslationDict = {
     flagFunny: "Komik",
     flagNoCharacterDeath: "Karakter ölümü yok",
     flagLowConflict: "Düşük çatışma",
-    flagFamiliarFavorite: "Ailecek favori",
+    flagFamiliarFavorite: "Tanıdık / favori",
     emptyNoProfiles:
-      "Henüz hiçbir şeyin rahatlık profili yok. Önce bir medya ögesi için rahatlık profili oluşturun.",
+      "Henüz hiçbir şeyin komfor profili yok. Önce bir medya ögesi için komfor profili oluşturun.",
     quickFilter: "Hızlı filtre",
     advancedFilter: "Gelişmiş filtre",
     results: "Sonuçlar",
     energyLevel: "Enerji seviyesi",
     attentionRequired: "Gereken dikkat",
     maxEmotionalHeaviness: "Maksimum duygusal ağırlık",
-    minComfortScore: "Minimum rahatlık puanı",
+    minComfortScore: "Minimum komfor puanı",
     minRewatchability: "Minimum yeniden izlenebilirlik",
     requiredTags: "Gerekli etiketler",
     saveAsPreset: "Hazır ayar olarak kaydet...",
@@ -357,7 +358,7 @@ const tr: TranslationDict = {
     namePresetPrompt: "Bu hazır ayara bir ad verin:",
     savedPreset: '"{name}" hazır ayarı kaydedildi.',
     failedSavePreset: "Hazır ayar kaydedilemedi: {error}",
-    title: "Rahatlatıcı İçerik Bulucu",
+    title: "Komfor İçerik Bulucu",
     bedTime: "Yatmadan Önce",
     backgroundNoise: "Arka Plan Sesi",
     emotionalRecovery: "Duygusal İyileşme",
@@ -367,9 +368,9 @@ const tr: TranslationDict = {
     backgroundNoiseDescription:
       "Ev işleri yaparken açılacak bir şey, düşük dikkat gerektirir.",
     emotionalRecoveryDescription:
-      "Zor günler için güvenli, düşük çatışmalı, aile favorileri.",
+      "Zor günler için güvenli, düşük çatışmalı, düşük duygusal ağırlıklı seçimler.",
     cozyWinterDescription:
-      "Kış havası olan yeniden izlenebilir rahatlatıcı seçimler.",
+      "Kış havası olan yeniden izlenebilir komforlu seçimler.",
   },
   notifications: {
     seriesReturnedMsg: '"{title}" yeni bölümlerle geri döndü.',
@@ -396,7 +397,8 @@ const tr: TranslationDict = {
     loading: "Yorumlar yükleniyor...",
     retry: "Tekrar dene",
     empty: "Henüz yorum yok",
-    emptyFilteredLanguages: "Yapılandırdığınız dillerde henüz yorum yok. Daha fazla eklemek için Ayarlar'a bakın.",
+    emptyFilteredLanguages:
+      "Yapılandırdığınız dillerde henüz yorum yok. Daha fazla eklemek için Ayarlar'a bakın.",
     emptyTrakt: "Trakt'ta henüz yorum yok.",
     placeholder: "Bir yorum yazın...",
     publish: "Yorum Gönder",
@@ -437,7 +439,8 @@ const tr: TranslationDict = {
     couldNotLoadCast: "Oyuncu kadrosu yüklenemedi: {error}",
     markAsDropped: "Bırakıldı Olarak İşaretle",
     resumeWatching: "İzlemeye Devam Et",
-    resumeFromMinuteFull: "{minute}. dakikadan devam et ({minute} / {total} dk · %{percent})",
+    resumeFromMinuteFull:
+      "{minute}. dakikadan devam et ({minute} / {total} dk · %{percent})",
     resumeFromMinute: "{minute}. dakikadan devam et",
     editPoster: "Posteri Düzenle",
     editBanner: "Afişi Düzenle",
@@ -509,8 +512,7 @@ const tr: TranslationDict = {
     deleteCommentConfirm:
       "Bu yorum Trakt'tan silinsin mi? Bu işlem geri alınamaz.",
     commentEmptyError: "Yorum boş olamaz.",
-    commentTooLong:
-      "Yorum çok uzun (Trakt sınırı {limit} karakter).",
+    commentTooLong: "Yorum çok uzun (Trakt sınırı {limit} karakter).",
     writeSomethingFirst: "Göndermeden önce bir şeyler yazın.",
     deleteConfirmBodyWithScope:
       '"{title}" silinsin mi?\n\nBu şunları kalıcı olarak silecek:\n{scope}\n\nBu işlem geri alınamaz.',
@@ -539,8 +541,8 @@ const tr: TranslationDict = {
     seasonEpisodeLabelShort: "S{season} • B{episode}",
   },
   notice: {
-    couldNotLoad: '"{title}" yüklenemedi — {error}',
-    failedToAdd: "Eklenemedi — {error}",
+    couldNotLoad: '"{title}" yüklenemedi: {error}',
+    failedToAdd: "Eklenemedi: {error}",
     enterListName: "Önce bir liste adı girin.",
     markedDropped: '"{title}" bırakıldı olarak işaretlendi.',
     enterMinutesStopped: "Kaçıncı dakikada bıraktığınızı girin.",
@@ -552,21 +554,18 @@ const tr: TranslationDict = {
     saveFailed: "Kaydedilemedi: {error}",
     addTmdbKeyBeforeImporting:
       "İçe aktarmadan önce ayarlardan TMDB API anahtarı ekleyin.",
-    addTmdbKeyFirst:
-      "Önce ayarlardan TMDB API anahtarı ekleyin.",
+    addTmdbKeyFirst: "Önce ayarlardan TMDB API anahtarı ekleyin.",
     addTmdbKeyBeforeSearching:
       "Aramadan önce ayarlardan TMDB API anahtarı ekleyin.",
-    traktHistoryRegenerated:
-      "Trakt Puan Geçmişi notu yeniden oluşturuldu.",
-    tmdbOk:
-      'TMDB tamam: "Interstellar" için {count} sonuç bulundu.',
+    traktHistoryRegenerated: "Trakt Puan Geçmişi notu yeniden oluşturuldu.",
+    tmdbOk: 'TMDB tamam: "Interstellar" için {count} sonuç bulundu.',
     tmdbRequestFailed: "TMDB isteği başarısız oldu: {error}",
     noteUpdated: "Not güncellendi: {path}",
     noteGenerationFailed: "Not oluşturulamadı: {error}",
-    regeneratingNotes: "{count} not yeniden oluşturuluyor...",  
+    regeneratingNotes: "{count} not yeniden oluşturuluyor...",
     regeneratedNotes: "{count}/{total} not yeniden oluşturuldu.",
     noMatchingTvShows: "Kitaplığınızda henüz eşleşen bir dizi yok.",
-    libraryEmpty: "Kitaplığınız boş — önce bir şey ekleyin.",
+    libraryEmpty: "Kitaplığınız boş. Başlamak için bir film veya dizi ekleyin.",
     connectTraktFirst: "Önce ayarlardan Trakt hesabınızı bağlayın.",
     syncingWithTrakt: "Trakt ile senkronize ediliyor...",
     traktConnectionInvalid:
@@ -574,8 +573,7 @@ const tr: TranslationDict = {
     traktSyncComplete:
       "Trakt senkronizasyonu tamamlandı: {movies} film + {episodes} bölüm çekildi, {pushed} gönderildi{errorSuffix}",
     traktSyncErrorSuffix: " · {count} hata, konsola bakın",
-    traktSyncFailed:
-      "Trakt senkronizasyonu başarısız oldu: {error}",
+    traktSyncFailed: "Trakt senkronizasyonu başarısız oldu: {error}",
     alreadyInLibrary: '"{title}" zaten kitaplığınızda.',
     addedToLibrary: '"{title}" kitaplığınıza eklendi.',
     couldNotAdd: '"{title}" eklenemedi: {error}',
@@ -588,16 +586,13 @@ const tr: TranslationDict = {
     commentPosted: "Yorum gönderildi.",
     couldNotPostComment: "Yorum gönderilemedi: {error}",
     markedSeasonWatched: "{n}. sezon izlendi olarak işaretlendi.",
-    markedSeasonUnwatched:
-      "{n}. sezon izlenmedi olarak işaretlendi.",
+    markedSeasonUnwatched: "{n}. sezon izlenmedi olarak işaretlendi.",
     markedPrevEpisodesWatched:
       "{n} önceki bölüm de izlendi olarak işaretlendi.",
     markedEpisodeWatched: '"{title}" izlendi olarak işaretlendi.',
     importingEpisodes: '"{title}" için bölümler içe aktarılıyor...',
-    importedEpisodes:
-      "{seasons} sezonda {added} yeni bölüm içe aktarıldı.",
-    episodeImportFailed:
-      "Bölüm içe aktarma başarısız oldu: {error}",
+    importedEpisodes: "{seasons} sezonda {added} yeni bölüm içe aktarıldı.",
+    episodeImportFailed: "Bölüm içe aktarma başarısız oldu: {error}",
     itemNoLongerExists: "Bu öge artık mevcut değil.",
     mediaDeleted: '"{title}" silindi.',
   },
@@ -628,7 +623,7 @@ const tr: TranslationDict = {
     title: "Listeye Ekle",
     newListName: "Yeni liste adı",
     alreadyInList: "Bu listede",
-    removedNotice: "\"{title}\" öğesi \"{list}\" listesinden kaldırıldı.",
+    removedNotice: '"{title}" öğesi "{list}" listesinden kaldırıldı.',
   },
   watchSession: {
     editReview: "Yorumu düzenle",
@@ -660,7 +655,7 @@ const tr: TranslationDict = {
     rateGenreHighly: "{genre} türüne yüksek puan veriyorsunuz",
     featuresActor: "{actor} yer alıyor",
     directedBy: "Yönetmen: {director}",
-    matchesComfortPreferences: "Rahatlık tercihlerinizle eşleşiyor",
+    matchesComfortPreferences: "Komfor tercihlerinizle eşleşiyor",
   },
   episode: {
     markSeasonWatched: "Sezonu İzlendi Olarak İşaretle",
@@ -794,7 +789,7 @@ const tr: TranslationDict = {
     resetting: "Sıfırlanıyor…",
     success: "MediaVault sıfırlandı. Markdown notlarınız korundu.",
     reloadHint:
-      "MediaVault sıfırlandı, ancak otomatik olarak yeniden yüklenemedi — sıfırlamayı tamamlamak için lütfen Obsidian'ı yeniden yükleyin (veya eklentiyi kapatıp açın).",
+      "MediaVault sıfırlandı, ancak otomatik olarak yeniden yüklenemedi. Sıfırlamayı tamamlamak için lütfen Obsidian'ı yeniden yükleyin (veya eklentiyi kapatıp açın).",
     failed: "Sıfırlama başarısız oldu: {error}",
   },
   import: {
@@ -810,8 +805,7 @@ const tr: TranslationDict = {
     couldNotRead: '"{name}" okunamadı: {error}',
     scanningFiles: "Dosyalar taranıyor",
     detected: "Algılandı:",
-    unsupportedList:
-      "Listeler tanınıyor ancak henüz içe aktarılamıyor.",
+    unsupportedList: "Listeler tanınıyor ancak henüz içe aktarılamıyor.",
     unsupportedGeneric:
       "MediaVault bu dosyanın yapısını henüz tanımıyor. Hiçbir şey içe aktarılmayacak.",
     gdprExport: "TV Time GDPR Dışa Aktarımı",
@@ -917,10 +911,11 @@ const tr: TranslationDict = {
     openWatchNext: "İzleme Listesini Aç",
     openExplore: "Keşfet",
     showNotifications: "Bildirimleri Göster",
-    checkNotificationsNow: "Yeni bölümleri, sezonları ve sürümleri şimdi kontrol et",
+    checkNotificationsNow:
+      "Yeni bölümleri, sezonları ve sürümleri şimdi kontrol et",
     importWatchHistory: "İzleme geçmişini içe aktar (TV Time / JSON / CSV)",
     recommendations: "Keşfet",
-    comfortFinder: "Rahatlatıcı medya bul",
+    comfortFinder: "Komforlu medya bul",
     viewStats: "Analiz panosunu aç",
     viewStatsQuick: "Hızlı istatistik özet",
     regenerateAllNotes: "Tüm medya notlarını yeniden oluştur",

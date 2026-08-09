@@ -121,12 +121,16 @@ export class TMDBHttpClient {
 }
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function safeJsonParse(text: string): { status_message?: string } | null {
   try {
-    return JSON.parse(text);
+    const parsed: unknown = JSON.parse(text);
+    if (parsed && typeof parsed === "object") {
+      return parsed;
+    }
+    return null;
   } catch {
     return null;
   }

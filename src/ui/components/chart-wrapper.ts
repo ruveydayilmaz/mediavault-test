@@ -30,11 +30,6 @@ Chart.register(
   Legend,
 );
 
-// getComputedStyle() forces a style/layout recalculation, so recomputing it
-// once per chart (interleaved with each chart's canvas DOM insertion) causes
-// repeated forced reflows when a view renders several charts back to back.
-// Theme colors only change when the Obsidian theme itself changes, so a
-// short-lived cache lets a whole render pass share a single read.
 let cachedColors: ReturnType<typeof computeThemeColors> | null = null;
 
 function computeThemeColors() {
@@ -54,10 +49,8 @@ function computeThemeColors() {
 export function themeColors() {
   if (!cachedColors) {
     cachedColors = computeThemeColors();
-    // Invalidate on the next frame so a later render pass (e.g. after a
-    // theme change) always picks up fresh values, while calls made
-    // synchronously within the same render pass reuse this one read.
-    requestAnimationFrame(() => {
+
+    window.requestAnimationFrame(() => {
       cachedColors = null;
     });
   }
@@ -83,9 +76,6 @@ export function createChart(
   data: ChartData,
   options: ChartOptions = {},
 ): Chart {
-  // Read theme colors before touching the DOM so this doesn't interleave a
-  // style read with the canvas insertion below (which would force a
-  // synchronous style/layout recalculation).
   const colors = themeColors();
   const canvas = container.createEl("canvas");
 
@@ -107,5 +97,5 @@ export function createChart(
     type,
     data,
     options: mergedOptions,
-  } as ChartConfiguration);
+  });
 }

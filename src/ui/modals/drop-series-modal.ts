@@ -53,11 +53,15 @@ export class DropSeriesModal extends Modal {
       cls: "mod-warning",
       text: t("dropSeries.dropSeries"),
     });
-    dropBtn.addEventListener("click", async () => {
-      await dropSeries(this.storage, this.options.mediaId, this.reason);
-      new Notice(t("notice.markedDropped", { title: this.options.mediaTitle }));
-      this.options.onDropped();
-      this.close();
+    dropBtn.addEventListener("click", () => {
+      void (async () => {
+        await dropSeries(this.storage, this.options.mediaId, this.reason);
+        new Notice(
+          t("notice.markedDropped", { title: this.options.mediaTitle }),
+        );
+        this.options.onDropped();
+        this.close();
+      })();
     });
   }
 

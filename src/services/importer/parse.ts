@@ -68,7 +68,7 @@ function splitCSVRows(content: string): string[][] {
 }
 
 export function parseJSON(content: string): unknown {
-  const data = JSON.parse(content);
+  const data: unknown = JSON.parse(content);
 
   if (Array.isArray(data)) {
     return data;
@@ -80,7 +80,7 @@ export function parseJSON(content: string): unknown {
     for (const key of knownKeys) {
       const value = (data as Record<string, unknown>)[key];
       if (Array.isArray(value)) {
-        rows.push(...value);
+        rows.push(...(value as unknown[]));
       }
     }
     if (rows.length > 0) return rows;

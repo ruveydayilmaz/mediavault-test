@@ -1,5 +1,6 @@
-import { App, Modal, Notice, Menu, setIcon } from "obsidian";
+import { App, Modal, Notice, Menu, setIcon, TFile } from "obsidian";
 import { renderMobileBackButton } from "./modal-chrome";
+import { confirmDialog } from "./confirm-modal";
 import type { StorageService } from "../../services/storage";
 import type { TMDBService } from "../../api/tmdb";
 import type {
@@ -93,7 +94,11 @@ export class MediaDetailModal extends Modal {
   private isPreview: boolean;
   private previewTmdbRating: number | null = null;
   private pendingHighlightCommentId: number | null = null;
-  private listContext?: { listId: string; listTitle: string; onRemoved?: () => void };
+  private listContext?: {
+    listId: string;
+    listTitle: string;
+    onRemoved?: () => void;
+  };
 
   private activeTab: DetailTab = "episodes";
   private expandedSeasons = new Set<number>();
@@ -103,6 +108,7 @@ export class MediaDetailModal extends Modal {
   private selectedEpisode: Episode | null = null;
   private tabBeforeEpisodeDetail: DetailTab = "episodes";
   private episodesScrollTop = 0;
+  private TRAKT_COMMENT_LIMIT = 2000;
 
   constructor(
     app: App,
@@ -150,11 +156,6 @@ export class MediaDetailModal extends Modal {
     void this.initialize();
   }
 
-  // Focus management: tapping anywhere outside the currently focused
-  // input/textarea blurs it (dismissing the mobile keyboard) without
-  // interfering with scrolling or normal button clicks — the listener
-  // only ever calls blur(), never preventDefault(), so native scroll and
-  // click handling continue exactly as before.
   private attachDismissKeyboardOnOutsideTap(): void {
     this.contentEl.addEventListener("pointerdown", (evt) => {
       const active = document.activeElement;
@@ -206,7 +207,7 @@ export class MediaDetailModal extends Modal {
     container.empty();
     await this.renderEpisodesTab(container);
     if (scrollTop > 0) {
-      requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
         this.contentEl.scrollTop = scrollTop;
       });
     }
@@ -218,11 +219,6 @@ export class MediaDetailModal extends Modal {
     const fresh = await this.storage.media.findById(this.media.id);
     if (fresh) this.media = fresh;
 
-    // Resolve everything the header needs (including the one network-bound
-    // call in this path, genre translation) *before* touching the DOM, so
-    // a slow/uncached TMDB lookup can never leave a half-built modal
-    // visible for a frame — the empty()+rebuild below now always happens
-    // as a single synchronous block once all data is in hand.
     const localizedGenres = this.isPreview
       ? this.media.genres
       : await getLocalizedGenreNames(this.tmdb, this.media);
@@ -248,7 +244,7 @@ export class MediaDetailModal extends Modal {
       if (this.episodesScrollTop > 0) {
         const restoreTarget = this.episodesScrollTop;
         this.episodesScrollTop = 0;
-        requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
           contentEl.scrollTop = restoreTarget;
         });
       }
@@ -348,7 +344,7 @@ export class MediaDetailModal extends Modal {
     setIcon(menuBtn, "more-vertical");
     menuBtn.setAttr("aria-label", t("detail.moreOptions"));
     if (this.isPreview) {
-      menuBtn.style.display = "none";
+      menuBtn.addClass("is-hidden");
     } else {
       menuBtn.addEventListener("click", (evt) => this.openHeroMenu(evt));
     }
@@ -415,10 +411,6 @@ export class MediaDetailModal extends Modal {
     }
   }
 
-  // Shared favorite-star button used by both the Movie/TV hero and the
-  // Episode Detail hero, so favorites look and behave identically
-  // everywhere in MediaVault. Updates its own icon/class immediately
-  // (optimistic UI) instead of waiting on a full modal re-render.
   private renderFavoriteButton(
     container: HTMLElement,
     isFavorite: boolean,
@@ -430,16 +422,21 @@ export class MediaDetailModal extends Modal {
     });
     setIcon(btn, "star");
     btn.setAttr("aria-label", ariaLabel);
-    btn.addEventListener("click", async (evt) => {
+
+    btn.addEventListener("click", (evt) => {
       evt.stopPropagation();
+
       const nowFavorite = !btn.hasClass("is-favorite");
       btn.toggleClass("is-favorite", nowFavorite);
       btn.disabled = true;
-      try {
-        await onToggle();
-      } finally {
-        btn.disabled = false;
-      }
+
+      void (async () => {
+        try {
+          await onToggle();
+        } finally {
+          btn.disabled = false;
+        }
+      })();
     });
     return btn;
   }
@@ -470,40 +467,52 @@ export class MediaDetailModal extends Modal {
     });
     setIcon(addBtn, "bookmark-plus");
 
-    addBtn.addEventListener("click", async (evt) => {
-      evt.stopPropagation();
-      addBtn.disabled = true;
-
-      try {
-        const mediaKind = this.media.type === MediaType.Movie ? "movie" : "tv";
-        const result = await addMediaFromTMDB(
-          this.storage,
-          this.tmdb,
-          this.media.tmdbId,
-          mediaKind,
-        );
-        new Notice(
-          result.alreadyExisted
-            ? t("notice.alreadyInLibrary", { title: result.mediaItem.title })
-            : t("notice.addedToLibrary", { title: result.mediaItem.title }),
-        );
-        this.media = result.mediaItem;
-        this.isPreview = false;
-        this.onChanged?.();
-        this.plugin?.refreshLibraryViews();
-        this.plugin?.refreshListViews();
-        this.plugin?.refreshExploreViews();
-        await this.render();
-      } catch (err) {
-        new Notice(
-          t("notice.couldNotAdd", {
-            title: this.media.title,
-            error: (err as Error).message,
-          }),
-        );
-        addBtn.disabled = false;
-      }
+    addBtn.addEventListener("click", (evt) => {
+      void this.handleAddMedia(addBtn, evt);
     });
+  }
+
+  private async handleAddMedia(
+    addBtn: HTMLButtonElement,
+    evt: MouseEvent,
+  ): Promise<void> {
+    evt.stopPropagation();
+    addBtn.disabled = true;
+
+    try {
+      const mediaKind = this.media.type === MediaType.Movie ? "movie" : "tv";
+
+      const result = await addMediaFromTMDB(
+        this.storage,
+        this.tmdb,
+        this.media.tmdbId,
+        mediaKind,
+      );
+
+      new Notice(
+        result.alreadyExisted
+          ? t("notice.alreadyInLibrary", { title: result.mediaItem.title })
+          : t("notice.addedToLibrary", { title: result.mediaItem.title }),
+      );
+
+      this.media = result.mediaItem;
+      this.isPreview = false;
+      this.onChanged?.();
+      this.plugin?.refreshLibraryViews();
+      this.plugin?.refreshListViews();
+      this.plugin?.refreshExploreViews();
+
+      await this.render();
+    } catch (err) {
+      new Notice(
+        t("notice.couldNotAdd", {
+          title: this.media.title,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+
+      addBtn.disabled = false;
+    }
   }
 
   private async renderMoviePartialProgress(hero: HTMLElement): Promise<void> {
@@ -548,12 +557,16 @@ export class MediaDetailModal extends Modal {
       cls: "mod-cta",
       text: t("detail.markAsFinished"),
     });
-    finishBtn.addEventListener("click", async () => {
-      await completeMovieFromProgress(this.storage, this.media.id);
-      new Notice(t("notice.markedFinished", { title: this.media.title }));
-      this.onChanged?.();
-      await this.refreshAndNotify();
+    finishBtn.addEventListener("click", () => {
+      void this.handleFinishMovie();
     });
+  }
+
+  private async handleFinishMovie(): Promise<void> {
+    await completeMovieFromProgress(this.storage, this.media.id);
+    new Notice(t("notice.markedFinished", { title: this.media.title }));
+    this.onChanged?.();
+    await this.refreshAndNotify();
   }
 
   private async openMoviePartialWatchModal(): Promise<void> {
@@ -603,8 +616,8 @@ export class MediaDetailModal extends Modal {
             this.media,
           );
           const file = this.app.vault.getAbstractFileByPath(path);
-          if (file) {
-            await this.app.workspace.getLeaf(false).openFile(file as any);
+          if (file instanceof TFile) {
+            await this.app.workspace.getLeaf(false).openFile(file);
           }
           this.onChanged?.();
         }),
@@ -746,7 +759,7 @@ export class MediaDetailModal extends Modal {
   private renderDescription(container: HTMLElement, synopsis: string): void {
     renderExpandableText(container, synopsis, this.descriptionExpanded, () => {
       this.descriptionExpanded = !this.descriptionExpanded;
-      this.render();
+      void this.render();
     });
   }
 
@@ -1120,7 +1133,7 @@ export class MediaDetailModal extends Modal {
       const item = list.createDiv({ cls: "mediavault-comment-item" });
       if (comment.id === highlightId) {
         item.addClass("is-newly-posted");
-        setTimeout(() => item.removeClass("is-newly-posted"), 2500);
+        window.setTimeout(() => item.removeClass("is-newly-posted"), 2500);
       }
 
       const avatarEl = item.createDiv({ cls: "mediavault-comment-avatar" });
@@ -1198,23 +1211,35 @@ export class MediaDetailModal extends Modal {
           cls: "clickable-icon",
           text: t("detail.delete"),
         });
-        deleteBtn.addEventListener("click", async () => {
-          if (!confirm(t("detail.deleteCommentConfirm"))) return;
-          try {
-            await this.trakt!.deleteComment(comment.id);
-            this.trakt!.invalidateCommentsCache(target);
-            new Notice(t("notice.commentDeleted"));
-            item.remove();
-          } catch (err) {
-            new Notice(
-              t("notice.couldNotDeleteComment", {
-                error: describeTraktError(err),
-              }),
-            );
-          }
+        deleteBtn.addEventListener("click", () => {
+          void this.handleDeleteComment(deleteBtn, comment.id, target, item);
         });
       }
     });
+  }
+
+  private async handleDeleteComment(
+    deleteBtn: HTMLButtonElement,
+    commentId: number,
+    target: TraktCommentTarget,
+    item: HTMLElement,
+  ): Promise<void> {
+    if (!(await confirmDialog(this.app, t("detail.deleteCommentConfirm")))) {
+      return;
+    }
+
+    try {
+      await this.trakt!.deleteComment(commentId);
+      this.trakt!.invalidateCommentsCache(target);
+      new Notice(t("notice.commentDeleted"));
+      item.remove();
+    } catch (err) {
+      new Notice(
+        t("notice.couldNotDeleteComment", {
+          error: describeTraktError(err),
+        }),
+      );
+    }
   }
 
   private renderCommentEditForm(
@@ -1243,25 +1268,42 @@ export class MediaDetailModal extends Modal {
     });
 
     cancelBtn.addEventListener("click", () => void this.render());
-    saveBtn.addEventListener("click", async () => {
-      const value = textarea.value.trim();
-      if (value === "") {
-        new Notice(t("detail.commentEmptyError"));
-        return;
-      }
-      try {
-        await this.trakt!.updateComment(comment.id, value, comment.spoiler);
-        this.trakt!.invalidateCommentsCache(target);
-        new Notice(t("notice.commentUpdated"));
-        await this.render();
-      } catch (err) {
-        new Notice(
-          t("notice.couldNotUpdateComment", {
-            error: describeTraktError(err),
-          }),
-        );
-      }
+    saveBtn.addEventListener("click", () => {
+      void this.handleSaveComment(
+        comment.id,
+        textarea,
+        comment.spoiler,
+        target,
+      );
     });
+  }
+
+  private async handleSaveComment(
+    commentId: number,
+    textarea: HTMLTextAreaElement,
+    spoiler: boolean,
+    target: TraktCommentTarget,
+  ): Promise<void> {
+    const value = textarea.value.trim();
+
+    if (value === "") {
+      new Notice(t("detail.commentEmptyError"));
+      return;
+    }
+
+    try {
+      await this.trakt!.updateComment(commentId, value, spoiler);
+
+      this.trakt!.invalidateCommentsCache(target);
+      new Notice(t("notice.commentUpdated"));
+      await this.render();
+    } catch (err) {
+      new Notice(
+        t("notice.couldNotUpdateComment", {
+          error: describeTraktError(err),
+        }),
+      );
+    }
   }
 
   private async renderCommentComposer(
@@ -1282,7 +1324,6 @@ export class MediaDetailModal extends Modal {
       return composer;
     }
 
-    const TRAKT_COMMENT_LIMIT = 2000;
     composer.createEl("h4", { text: t("detail.writePublicComment") });
     const textarea = composer.createEl("textarea", {
       cls: "mediavault-comment-compose-input",
@@ -1294,13 +1335,13 @@ export class MediaDetailModal extends Modal {
     makeClearable(textarea);
     const counter = composer.createDiv({
       cls: "mediavault-comment-char-counter",
-      text: `0 / ${TRAKT_COMMENT_LIMIT}`,
+      text: `0 / ${this.TRAKT_COMMENT_LIMIT}`,
     });
     textarea.addEventListener("input", () => {
-      counter.setText(`${textarea.value.length} / ${TRAKT_COMMENT_LIMIT}`);
+      counter.setText(`${textarea.value.length} / ${this.TRAKT_COMMENT_LIMIT}`);
       counter.toggleClass(
         "is-over-limit",
-        textarea.value.length > TRAKT_COMMENT_LIMIT,
+        textarea.value.length > this.TRAKT_COMMENT_LIMIT,
       );
     });
 
@@ -1325,7 +1366,7 @@ export class MediaDetailModal extends Modal {
     });
     cancelBtn.addEventListener("click", () => {
       textarea.value = "";
-      counter.setText(`0 / ${TRAKT_COMMENT_LIMIT}`);
+      counter.setText(`0 / ${this.TRAKT_COMMENT_LIMIT}`);
       textarea.blur();
       composer.addClass("is-collapsed");
     });
@@ -1334,46 +1375,73 @@ export class MediaDetailModal extends Modal {
       cls: "mod-cta",
       text: t("detail.postComment"),
     });
-    postBtn.addEventListener("click", async () => {
-      const text = textarea.value.trim();
-      if (text === "") {
-        new Notice(t("detail.writeSomethingFirst"));
-        return;
-      }
-      if (text.length > TRAKT_COMMENT_LIMIT) {
-        new Notice(t("detail.commentTooLong", { limit: TRAKT_COMMENT_LIMIT }));
-        return;
-      }
-
-      warningEl.empty();
-      postBtn.disabled = true;
-      postBtn.setText(t("detail.posting"));
-
-      let posted;
-      try {
-        posted = await this.trakt!.postComment(target, text);
-      } catch (err) {
-        new Notice(
-          t("notice.couldNotPostComment", {
-            error: describeTraktError(err),
-          }),
-        );
-        postBtn.disabled = false;
-        postBtn.setText(t("detail.postComment"));
-        return;
-      }
-
-      new Notice(t("notice.commentPosted"));
-      textarea.value = "";
-      counter.setText(`0 / ${TRAKT_COMMENT_LIMIT}`);
-      composer.addClass("is-collapsed");
-      this.pendingHighlightCommentId = posted.id;
-      postBtn.setText(t("detail.refreshing"));
-
-      await this.refreshCommentsAfterPost(warningEl, postBtn, onPosted);
+    postBtn.addEventListener("click", () => {
+      void this.handlePostComment(
+        textarea,
+        warningEl,
+        postBtn,
+        counter,
+        composer,
+        target,
+        onPosted,
+      );
     });
 
     return composer;
+  }
+
+  private async handlePostComment(
+    textarea: HTMLTextAreaElement,
+    warningEl: HTMLElement,
+    postBtn: HTMLButtonElement,
+    counter: HTMLElement,
+    composer: HTMLElement,
+    target: TraktCommentTarget,
+    onPosted: () => Promise<void>,
+  ): Promise<void> {
+    const text = textarea.value.trim();
+
+    if (text === "") {
+      new Notice(t("detail.writeSomethingFirst"));
+      return;
+    }
+
+    if (text.length > this.TRAKT_COMMENT_LIMIT) {
+      new Notice(
+        t("detail.commentTooLong", {
+          limit: this.TRAKT_COMMENT_LIMIT,
+        }),
+      );
+      return;
+    }
+
+    warningEl.empty();
+    postBtn.disabled = true;
+    postBtn.setText(t("detail.posting"));
+
+    let posted;
+
+    try {
+      posted = await this.trakt!.postComment(target, text);
+    } catch (err) {
+      new Notice(
+        t("notice.couldNotPostComment", {
+          error: describeTraktError(err),
+        }),
+      );
+      postBtn.disabled = false;
+      postBtn.setText(t("detail.postComment"));
+      return;
+    }
+
+    new Notice(t("notice.commentPosted"));
+    textarea.value = "";
+    counter.setText(`0 / ${this.TRAKT_COMMENT_LIMIT}`);
+    composer.addClass("is-collapsed");
+    this.pendingHighlightCommentId = posted.id;
+    postBtn.setText(t("detail.refreshing"));
+
+    await this.refreshCommentsAfterPost(warningEl, postBtn, onPosted);
   }
 
   private async refreshCommentsAfterPost(
@@ -1388,7 +1456,7 @@ export class MediaDetailModal extends Modal {
       warningEl.empty();
       warningEl.createDiv({
         cls: "mediavault-modal-hint mediavault-comment-refresh-warning-text",
-        text: t("detail.refreshFailedHint"),
+        text: `${t("detail.refreshFailedHint")}: ${(err as Error).message}`,
       });
       const retryBtn = warningEl.createEl("button", {
         text: t("detail.retry"),
@@ -1527,18 +1595,18 @@ export class MediaDetailModal extends Modal {
     const episodesEl = seasonEl.createDiv({
       cls: "mediavault-season-episodes",
     });
-    episodesEl.style.display = isExpanded ? "block" : "none";
+    episodesEl.toggleClass("is-hidden", !isExpanded);
 
     header.addEventListener("click", (evt) => {
       if ((evt.target as HTMLElement).closest("button")) return;
       if (this.expandedSeasons.has(seasonNumber)) {
         this.expandedSeasons.delete(seasonNumber);
         toggle.setText("\u25b8");
-        episodesEl.style.display = "none";
+        episodesEl.addClass("is-hidden");
       } else {
         this.expandedSeasons.add(seasonNumber);
         toggle.setText("\u25be");
-        episodesEl.style.display = "block";
+        episodesEl.removeClass("is-hidden");
       }
     });
 
@@ -1571,24 +1639,14 @@ export class MediaDetailModal extends Modal {
       );
     }
 
-    toggleWatchBtn.addEventListener("click", async (evt) => {
-      evt.stopPropagation();
-      if (toggleWatchBtn.dataset.longPressed) {
-        delete toggleWatchBtn.dataset.longPressed;
-        return;
-      }
-
-      if (!seasonWatched) {
-        await markSeasonWatched(this.storage, episodes, true);
-        new Notice(t("notice.markedSeasonWatched", { n: seasonNumber }));
-      } else {
-        await addSeasonRewatch(this.storage, episodes);
-        this.plugin?.refreshLibraryViews();
-        this.plugin?.refreshListViews();
-      }
-
-      this.onChanged?.();
-      await this.rerenderPreservingEpisodesScroll();
+    toggleWatchBtn.addEventListener("click", (evt) => {
+      void this.handleToggleSeasonWatched(
+        toggleWatchBtn,
+        evt,
+        seasonWatched,
+        episodes,
+        seasonNumber,
+      );
     });
 
     if (seasonWatched) {
@@ -1603,15 +1661,26 @@ export class MediaDetailModal extends Modal {
       toggleWatchBtn.addEventListener("pointerdown", (evt) => {
         if (evt.button !== undefined && evt.button !== 0) return;
         clearTimer();
-        longPressTimer = window.setTimeout(async () => {
-          longPressTimer = null;
-          toggleWatchBtn.dataset.longPressed = "1";
-          if (!confirm(t("detail.removeOneSeasonWatchConfirm"))) return;
-          await removeOneSeasonWatch(this.storage, episodes);
-          this.plugin?.refreshLibraryViews();
-          this.plugin?.refreshListViews();
-          this.onChanged?.();
-          await this.rerenderPreservingEpisodesScroll();
+        longPressTimer = window.setTimeout(() => {
+          void (async () => {
+            longPressTimer = null;
+            toggleWatchBtn.dataset.longPressed = "1";
+
+            if (
+              !(await confirmDialog(
+                this.app,
+                t("detail.removeOneSeasonWatchConfirm"),
+              ))
+            ) {
+              return;
+            }
+
+            await removeOneSeasonWatch(this.storage, episodes);
+            this.plugin?.refreshLibraryViews();
+            this.plugin?.refreshListViews();
+            this.onChanged?.();
+            await this.rerenderPreservingEpisodesScroll();
+          })();
         }, LONG_PRESS_MS);
       });
       toggleWatchBtn.addEventListener("pointerup", clearTimer);
@@ -1627,6 +1696,33 @@ export class MediaDetailModal extends Modal {
         watchesByEpisodeId.get(ep.id) ?? [],
       );
     }
+  }
+
+  private async handleToggleSeasonWatched(
+    toggleWatchBtn: HTMLButtonElement,
+    evt: MouseEvent,
+    seasonWatched: boolean,
+    episodes: Episode[],
+    seasonNumber: number,
+  ): Promise<void> {
+    evt.stopPropagation();
+
+    if (toggleWatchBtn.dataset.longPressed) {
+      delete toggleWatchBtn.dataset.longPressed;
+      return;
+    }
+
+    if (!seasonWatched) {
+      await markSeasonWatched(this.storage, episodes, true);
+      new Notice(t("notice.markedSeasonWatched", { n: seasonNumber }));
+    } else {
+      await addSeasonRewatch(this.storage, episodes);
+      this.plugin?.refreshLibraryViews();
+      this.plugin?.refreshListViews();
+    }
+
+    this.onChanged?.();
+    await this.rerenderPreservingEpisodesScroll();
   }
 
   private renderEpisodeRow(
@@ -1684,21 +1780,26 @@ export class MediaDetailModal extends Modal {
         }),
       );
     }
-    watchBtn.addEventListener("click", async (evt) => {
+    watchBtn.addEventListener("click", (evt) => {
       evt.stopPropagation();
-      if (watchBtn.dataset.longPressed) {
-        delete watchBtn.dataset.longPressed;
-        return;
-      }
-      if (watches.length === 0) {
-        await this.markEpisodeWatchedWithSmartCompletion(episode);
-      } else {
-        await addEpisodeWatch(this.storage, episode);
-        this.plugin?.refreshLibraryViews();
-        this.plugin?.refreshListViews();
-      }
-      this.onChanged?.();
-      await this.rerenderPreservingEpisodesScroll();
+
+      void (async () => {
+        if (watchBtn.dataset.longPressed) {
+          delete watchBtn.dataset.longPressed;
+          return;
+        }
+
+        if (watches.length === 0) {
+          await this.markEpisodeWatchedWithSmartCompletion(episode);
+        } else {
+          await addEpisodeWatch(this.storage, episode);
+          this.plugin?.refreshLibraryViews();
+          this.plugin?.refreshListViews();
+        }
+
+        this.onChanged?.();
+        await this.rerenderPreservingEpisodesScroll();
+      })();
     });
 
     if (watches.length > 0) {
@@ -1712,16 +1813,29 @@ export class MediaDetailModal extends Modal {
       };
       watchBtn.addEventListener("pointerdown", (evt) => {
         if (evt.button !== undefined && evt.button !== 0) return;
+
         clearTimer();
-        longPressTimer = window.setTimeout(async () => {
-          longPressTimer = null;
-          watchBtn.dataset.longPressed = "1";
-          if (!confirm(t("detail.removeOneWatchConfirm"))) return;
-          await removeOneEpisodeWatch(this.storage, episode);
-          this.plugin?.refreshLibraryViews();
-          this.plugin?.refreshListViews();
-          this.onChanged?.();
-          await this.rerenderPreservingEpisodesScroll();
+
+        longPressTimer = window.setTimeout(() => {
+          void (async () => {
+            longPressTimer = null;
+            watchBtn.dataset.longPressed = "1";
+
+            if (
+              !(await confirmDialog(
+                this.app,
+                t("detail.removeOneWatchConfirm"),
+              ))
+            ) {
+              return;
+            }
+
+            await removeOneEpisodeWatch(this.storage, episode);
+            this.plugin?.refreshLibraryViews();
+            this.plugin?.refreshListViews();
+            this.onChanged?.();
+            await this.rerenderPreservingEpisodesScroll();
+          })();
         }, LONG_PRESS_MS);
       });
       watchBtn.addEventListener("pointerup", clearTimer);
@@ -1748,7 +1862,10 @@ export class MediaDetailModal extends Modal {
       return;
     }
 
-    const confirmed = confirm(t("detail.previousEpisodesPrompt"));
+    const confirmed = await confirmDialog(
+      this.app,
+      t("detail.previousEpisodesPrompt"),
+    );
     if (confirmed) {
       await markSeasonWatched(this.storage, [...preceding, episode], true);
       new Notice(
@@ -1955,15 +2072,19 @@ export class MediaDetailModal extends Modal {
       cls: "mod-cta mediavault-mark-watched-btn",
       text: t("detail.markAsWatched"),
     });
-    markBtn.addEventListener("click", async () => {
-      await addEpisodeWatch(this.storage, episode);
-      new Notice(t("notice.markedEpisodeWatched", { title: episode.title }));
-      this.plugin?.refreshLibraryViews();
-      this.plugin?.refreshListViews();
-      await this.render();
+    markBtn.addEventListener("click", () => {
+      void this.handleMarkEpisodeWatched(episode);
     });
 
     await this.renderEpisodeCastCrew(contentEl, episode);
+  }
+
+  private async handleMarkEpisodeWatched(episode: Episode): Promise<void> {
+    await addEpisodeWatch(this.storage, episode);
+    new Notice(t("notice.markedEpisodeWatched", { title: episode.title }));
+    this.plugin?.refreshLibraryViews();
+    this.plugin?.refreshListViews();
+    await this.render();
   }
 
   private async renderWatchedEpisodeBody(
@@ -2003,11 +2124,13 @@ export class MediaDetailModal extends Modal {
       cls: "mediavault-add-watch-btn",
       text: t("detail.logRewatch"),
     });
-    addBtn.addEventListener("click", async () => {
-      await addEpisodeWatch(this.storage, episode);
-      this.plugin?.refreshLibraryViews();
-      this.plugin?.refreshListViews();
-      await this.render();
+    addBtn.addEventListener("click", () => {
+      void (async () => {
+        await addEpisodeWatch(this.storage, episode);
+        this.plugin?.refreshLibraryViews();
+        this.plugin?.refreshListViews();
+        await this.render();
+      })();
     });
 
     const commentsSection = contentEl.createDiv({
@@ -2111,12 +2234,8 @@ export class MediaDetailModal extends Modal {
     });
     setIcon(deleteBtn, "trash-2");
     deleteBtn.setAttr("aria-label", t("detail.deleteThisWatch"));
-    deleteBtn.addEventListener("click", async () => {
-      await deleteEpisodeWatch(this.storage, episode, watch.id);
-      this.plugin?.refreshLibraryViews();
-      this.plugin?.refreshListViews();
-      this.onChanged?.();
-      await this.render();
+    deleteBtn.addEventListener("click", () => {
+      void this.handleDeleteEpisodeWatch(episode, watch.id);
     });
 
     this.renderEpisodeStarRating(card, watch);
@@ -2128,13 +2247,28 @@ export class MediaDetailModal extends Modal {
     });
     notesInput.value = watch.review ?? "";
     makeClearable(notesInput);
-    notesInput.addEventListener("blur", async () => {
-      const value = notesInput.value.trim();
-      if (value === (watch.review ?? "")) return;
-      await updateEpisodeWatch(this.storage, watch.id, {
-        review: value === "" ? null : value,
-      });
+    notesInput.addEventListener("blur", () => {
+      void (async () => {
+        const value = notesInput.value.trim();
+
+        if (value === (watch.review ?? "")) return;
+
+        await updateEpisodeWatch(this.storage, watch.id, {
+          review: value === "" ? null : value,
+        });
+      })();
     });
+  }
+
+  private async handleDeleteEpisodeWatch(
+    episode: Episode,
+    watchId: string,
+  ): Promise<void> {
+    await deleteEpisodeWatch(this.storage, episode, watchId);
+    this.plugin?.refreshLibraryViews();
+    this.plugin?.refreshListViews();
+    this.onChanged?.();
+    await this.render();
   }
 
   private renderEpisodeStarRating(
@@ -2154,9 +2288,11 @@ export class MediaDetailModal extends Modal {
         "aria-label",
         t("detail.rateStars", { n: i, plural: i === 1 ? "" : "s" }),
       );
-      star.addEventListener("click", async () => {
-        await updateEpisodeWatch(this.storage, watch.id, { rating: i });
-        await this.render();
+      star.addEventListener("click", () => {
+        void (async () => {
+          await updateEpisodeWatch(this.storage, watch.id, { rating: i });
+          await this.render();
+        })();
       });
     }
   }
@@ -2194,14 +2330,16 @@ export class MediaDetailModal extends Modal {
 
       btn.toggleClass("is-selected", watch.emotion === emotion.id);
 
-      btn.addEventListener("click", async () => {
-        const next = watch.emotion === emotion.id ? null : emotion.id;
+      btn.addEventListener("click", () => {
+        void (async () => {
+          const next = watch.emotion === emotion.id ? null : emotion.id;
 
-        await updateEpisodeWatch(this.storage, watch.id, {
-          emotion: next,
-        });
+          await updateEpisodeWatch(this.storage, watch.id, {
+            emotion: next,
+          });
 
-        await this.render();
+          await this.render();
+        })();
       });
     });
   }
@@ -2288,7 +2426,8 @@ export class MediaDetailModal extends Modal {
   private async confirmAndDelete(alreadyConfirmed = false): Promise<void> {
     if (!alreadyConfirmed) {
       const scope = describeDeletionScope(this.media);
-      const confirmed = confirm(
+      const confirmed = await confirmDialog(
+        this.app,
         t("detail.deleteConfirmBodyWithScope", {
           title: this.media.title,
           scope: scope.map((line) => `\u2022 ${line}`).join("\n"),

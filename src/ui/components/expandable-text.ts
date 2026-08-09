@@ -2,14 +2,9 @@ import { t } from "../../i18n";
 
 const SHORT_LENGTH = 220;
 
-// How far past the target length we're willing to scan to find a sentence
-// boundary before giving up and falling back to a hard, ellipsized cut.
 const SENTENCE_SEARCH_WINDOW = 200;
 
 function sliceAtSentenceBoundary(fullText: string, target: number): string | null {
-  // Look for the nearest sentence-ending punctuation (. ! ?) at or after
-  // `target`, optionally followed by a closing quote/bracket, so we never
-  // cut a sentence in half.
   const searchEnd = Math.min(fullText.length, target + SENTENCE_SEARCH_WINDOW);
   const terminatorRe = /[.!?]["'”’)]?(?:\s|$)/g;
   terminatorRe.lastIndex = 0;

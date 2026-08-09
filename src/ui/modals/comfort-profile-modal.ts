@@ -112,7 +112,7 @@ export class ComfortProfileModal extends Modal {
           valueLabel.setText(String(value));
           await this.updateProfile({
             [field]: value,
-          } as Partial<ComfortProfile>);
+          });
         }),
     );
   }
@@ -129,21 +129,23 @@ export class ComfortProfileModal extends Modal {
         cls: `mediavault-comfort-pill ${selected.includes(option) ? "is-active" : ""}`,
         text: labelizeEnum(option),
       });
-      pill.addEventListener("click", async () => {
-        const isActive = pill.hasClass("is-active");
-        const current = new Set(selected);
-        if (isActive) {
-          current.delete(option);
-          pill.removeClass("is-active");
-        } else {
-          current.add(option);
-          pill.addClass("is-active");
-        }
-        const updated = [...current];
+      pill.addEventListener("click", () => {
+        void (async () => {
+          const isActive = pill.hasClass("is-active");
+          const current = new Set(selected);
+          if (isActive) {
+            current.delete(option);
+            pill.removeClass("is-active");
+          } else {
+            current.add(option);
+            pill.addClass("is-active");
+          }
+          const updated = [...current];
 
-        selected.length = 0;
-        selected.push(...updated);
-        await onChange(updated);
+          selected.length = 0;
+          selected.push(...updated);
+          await onChange(updated);
+        })();
       });
     });
   }

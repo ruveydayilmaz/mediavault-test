@@ -10,28 +10,12 @@ import {
 } from "../types/tmdb";
 import { TMDB_IMAGE_BASE } from "./tmdb-http-client";
 
-// Rough check for "Latin-ish" text (Latin letters/marks, digits, and common
-// punctuation/whitespace). Used to decide which of a person's two TMDB name
-// fields (`name` / `original_name`) is the romanized/international name we
-// should show primarily, vs. the native-script name we keep as secondary
-// "Original name" info.
 const LATIN_ISH_RE = /^[\x20-\x7E\u00C0-\u024F\u1E00-\u1EFF\s'’.-]+$/;
 
 export function isLatinish(value: string): boolean {
   return LATIN_ISH_RE.test(value);
 }
 
-/**
- * Given TMDB's `name` and `original_name` fields for a person credit, pick
- * the romanized/international name to display primarily and the
- * native-script name (if any) to preserve as "original name" info.
- *
- * TMDB's `name` is whatever is set as the person's canonical display name;
- * for many East Asian actors that canonical name is itself stored in native
- * script, with `original_name` mirroring it or vice versa. Whichever of the
- * two is Latin-script wins as the display name; the other, if genuinely
- * different, is kept as the original name.
- */
 export function pickPersonNames(
   name: string,
   originalName?: string | null,
@@ -49,8 +33,7 @@ export function pickPersonNames(
   if (!nameIsLatin && originalIsLatin) {
     return { displayName: originalName, originalName: name };
   }
-  // Both (or neither) are Latin-script but differ — keep TMDB's `name` as
-  // the display name and surface `original_name` as additional info.
+
   return { displayName: name, originalName };
 }
 

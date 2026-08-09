@@ -8,14 +8,6 @@ export function applyAndroidBodyClass(): void {
   document.body.classList.toggle("mediavault-android", isAndroidDevice());
 }
 
-const ANDROID_DEBUG = true;
-
-function debugLog(...args: unknown[]): void {
-  if (!ANDROID_DEBUG) return;
-  // eslint-disable-next-line no-console
-  console.debug("[MediaVault][android-insets]", ...args);
-}
-
 let androidSafeAreaCleanup: (() => void) | null = null;
 
 function measureAndroidSystemInset(): number {
@@ -30,7 +22,7 @@ function measureAndroidSystemInset(): number {
 
 const MAX_OBSTRUCTION_CANDIDATE_HEIGHT = 160;
 const BOTTOM_DOCK_TOLERANCE = 6;
-const ANDROID_EXTRA_BOTTOM_PADDING = 100;
+const ANDROID_EXTRA_BOTTOM_PADDING = 50;
 
 function isPluginOwnElement(el: HTMLElement): boolean {
   return !!el.closest(
@@ -131,7 +123,7 @@ export function setupAndroidSafeArea(app?: App): void {
     const toolbarResult = measureObsidianToolbarObstruction();
 
     const finalInset =
-      systemInset + toolbarResult.obstruction;
+      systemInset + toolbarResult.obstruction + ANDROID_EXTRA_BOTTOM_PADDING;
 
     document.body.style.setProperty(
       "--mediavault-android-bottom-inset",
@@ -151,30 +143,6 @@ export function setupAndroidSafeArea(app?: App): void {
       } else {
         toolbarResizeObserver?.disconnect();
       }
-    }
-
-    if (ANDROID_DEBUG) {
-      const vv = window.visualViewport;
-      const pagination = document.querySelector<HTMLElement>(
-        ".mediavault-pagination",
-      );
-      const paginationRect = pagination?.getBoundingClientRect() ?? null;
-      debugLog({
-        innerHeight: window.innerHeight,
-        visualViewportHeight: vv?.height ?? null,
-        systemInset,
-        toolbarElFound: toolbarResult.el
-          ? `${toolbarResult.el.tagName.toLowerCase()}.${Array.from(toolbarResult.el.classList).join(".")}`
-          : null,
-        toolbarRectTop: toolbarResult.rect?.top ?? null,
-        toolbarRectBottom: toolbarResult.rect?.bottom ?? null,
-        toolbarRectHeight: toolbarResult.rect?.height ?? null,
-        toolbarObstruction: toolbarResult.obstruction,
-        extraBottomPadding: ANDROID_EXTRA_BOTTOM_PADDING,
-        finalBottomInset: finalInset,
-        paginationRectTop: paginationRect?.top ?? null,
-        paginationRectBottom: paginationRect?.bottom ?? null,
-      });
     }
   };
 

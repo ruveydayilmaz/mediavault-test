@@ -44,7 +44,9 @@ export class ImagePickerModal extends Modal {
     renderModalHeader(
       this,
       contentEl,
-      this.imageKind === "poster" ? t("detail.choosePoster") : t("detail.chooseBanner"),
+      this.imageKind === "poster"
+        ? t("detail.choosePoster")
+        : t("detail.chooseBanner"),
       "h3",
     );
 
@@ -91,14 +93,16 @@ export class ImagePickerModal extends Modal {
           text: t("common.currentBadge"),
         });
       }
-      tile.addEventListener("click", async () => {
-        await this.onSelect(option.filePath);
-        new Notice(
-          this.imageKind === "poster"
-            ? t("detail.posterUpdated")
-            : t("detail.bannerUpdated"),
-        );
-        this.close();
+      tile.addEventListener("click", () => {
+        void (async () => {
+          await this.onSelect(option.filePath);
+          new Notice(
+            this.imageKind === "poster"
+              ? t("detail.posterUpdated")
+              : t("detail.bannerUpdated"),
+          );
+          this.close();
+        })();
       });
     });
   }

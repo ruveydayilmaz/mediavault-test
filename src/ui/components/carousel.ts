@@ -1,11 +1,13 @@
-import { Platform } from "obsidian";
+import { App, Platform } from "obsidian";
 import { t } from "../../i18n";
+
+declare const app: App;
 
 const SWIPE_HINT_SEEN_KEY = "mediavault-carousel-swipe-hint-seen";
 
 function hasSeenSwipeHint(): boolean {
   try {
-    return localStorage.getItem(SWIPE_HINT_SEEN_KEY) === "1";
+    return app.loadLocalStorage(SWIPE_HINT_SEEN_KEY) === "1";
   } catch {
     return true;
   }
@@ -13,7 +15,7 @@ function hasSeenSwipeHint(): boolean {
 
 function markSwipeHintSeen(): void {
   try {
-    localStorage.setItem(SWIPE_HINT_SEEN_KEY, "1");
+    app.saveLocalStorage(SWIPE_HINT_SEEN_KEY, "1");
   } catch {
     // Ignore
   }
@@ -38,8 +40,8 @@ function playSwipeHint(track: HTMLElement): void {
   track.addEventListener("wheel", cancel, { passive: true });
   track.addEventListener("scroll", cancel, { passive: true });
 
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
       if (cancelled) return;
       if (track.scrollWidth <= track.clientWidth + 1) return;
 
@@ -117,13 +119,13 @@ export function createCarousel(container: HTMLElement): { track: HTMLElement } {
   const onTrackScroll = () => {
     if (navVisibilityTicking) return;
     navVisibilityTicking = true;
-    requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
       updateNavVisibility();
       navVisibilityTicking = false;
     });
   };
   track.addEventListener("scroll", onTrackScroll, { passive: true });
-  requestAnimationFrame(updateNavVisibility);
+  window.requestAnimationFrame(updateNavVisibility);
 
   return { track };
 }

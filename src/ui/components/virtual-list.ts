@@ -26,7 +26,7 @@ export function renderVirtualList<T>(
   if (items.length <= threshold) {
     items.forEach((item, i) => container.appendChild(renderRow(item, i)));
     return () => {
-      // Ignore cleanup for small lists
+      // Ignore
     };
   }
 
@@ -57,7 +57,7 @@ export function renderVirtualList<T>(
   const onScroll = () => {
     if (ticking) return;
     ticking = true;
-    requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
       renderVisible();
       ticking = false;
     });

@@ -35,8 +35,6 @@ function parseGoMapArrayLiteral(raw: string): GoMapListItem[] {
 
   if (!inner) return [];
 
-  // Every "map[" boundary starts a new object, so this preserves ordering
-  // and yields one chunk per entry regardless of how many entries exist.
   const chunks = inner.split("map[");
   const items: GoMapListItem[] = [];
 
@@ -70,9 +68,12 @@ interface RawJsonListObject {
 }
 
 function toStringOrNull(value: unknown): string | null {
-  if (value === null || value === undefined) return null;
+  if (typeof value !== "string" && typeof value !== "number") {
+    return null;
+  }
+
   const s = String(value).trim();
-  return s ? s : null;
+  return s || null;
 }
 
 function parseJsonObjectsArray(raw: string): GoMapListItem[] | null {
@@ -85,7 +86,7 @@ function parseJsonObjectsArray(raw: string): GoMapListItem[] | null {
   if (!Array.isArray(data)) return null;
 
   return data.map((entry) => {
-    const obj = (entry ?? {}) as RawJsonListObject;
+    const obj = (entry ?? {}) as RawJsonListObject; // fix later
     const createdAt = toStringOrNull(obj.created_at);
     return {
       type: toStringOrNull(obj.type),
@@ -96,14 +97,6 @@ function parseJsonObjectsArray(raw: string): GoMapListItem[] | null {
   });
 }
 
-/**
- * Parses the `objects` column of a TV Time GDPR `lists-prod-lists.csv` row.
- * TV Time has shipped this column both as Go's `fmt %v` representation of
- * `[]map[string]interface{}` (e.g. `[map[id:1 type:series uuid:...] ...]`)
- * and, in some export versions, as a plain JSON array. Both preserve item
- * ordering and are attempted here so a format difference never silently
- * yields zero items for an otherwise valid list.
- */
 export function parseGoMapArray(raw: string): GoMapListItem[] {
   const trimmed = raw.trim();
   if (!trimmed || trimmed === "[]") return [];
@@ -118,32 +111,8 @@ export function parseGoMapArray(raw: string): GoMapListItem[] {
   return parseGoMapArrayLiteral(trimmed);
 }
 
-// ---------------------------------------------------------------------------
-// Generic Go map-object array parser
-//
-// The GDPR `collection` row's metadata objects carry nested array fields
-// (`posters[]`, `fanart[]`) that the simple whitespace-tokenizing parser
-// above can't handle (a naive split would break on the spaces separating
-// multiple poster URLs). This is a small bracket-depth-aware parser that
-// walks the raw Go `fmt %v` text character by character, so nested `[...]`
-// values are consumed as a unit rather than split apart.
-// ---------------------------------------------------------------------------
-
 export type GoMapObject = Record<string, string | string[]>;
 
-// The GDPR `collection` row's list-metadata objects (one per list) have a
-// fixed, known key set, printed by Go's `fmt %v` in sorted-key order:
-// created_at, description, fanart, is_public, name, order, posters, s_key,
-// type, updated_at, user_id. Unlike the item-row objects (id/type/uuid/
-// created_at), several of these values — `name`, `description`, `order` —
-// can themselves contain spaces (e.g. `name:family friendly movies`), and
-// Go's unquoted `%v` map format gives no delimiter between such a value and
-// the next key. A naive "value ends at the next whitespace" split (the
-// previous approach) truncates every multi-word value to its first word and
-// misattributes the remaining words to a bogus key. Since the key set and
-// its ordering are fixed, scalar values are instead read up to the next
-// recognized "<space>knownKey:" boundary (or the end of the object) rather
-// than the next whitespace, which correctly preserves multi-word values.
 const LIST_METADATA_KEYS = [
   "created_at",
   "description",
@@ -157,9 +126,7 @@ const LIST_METADATA_KEYS = [
   "updated_at",
   "user_id",
 ];
-const NEXT_KEY_BOUNDARY = new RegExp(
-  `\\s(?:${LIST_METADATA_KEYS.join("|")}):`,
-);
+const NEXT_KEY_BOUNDARY = new RegExp(`\\s(?:${LIST_METADATA_KEYS.join("|")}):`);
 
 function parseGoMapBody(body: string): GoMapObject {
   const result: GoMapObject = {};
@@ -185,17 +152,14 @@ function parseGoMapBody(body: string): GoMapObject {
         if (depth > 0) i++;
       }
       const arrBody = body.slice(start, i);
-      i++; // consume closing ']'
+      i++;
       result[key] = arrBody.trim() ? arrBody.trim().split(/\s+/) : [];
     } else {
       const rest = body.slice(i);
       const boundary = NEXT_KEY_BOUNDARY.exec(rest);
       const valueEnd = boundary ? boundary.index : rest.length;
       const rawValue = rest.slice(0, valueEnd).trim();
-      // Go prints an untyped nil (e.g. a null `description`) as the literal
-      // string "<nil>" in `%v` output — normalize it to empty so downstream
-      // consumers (which treat "" as absent) see it as unset rather than as
-      // the four-character string "<nil>".
+
       result[key] = rawValue === "<nil>" ? "" : rawValue;
       i += valueEnd;
     }
@@ -231,7 +195,7 @@ function parseGoMapObjectsLiteral(raw: string): GoMapObject[] {
         if (depth > 0) i++;
       }
       const body = inner.slice(start, i);
-      i++; // consume closing ']'
+      i++;
       objects.push(parseGoMapBody(body));
     } else {
       i++;
@@ -243,33 +207,58 @@ function parseGoMapObjectsLiteral(raw: string): GoMapObject[] {
 
 function parseJsonObjectArray(raw: string): GoMapObject[] | null {
   let data: unknown;
+
   try {
     data = JSON.parse(raw);
   } catch {
     return null;
   }
+
   if (!Array.isArray(data)) return null;
+
   return data.map((entry) => {
-    const obj = (entry ?? {}) as Record<string, unknown>;
+    const obj =
+      entry !== null && typeof entry === "object"
+        ? (entry as Record<string, unknown>)
+        : {};
+
     const out: GoMapObject = {};
+
     for (const [key, value] of Object.entries(obj)) {
-      if (Array.isArray(value)) {
-        out[key] = value.map((v) => String(v));
-      } else if (value !== null && value !== undefined) {
-        out[key] = String(value);
+      const converted = toGoMapValue(value);
+
+      if (converted !== null) {
+        out[key] = converted;
       }
     }
+
     return out;
   });
 }
 
-/**
- * Parses the `objects` column of a GDPR `lists-prod-lists.csv` row whose
- * `s_key` is `collection` — the array of per-list metadata entries (name,
- * description, dates, visibility, artwork, and each list's own `s_key`).
- * Handles both Go's `fmt %v` literal and a plain JSON array, mirroring
- * `parseGoMapArray`'s dual-format tolerance.
- */
+function toGoMapValue(value: unknown): string | string[] | null {
+  if (Array.isArray(value)) {
+    return value
+      .filter(
+        (v): v is string | number | boolean =>
+          typeof v === "string" ||
+          typeof v === "number" ||
+          typeof v === "boolean",
+      )
+      .map(String);
+  }
+
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return String(value);
+  }
+
+  return null;
+}
+
 export function parseGoMapObjectsArray(raw: string): GoMapObject[] {
   const trimmed = raw.trim();
   if (!trimmed || trimmed === "[]") return [];
@@ -308,10 +297,6 @@ export interface ListMetadata {
   type: string | null;
 }
 
-/**
- * Normalizes a raw `GoMapObject` from the `collection` row's metadata array
- * into a typed `ListMetadata` record.
- */
 export function parseListMetadata(obj: GoMapObject): ListMetadata {
   const createdAtRaw = firstString(obj["created_at"]);
   const updatedAtRaw = firstString(obj["updated_at"]);

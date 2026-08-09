@@ -109,7 +109,7 @@ export class LibraryView extends ItemView {
   private tabsEl!: HTMLElement;
   private filtersEl!: HTMLElement;
   private filterToggleBtn!: HTMLButtonElement;
-  private searchDebounce: ReturnType<typeof setTimeout> | null = null;
+  private searchDebounce: number | null = null;
 
   private favoritesTab: "movies" | "shows" = "movies";
   private customListsRefreshToken = 0;
@@ -139,7 +139,7 @@ export class LibraryView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "MediaVault Library";
+    return "Mediavault library";
   }
 
   getIcon(): string {
@@ -263,7 +263,7 @@ export class LibraryView extends ItemView {
       this.favoritesTab,
       (tab) => {
         this.favoritesTab = tab;
-        this.refreshFavorites(all);
+        void this.refreshFavorites(all);
       },
       () => {
         this.query.filter = this.favoritesTab === "movies" ? "movies" : "shows";
@@ -282,19 +282,24 @@ export class LibraryView extends ItemView {
         visibleCount: this.favoritesVisibleCount,
         fillPlaceholders: Platform.isMobile,
       },
-      async (tab) => {
-        const allForLists = await this.plugin.storage.media.getAll();
-        const [movieList, tvList] = getSystemFavoriteLists(
-          allForLists,
-          this.plugin.storage.settings.get(),
-        );
-        new ListDetailModal(
-          this.app,
-          this.plugin,
-          tab === "movies" ? movieList : tvList,
-        ).open();
+      (tab) => {
+        void this.openFavoriteList(tab);
       },
     );
+  }
+
+  private async openFavoriteList(tab: "movies" | "shows"): Promise<void> {
+    const allForLists = await this.plugin.storage.media.getAll();
+    const [movieList, tvList] = getSystemFavoriteLists(
+      allForLists,
+      this.plugin.storage.settings.get(),
+    );
+
+    new ListDetailModal(
+      this.app,
+      this.plugin,
+      tab === "movies" ? movieList : tvList,
+    ).open();
   }
 
   private async refreshCustomLists(all: MediaItem[]): Promise<void> {
@@ -790,7 +795,7 @@ export class LibraryView extends ItemView {
       return false;
     };
 
-    const isTurkish = navigator.language.toLowerCase().startsWith("tr"); // TODO: bunu sonradan degistir. direkt "tr" olmasin
+    const isTurkish = navigator.language.toLowerCase().startsWith("tr"); // TODO: fix later direkt "tr" olmasin
     const toLowerCase = isTurkish
       ? (s: string) => s
       : (s: string) => s.toLowerCase();
@@ -915,8 +920,8 @@ export class LibraryView extends ItemView {
     this.toolbarSearchEl = searchInput;
     makeClearable(searchInput);
     searchInput.addEventListener("input", () => {
-      if (this.searchDebounce) clearTimeout(this.searchDebounce);
-      this.searchDebounce = setTimeout(() => {
+      if (this.searchDebounce) window.clearTimeout(this.searchDebounce);
+      this.searchDebounce = window.setTimeout(() => {
         this.query.searchText = searchInput.value;
         this.query.page = 1;
         void this.refresh();
@@ -965,7 +970,7 @@ export class LibraryView extends ItemView {
     });
     this.renderViewToggle();
 
-    requestAnimationFrame(() => this.updateToolbarWrapState());
+    window.requestAnimationFrame(() => this.updateToolbarWrapState());
   }
 
   private updateToolbarWrapState(): void {
@@ -1124,7 +1129,7 @@ export class LibraryView extends ItemView {
 
   private applyMinHeightReservation(prevHeight: number): void {
     if (prevHeight <= 0) return;
-    this.contentEl2.style.minHeight = `${prevHeight}px`;
+    this.contentEl2.setCssStyles({ minHeight: `${prevHeight}px` });
 
     const collapse = () => this.clearPendingMinHeightCollapse();
     this.collapseMinHeightHandler = collapse;
@@ -1132,7 +1137,7 @@ export class LibraryView extends ItemView {
   }
 
   private clearPendingMinHeightCollapse(): void {
-    this.contentEl2.style.minHeight = "";
+    this.contentEl2.setCssStyles({ minHeight: "" });
     if (this.collapseMinHeightHandler) {
       this.viewRoot?.removeEventListener(
         "scroll",
@@ -1174,7 +1179,7 @@ export class LibraryView extends ItemView {
   }
 
   private buildListRow(item: MediaItem): HTMLElement {
-    const row = document.createElement("div");
+    const row = createDiv();
     row.addClass("mediavault-list-row");
     row.addEventListener("click", () => this.openDetail(item));
     const poster = row.createDiv({ cls: "mediavault-list-poster" });

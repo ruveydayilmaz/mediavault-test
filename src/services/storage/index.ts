@@ -68,12 +68,6 @@ export class StorageService {
     await this.adapter.flush();
   }
 
-  /**
-   * Deletes every MediaVault-managed storage file and re-initializes to a
-   * brand-new empty state (see `StorageAdapter.factoryReset`). Generated
-   * Markdown notes in the vault are untouched — this operates entirely
-   * within the plugin's own storage directory.
-   */
   async factoryReset(): Promise<void> {
     await this.adapter.factoryReset();
   }

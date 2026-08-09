@@ -7,6 +7,7 @@ import {
   buildRecommendations,
   RecommendationSet,
 } from "../../services/recommendation/engine";
+import { Recommendation } from "../../services/recommendation/types";
 import {
   renderDiscoverCard,
   DiscoverCardData,
@@ -62,7 +63,14 @@ export class RecommendationsModal extends Modal {
     }
     loading.remove();
 
-    const hasAny = Object.values(recs).some((list) => list.length > 0);
+    const lists: Recommendation[][] = [
+      recs.similarToFavorites,
+      recs.hiddenGems,
+      recs.comfortRewatch,
+      recs.highEnergy,
+      recs.lowAttention,
+    ];
+    const hasAny = lists.some((list) => list.length > 0);
     if (!hasAny) {
       contentEl.createDiv({
         cls: "mediavault-rec-empty",

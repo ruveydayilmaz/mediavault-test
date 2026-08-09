@@ -41,24 +41,26 @@ export class FactoryResetModal extends Modal {
       cls: "mod-warning",
       text: t("factoryReset.confirmButton"),
     });
-    confirmBtn.addEventListener("click", async () => {
-      if (this.resetting) return;
-      this.resetting = true;
-      cancelBtn.setAttr("disabled", "true");
-      confirmBtn.setAttr("disabled", "true");
-      confirmBtn.setText(t("factoryReset.resetting"));
-      try {
-        await this.options.onConfirm();
-        this.close();
-      } catch (err) {
-        new Notice(
-          t("factoryReset.failed", { error: (err as Error).message }),
-        );
-        this.resetting = false;
-        cancelBtn.removeAttribute("disabled");
-        confirmBtn.removeAttribute("disabled");
-        confirmBtn.setText(t("factoryReset.confirmButton"));
-      }
+    confirmBtn.addEventListener("click", () => {
+      void (async () => {
+        if (this.resetting) return;
+        this.resetting = true;
+        cancelBtn.setAttr("disabled", "true");
+        confirmBtn.setAttr("disabled", "true");
+        confirmBtn.setText(t("factoryReset.resetting"));
+        try {
+          await this.options.onConfirm();
+          this.close();
+        } catch (err) {
+          new Notice(
+            t("factoryReset.failed", { error: (err as Error).message }),
+          );
+          this.resetting = false;
+          cancelBtn.removeAttribute("disabled");
+          confirmBtn.removeAttribute("disabled");
+          confirmBtn.setText(t("factoryReset.confirmButton"));
+        }
+      })();
     });
   }
 

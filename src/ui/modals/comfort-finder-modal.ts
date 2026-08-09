@@ -1,5 +1,6 @@
 import { App, Modal, Notice, Setting } from "obsidian";
 import { renderModalHeader } from "./modal-chrome";
+import { promptDialog } from "./confirm-modal";
 import type { StorageService } from "../../services/storage";
 import { getComfortableMedia } from "../../services/comfort/join";
 import {
@@ -297,7 +298,7 @@ export class ComfortFinderModal extends Modal {
   }
 
   private async promptSavePreset(): Promise<void> {
-    const name = window.prompt(t("comfort.namePresetPrompt"));
+    const name = await promptDialog(this.app, t("comfort.namePresetPrompt"));
     if (!name || !name.trim()) return;
 
     try {

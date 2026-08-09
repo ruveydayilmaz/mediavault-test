@@ -174,12 +174,6 @@ function normalizeTitleKey(title: string): string {
   return title.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-/**
- * Fetches a TV candidate's season/episode-count catalogue for
- * episode-history tie-breaking. `TMDBService.getTV()` already caches by
- * tmdbId internally, so repeated lookups for the same candidate across
- * multiple ambiguous imports in one run are free.
- */
 async function fetchCandidateSeasons(
   tmdb: TMDBService,
   tmdbId: number,
@@ -223,7 +217,7 @@ export class MediaResolver {
   }
 
   private indexNewMedia(media: MediaItem): void {
-    if (!this.titleIndex) return; // not built yet — next ensureTitleIndex() call will pick it up fresh
+    if (!this.titleIndex) return; // WIP next ensureTitleIndex() call will pick it up fresh
     const key = normalizeTitleKey(media.title);
     const bucket = this.titleIndex.get(key);
     if (bucket) bucket.push(media);
@@ -434,9 +428,6 @@ async function applyWatch(
   if (watch.kind === "movie") {
     const watchedAt = watch.watchedAt ?? new Date().toISOString().slice(0, 10);
 
-    // Idempotency: skip creating another session if this exact movie was
-    // already logged as watched on this exact date (either from a prior
-    // run of this same import, or from data already in the vault).
     let seenDates = existingWatchDates.get(`movie:${media.id}`);
     if (!seenDates) {
       seenDates = new Set(
@@ -449,7 +440,7 @@ async function applyWatch(
     if (seenDates.has(watchedAt)) {
       report.skipped++;
       report.duplicatesMerged++;
-      trackSkip(report, "Movie already watched on this date — merged");
+      trackSkip(report, "Movie already watched on this date: merged");
       bumpActivity(media.id, watchedAt);
       return;
     }
@@ -492,7 +483,7 @@ async function applyWatch(
     report.unmatchedEpisodes++;
     trackSkip(report, "Episode not found on TMDB for this show");
     report.errors.push({
-      reason: `"${watch.title}" S${watch.seasonNumber}E${watch.episodeNumber}: no matching episode found on TMDB — skipped.`,
+      reason: `"${watch.title}" S${watch.seasonNumber}E${watch.episodeNumber}: no matching episode found on TMDB: skipped.`,
     });
     return;
   }
@@ -506,10 +497,6 @@ async function applyWatch(
 
   const watchedAt = watch.watchedAt ?? new Date().toISOString().slice(0, 10);
 
-  // Idempotency: re-running the same GDPR import must not create duplicate
-  // episode-watch records. An exact (episode, watched date) pair is treated
-  // as the same watch event as one already on disk or already created
-  // earlier in this same run (e.g. from an overlapping GDPR source file).
   let seenDates = existingWatchDates.get(episode.id);
   if (!seenDates) {
     seenDates = new Set(
@@ -522,7 +509,7 @@ async function applyWatch(
   if (seenDates.has(watchedAt)) {
     report.skipped++;
     report.duplicatesMerged++;
-    trackSkip(report, "Episode already watched on this date — merged");
+    trackSkip(report, "Episode already watched on this date: merged");
     affectedSeries.add(media.id);
     bumpActivity(media.id, watchedAt);
     const current = seriesLatestWatchedDate.get(media.id);
@@ -803,15 +790,6 @@ async function applyFavorite(
   report.favoritesImported++;
 }
 
-/**
- * Marks a media item Dropped from a GDPR `is_archived` tracking row.
- * `MediaStatus.Dropped` is one of `status-service.ts`'s
- * `MANUAL_OVERRIDE_STATUSES`, so once set here it's preserved by every
- * later live status recalculation in this same commit (and afterward) —
- * exactly like a user manually dropping the item from the UI would be.
- * Idempotent: re-importing the same archived item just re-applies the same
- * status.
- */
 async function applyDropped(
   storage: StorageService,
   dropped: DroppedImport,
@@ -830,10 +808,6 @@ async function applyList(
   mediaIds: string[],
   report: ImportReport,
 ): Promise<void> {
-  // Built-in favorite lists (`favorite-movies` / `favorite-series`) have no
-  // storage record of their own in MediaVault — they're derived live from
-  // `MediaItem.isFavorite`. Populate that instead of creating a duplicate
-  // custom list that would just shadow the real built-in list.
   if (list.builtIn) {
     for (const mediaId of mediaIds) {
       await storage.media.update(mediaId, { isFavorite: true });
@@ -845,10 +819,6 @@ async function applyList(
   }
 
   const existingLists = await storage.customLists.getAll();
-  // Identity is the stable `sourceKey` (e.g. TV Time's per-list `s_key`),
-  // never the display `name` — display names are mutable and can collide
-  // across genuinely distinct lists (TV Time's own default lists commonly
-  // share a name), so matching on `name` would merge unrelated lists.
   const existing = existingLists.find(
     (l) => l.isImported && l.importSource === list.sourceKey,
   );
@@ -901,9 +871,7 @@ interface DistinctResolution {
   match?: MatchMetadata;
 }
 
-function collectDistinctResolutions(
-  bundle: NormalizedImportBundle,
-): {
+function collectDistinctResolutions(bundle: NormalizedImportBundle): {
   resolutions: DistinctResolution[];
   episodeHistoryByKey: Map<string, EpisodeHistoryEntry[]>;
 } {
@@ -932,7 +900,10 @@ function collectDistinctResolutions(
     ) {
       const key = resolutionKey(w.ids, w.title, w.year, w.kind, w.match);
       const list = episodeHistoryByKey.get(key) ?? [];
-      list.push({ seasonNumber: w.seasonNumber, episodeNumber: w.episodeNumber });
+      list.push({
+        seasonNumber: w.seasonNumber,
+        episodeNumber: w.episodeNumber,
+      });
       episodeHistoryByKey.set(key, list);
     }
   }
@@ -1003,9 +974,6 @@ export async function commitBundle(
     }
   };
 
-  // Report a stage immediately, before any awaited work begins, so the
-  // modal never sits on "Starting..." once the commit has actually kicked
-  // off — even if the very first phase (matching) turns out to be slow.
   onProgress?.(0, 1, "Matching movies & TV series");
 
   await timer.time("Media matching (total)", async () => {
@@ -1033,9 +1001,7 @@ export async function commitBundle(
           onProgress?.(
             matchDone,
             matchTotal,
-            item.kind === "movie"
-              ? "Matching movies"
-              : "Matching TV series",
+            item.kind === "movie" ? "Matching movies" : "Matching TV series",
           );
         }
         await maybeYield(matchDone, 25);
@@ -1118,7 +1084,7 @@ export async function commitBundle(
       );
       if (!media) {
         report.skipped++;
-        trackSkip(report, "No media match — watch not imported");
+        trackSkip(report, "No media match: watch not imported");
       } else {
         await applyWatch(
           storage,
@@ -1150,7 +1116,7 @@ export async function commitBundle(
       );
       if (!media) {
         report.skipped++;
-        trackSkip(report, "No media match — comment not imported");
+        trackSkip(report, "No media match: comment not imported");
       } else {
         await applyReview(storage, review, media, report);
       }
@@ -1170,7 +1136,7 @@ export async function commitBundle(
       );
       if (!media) {
         report.skipped++;
-        trackSkip(report, "No media match — like not imported");
+        trackSkip(report, "No media match: like not imported");
       } else {
         await applyLike(storage, like, media, report);
       }
@@ -1190,7 +1156,7 @@ export async function commitBundle(
       );
       if (!media) {
         report.skipped++;
-        trackSkip(report, "No media match — rating not imported");
+        trackSkip(report, "No media match: rating not imported");
       } else {
         await applyRating(storage, rating, media, report);
       }
@@ -1210,7 +1176,7 @@ export async function commitBundle(
       );
       if (!media) {
         report.skipped++;
-        trackSkip(report, "No media match — favorite not imported");
+        trackSkip(report, "No media match: favorite not imported");
       } else {
         await applyFavorite(storage, media, report);
       }
@@ -1237,7 +1203,7 @@ export async function commitBundle(
         } else {
           report.missingListItems++;
           report.skipped++;
-          trackSkip(report, "No media match — list item not imported");
+          trackSkip(report, "No media match: list item not imported");
         }
       }
       await applyList(storage, list, mediaIds, report);
@@ -1263,7 +1229,7 @@ export async function commitBundle(
       );
       if (!media) {
         report.skipped++;
-        trackSkip(report, "No media match — dropped status not imported");
+        trackSkip(report, "No media match: dropped status not imported");
       } else {
         await applyDropped(storage, dropped, media, report);
       }
@@ -1302,14 +1268,6 @@ export async function commitBundle(
     await maybeYield(rewatchDone, 25);
   }
 
-  // Recent sorting reads `lastActivityAt`, and it must reflect the true
-  // chronology of the imported history — not import time. Episode watches
-  // are written directly above (bypassing the per-write touchMediaActivity
-  // funnel, deliberately, for bulk-import performance), so this is the one
-  // place that reconciles `lastActivityAt` for every affected show/movie,
-  // using the newest watch event actually found for it. touchMediaActivity
-  // itself guards against moving activity backward, so this is safe to run
-  // unconditionally and is idempotent on re-import.
   await timer.time("Recent activity sync", async () => {
     let syncDone = 0;
     for (const [mediaId, at] of mediaLatestActivityDate) {

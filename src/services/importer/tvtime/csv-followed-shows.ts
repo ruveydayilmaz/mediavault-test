@@ -46,7 +46,7 @@ export const CsvFollowedShowsImporter: TVTimeImporter = {
       if (episodesSeen > 0) {
         bundle.warnings.push({
           row: i,
-          reason: `"${title}": TV Time reports ${episodesSeen} episode(s) seen, but this export doesn't say which — import episode-level watch history separately (JSON export or per-episode CSV) to get accurate progress.`,
+          reason: `"${title}": TV Time reports ${episodesSeen} episode(s) seen, but this export doesn't say which, import episode-level watch history separately (JSON export or per-episode CSV) to get accurate progress.`,
         });
       }
     });

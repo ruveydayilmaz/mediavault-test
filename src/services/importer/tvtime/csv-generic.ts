@@ -84,18 +84,18 @@ function baseFields(row: RawImportRow) {
     embedded !== null && seasonRaw === null && episodeRaw === null;
 
   return {
-    title: usingEmbedded ? embedded!.baseTitle : rawTitle,
+    title: usingEmbedded ? embedded.baseTitle : rawTitle,
     seasonNumber:
       seasonRaw !== null
         ? parseInt(seasonRaw, 10)
         : usingEmbedded
-          ? (embedded!.season ?? undefined)
+          ? (embedded.season ?? undefined)
           : undefined,
     episodeNumber:
       episodeRaw !== null
         ? parseInt(episodeRaw, 10)
         : usingEmbedded
-          ? (embedded!.episode ?? undefined)
+          ? (embedded.episode ?? undefined)
           : undefined,
     episodeTitle: findField(row, EPISODE_TITLE_ALIASES) ?? undefined,
   };

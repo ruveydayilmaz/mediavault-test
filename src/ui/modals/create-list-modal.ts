@@ -38,18 +38,23 @@ export class CreateListModal extends Modal {
       text: t("common.create"),
       cls: "mod-cta",
     });
-    createBtn.addEventListener("click", async () => {
-      const title = titleInput.value.trim();
-      if (!title) {
-        new Notice(t("notice.enterListName"));
-        return;
-      }
-      const list = await this.storage.customLists.create({
-        title,
-        description: descInput.value.trim() || null,
-      });
-      this.onCreated(list);
-      this.close();
+    createBtn.addEventListener("click", () => {
+      void (async () => {
+        const title = titleInput.value.trim();
+
+        if (!title) {
+          new Notice(t("notice.enterListName"));
+          return;
+        }
+
+        const list = await this.storage.customLists.create({
+          title,
+          description: descInput.value.trim() || null,
+        });
+
+        this.onCreated(list);
+        this.close();
+      })();
     });
 
     titleInput.addEventListener("keydown", (evt) => {

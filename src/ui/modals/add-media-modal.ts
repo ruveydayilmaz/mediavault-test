@@ -15,7 +15,7 @@ export class AddMediaModal extends SuggestModal<TMDBSearchResult> {
   private storage: StorageService;
   private onAdded?: (media: MediaItem) => void;
 
-  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private debounceTimer: number | null = null;
   private latestQuery = "";
   private latestResults: TMDBSearchResult[] = [];
   private pendingResolvers: ((results: TMDBSearchResult[]) => void)[] = [];
@@ -42,29 +42,34 @@ export class AddMediaModal extends SuggestModal<TMDBSearchResult> {
       return Promise.resolve([]);
     }
 
-    if (this.debounceTimer) clearTimeout(this.debounceTimer);
+    if (this.debounceTimer) window.clearTimeout(this.debounceTimer);
 
     return new Promise((resolve) => {
       this.pendingResolvers.push(resolve);
 
-      this.debounceTimer = setTimeout(async () => {
-        const queryAtFire = this.latestQuery;
-        try {
-          const result = await this.tmdb.searchMulti(queryAtFire);
+      this.debounceTimer = window.setTimeout(() => {
+        void (async () => {
+          const queryAtFire = this.latestQuery;
 
-          if (queryAtFire === this.latestQuery) {
-            this.latestResults = result.items;
+          try {
+            const result = await this.tmdb.searchMulti(queryAtFire);
+
+            if (queryAtFire === this.latestQuery) {
+              this.latestResults = result.items;
+            }
+          } catch (err) {
+            new Notice(
+              t("explore.addMediaSearchFailed", {
+                error: (err as Error).message,
+              }),
+            );
+            this.latestResults = [];
           }
-        } catch (err) {
-          new Notice(
-            t("explore.addMediaSearchFailed", { error: (err as Error).message }),
-          );
-          this.latestResults = [];
-        }
 
-        const resolvers = this.pendingResolvers;
-        this.pendingResolvers = [];
-        resolvers.forEach((r) => r(this.latestResults));
+          const resolvers = this.pendingResolvers;
+          this.pendingResolvers = [];
+          resolvers.forEach((r) => r(this.latestResults));
+        })();
       }, DEBOUNCE_MS);
     });
   }
@@ -90,7 +95,10 @@ export class AddMediaModal extends SuggestModal<TMDBSearchResult> {
       });
     }
     titleLine.createSpan({
-      text: item.mediaKind === "movie" ? t("explore.kindMovie") : t("explore.kindTv"),
+      text:
+        item.mediaKind === "movie"
+          ? t("explore.kindMovie")
+          : t("explore.kindTv"),
       cls: "mediavault-search-kind",
     });
 
@@ -105,7 +113,11 @@ export class AddMediaModal extends SuggestModal<TMDBSearchResult> {
     }
   }
 
-  async onChooseSuggestion(item: TMDBSearchResult): Promise<void> {
+  onChooseSuggestion(item: TMDBSearchResult): void {
+    void this.handleChooseSuggestion(item);
+  }
+
+  private async handleChooseSuggestion(item: TMDBSearchResult): Promise<void> {
     try {
       const { mediaItem, alreadyExisted } = await addMediaFromTMDB(
         this.storage,
@@ -124,7 +136,11 @@ export class AddMediaModal extends SuggestModal<TMDBSearchResult> {
         this.onAdded?.(mediaItem);
       }
     } catch (err) {
-      new Notice(t("explore.failedToAddMedia", { error: (err as Error).message }));
+      new Notice(
+        t("explore.failedToAddMedia", {
+          error: (err as Error).message,
+        }),
+      );
     }
   }
 }

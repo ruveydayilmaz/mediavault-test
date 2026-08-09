@@ -36,7 +36,7 @@ export class ExploreView extends ItemView {
   private browseGenresLocale: string | null = null;
 
   private searchQuery = "";
-  private searchDebounce: ReturnType<typeof setTimeout> | null = null;
+  private searchDebounce: number | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: MediaVaultPlugin) {
     super(leaf);
@@ -144,7 +144,9 @@ export class ExploreView extends ItemView {
 
       await this.renderRecommendedRow(body);
     } catch (err) {
-      loading.setText(t("explore.failedToLoad", { error: (err as Error).message }));
+      loading.setText(
+        t("explore.failedToLoad", { error: (err as Error).message }),
+      );
     }
   }
 
@@ -226,11 +228,11 @@ export class ExploreView extends ItemView {
       kindSelect.createEl("option", { value: opt.value, text: opt.label }),
     );
     kindSelect.value = this.browseKind;
-    kindSelect.addEventListener("change", async () => {
+    kindSelect.addEventListener("change", () => {
       this.browseKind = kindSelect.value as "movie" | "tv";
       this.browseGenres = [];
       this.browseFilters = { ...this.browseFilters, genreId: undefined };
-      await this.refresh();
+      void this.refresh();
     });
 
     const genreSelect = primaryRow.createEl("select");
@@ -318,7 +320,12 @@ export class ExploreView extends ItemView {
 
     const ratingMin = moreFilters.createEl("input", {
       type: "number",
-      attr: { placeholder: t("explore.ratingMinPlaceholder"), step: "0.5", min: "0", max: "10" },
+      attr: {
+        placeholder: t("explore.ratingMinPlaceholder"),
+        step: "0.5",
+        min: "0",
+        max: "10",
+      },
     });
     ratingMin.value = this.browseFilters.ratingMin?.toString() ?? "";
     ratingMin.addEventListener("change", () => {
@@ -373,7 +380,9 @@ export class ExploreView extends ItemView {
       }
       this.renderGrid(resultsEl, result.items.map(fromSearchResult));
     } catch (err) {
-      loading.setText(t("explore.browseFailed", { error: (err as Error).message }));
+      loading.setText(
+        t("explore.browseFailed", { error: (err as Error).message }),
+      );
     }
   }
 
@@ -398,8 +407,8 @@ export class ExploreView extends ItemView {
 
     input.addEventListener("input", () => {
       this.searchQuery = input.value;
-      if (this.searchDebounce) clearTimeout(this.searchDebounce);
-      this.searchDebounce = setTimeout(
+      if (this.searchDebounce) window.clearTimeout(this.searchDebounce);
+      this.searchDebounce = window.setTimeout(
         () => void this.runSearch(this.searchQuery, resultsEl),
         350,
       );
@@ -434,7 +443,9 @@ export class ExploreView extends ItemView {
       }
       this.renderGrid(resultsEl, result.items.map(fromSearchResult));
     } catch (err) {
-      loading.setText(t("explore.searchFailed", { error: (err as Error).message }));
+      loading.setText(
+        t("explore.searchFailed", { error: (err as Error).message }),
+      );
     }
   }
 
