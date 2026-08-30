@@ -8,10 +8,7 @@ for new releases, mood-based "comfort media" recommendations, and a full
 analytics dashboard. Built for desktop, Android, and iOS, with all data
 stored directly inside your vault.
 
-<p align="center">
-  <img src="./screenshots/mediavault-ios-library.jpeg" alt="MediaVault iOS Library" height="500">
-  <img src="./screenshots/mediavault-desktop.png" alt="MediaVault Desktop" height="500">
-</p>
+<img width="1640" height="664" alt="ss" src="https://github.com/user-attachments/assets/c63304a6-bf16-4b2d-a8ca-a9e84aca7e57" />
 
 ## Features
 
@@ -151,3 +148,5 @@ src/
                          poster cards, discover cards
   settings/           Plugin settings + settings tab
 ```
+
+> **Note:** The translations are currently generated using machine translation, so some phrases may be inaccurate or sound unnatural. If you notice any translation issues, feel free to contribute a correction to the project. All contributions are welcome!

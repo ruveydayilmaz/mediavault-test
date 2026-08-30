@@ -34,6 +34,7 @@ export class FactoryResetModal extends Modal {
     });
 
     const buttons = contentEl.createDiv({ cls: "mediavault-modal-buttons" });
+    contentEl.addClass("mediavault-has-bottom-bar");
     const cancelBtn = buttons.createEl("button", { text: t("common.cancel") });
     cancelBtn.addEventListener("click", () => this.close());
 

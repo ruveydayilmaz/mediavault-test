@@ -134,6 +134,7 @@ export class WatchSessionModal extends Modal {
       });
 
     const buttonRow = contentEl.createDiv({ cls: "mediavault-modal-buttons" });
+    contentEl.addClass("mediavault-has-bottom-bar");
 
     const saveBtn = buttonRow.createEl("button", {
       text: isEdit

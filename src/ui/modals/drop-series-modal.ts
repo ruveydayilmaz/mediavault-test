@@ -45,6 +45,7 @@ export class DropSeriesModal extends Modal {
     });
 
     const buttons = contentEl.createDiv({ cls: "mediavault-modal-buttons" });
+    contentEl.addClass("mediavault-has-bottom-bar");
     buttons
       .createEl("button", { text: t("common.cancel") })
       .addEventListener("click", () => this.close());
