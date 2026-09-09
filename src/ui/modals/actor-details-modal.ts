@@ -141,10 +141,6 @@ export class ActorDetailsModal extends Modal {
       });
     }
     const info = header.createDiv({ cls: "mediavault-actor-info" });
-    // info.createEl("h2", {
-    //   cls: "mediavault-actor-name",
-    //   text: this.person.name,
-    // });
 
     const dateParts: string[] = [];
     if (this.person.birthday) {
@@ -249,9 +245,7 @@ export class ActorDetailsModal extends Modal {
 
     this.filmographyHeadingDiv.createEl("h3", {
       cls: "mediavault-actor-filmography-heading",
-      text: this.crewFilter
-        ? this.crewFilter.roles.map((r) => crewRoleLabel(r)).join(" & ")
-        : t("detail.filmography"),
+      text: t("detail.filmography"),
     });
 
     this.renderDepartmentTabBar(this.filmographyHeadingDiv);

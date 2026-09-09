@@ -1,8 +1,13 @@
 import type { App } from "obsidian";
+import { TFile } from "obsidian";
 import type { StorageService } from "../storage";
 import { MediaItem } from "../../models/media";
 import { MediaType } from "../../types/enums";
-import { buildMediaFrontmatter } from "./media-frontmatter";
+import {
+  buildMediaFrontmatterData,
+  managedFrontmatterKeys,
+} from "./media-frontmatter";
+import { mergeFrontmatter, serializeFrontmatter } from "./frontmatter";
 import { buildManagedBody, mergeManagedBody } from "./note-content";
 import { mapWithConcurrency } from "../importer/concurrency";
 import { maybeYield } from "../importer/yield";
@@ -47,8 +52,10 @@ export async function generateMediaNote(
   app: App,
   storage: StorageService,
   media: MediaItem,
-): Promise<string> {
-  const baseFolder = storage.settings.get().mediaFolderPath || "MediaVault";
+): Promise<{ notePath: string; changed: boolean }> {
+  const settings = storage.settings.get();
+  const baseFolder = settings.mediaFolderPath || "MediaVault";
+  const template = settings.noteTemplate;
   const notePath = resolveMediaNotePath(baseFolder, media);
 
   const sessions = await storage.watchSessions.findWhere(
@@ -59,19 +66,47 @@ export async function generateMediaNote(
   );
   const comfort = comfortProfiles[0] ?? null;
 
-  const frontmatter = buildMediaFrontmatter(media, comfort);
-  const managedBody = buildManagedBody(media, sessions);
+  const generatedFrontmatterData = buildMediaFrontmatterData(
+    media,
+    comfort,
+    template,
+  );
+  const managedBody = buildManagedBody(media, sessions, template.sections);
 
   const existingFile = app.vault.getAbstractFileByPath(notePath);
   let finalContent: string;
+  let changed = true;
 
-  if (existingFile) {
+  if (existingFile instanceof TFile) {
     const existingContent = await app.vault.adapter.read(notePath);
     const bodyOnly = stripLeadingFrontmatter(existingContent);
     const mergedBody = mergeManagedBody(bodyOnly, managedBody);
+
+    // Preserve any frontmatter properties the user added themselves (or
+    // that MediaVault previously wrote under an option since disabled) by
+    // merging against Obsidian's parsed cache of the note's existing
+    // frontmatter, rather than blindly overwriting the whole block.
+    const existingFrontmatter =
+      app.metadataCache.getFileCache(existingFile)?.frontmatter ?? null;
+    const mergedFrontmatterData = mergeFrontmatter(
+      generatedFrontmatterData,
+      existingFrontmatter,
+      managedFrontmatterKeys(template),
+    );
+    const frontmatter = serializeFrontmatter(mergedFrontmatterData);
+
     finalContent = `${frontmatter}\n\n${mergedBody}`;
-    await app.vault.adapter.write(notePath, finalContent);
+
+    // Avoid touching the file (and its mtime) when nothing MediaVault owns
+    // actually changed — important for sync passes over large libraries and
+    // for not fighting other plugins/processes over the file.
+    if (finalContent === existingContent) {
+      changed = false;
+    } else {
+      await app.vault.adapter.write(notePath, finalContent);
+    }
   } else {
+    const frontmatter = serializeFrontmatter(generatedFrontmatterData);
     await ensureFolderExists(app, resolveMediaFolder(baseFolder, media.type));
     finalContent = `${frontmatter}\n\n# ${media.title}\n\n${managedBody}\n\n## Notes\n\n`;
     await app.vault.create(notePath, finalContent);
@@ -81,7 +116,7 @@ export async function generateMediaNote(
     await storage.media.update(media.id, { notePath });
   }
 
-  return notePath;
+  return { notePath, changed };
 }
 
 function stripLeadingFrontmatter(content: string): string {

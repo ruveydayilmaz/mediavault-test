@@ -7,6 +7,32 @@ export type FrontmatterValue =
   | number[];
 export type FrontmatterData = Record<string, FrontmatterValue | undefined>;
 
+/**
+ * Merges freshly-generated MediaVault frontmatter with whatever frontmatter
+ * already exists in the note on disk, preserving any keys the user added
+ * themselves (or MediaVault previously wrote under an option that's since
+ * been disabled). MediaVault-managed keys (from `managedKeys`) are always
+ * taken from `generated`; everything else in `existing` passes through
+ * untouched. Managed keys come first so the note reads consistently.
+ */
+export function mergeFrontmatter(
+  generated: FrontmatterData,
+  existing: Record<string, unknown> | null | undefined,
+  managedKeys: Set<string>,
+): FrontmatterData {
+  const merged: FrontmatterData = { ...generated };
+
+  if (existing) {
+    for (const [key, value] of Object.entries(existing)) {
+      if (managedKeys.has(key)) continue;
+      if (key === "position") continue; // Obsidian metadata cache internal field
+      merged[key] = value as FrontmatterValue;
+    }
+  }
+
+  return merged;
+}
+
 function needsQuoting(value: string): boolean {
   if (value === "") return true;
   return (
@@ -17,14 +43,20 @@ function needsQuoting(value: string): boolean {
   );
 }
 
-function serializeScalar(value: string | number | boolean | null): string {
-  if (value === null) return "null";
+function serializeScalar(value: unknown): string {
+  if (value === null || value === undefined) return "null";
   if (typeof value === "number" || typeof value === "boolean")
     return String(value);
-  if (needsQuoting(value)) {
-    return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  if (typeof value === "string") {
+    if (needsQuoting(value)) {
+      return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+    }
+    return value;
   }
-  return value;
+  // Fallback for shapes we don't explicitly model (e.g. arbitrary
+  // user-added frontmatter values) — stringify safely rather than emitting
+  // something that could corrupt the YAML block.
+  return serializeScalar(JSON.stringify(value));
 }
 
 export function serializeFrontmatter(data: FrontmatterData): string {
