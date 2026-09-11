@@ -3,7 +3,7 @@ import type { Chart } from "chart.js";
 import type MediaVaultPlugin from "../../main";
 import { VIEW_TYPE_ANALYTICS } from "../../constants";
 import { computeAnalyticsMemoized } from "../../services/analytics/memoized";
-import { t } from "../../i18n";
+import { t, tPlural } from "../../i18n";
 import {
   createChart,
   CHART_PALETTE,
@@ -83,10 +83,13 @@ export class AnalyticsView extends ItemView {
 
     const headline = root.createDiv({ cls: "mediavault-analytics-headline" });
     headline.createDiv({
-      text: t("analytics.moviesEpisodesWatchedLine", {
-        movies: stats.moviesWatchedCount,
-        episodes: stats.episodesWatchedCount,
-      }),
+      text: [
+        tPlural("analytics.moviesCountLabel", stats.moviesWatchedCount),
+        tPlural(
+          "analytics.episodesWatchedCountLabel",
+          stats.episodesWatchedCount,
+        ),
+      ].join(" · "),
     });
     headline.createDiv({
       cls: "mediavault-analytics-subline",

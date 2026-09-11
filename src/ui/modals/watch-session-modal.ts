@@ -8,6 +8,7 @@ import {
   addWatchSession,
   updateWatchSession,
 } from "../../services/watch-session-service";
+import { isFutureDate, todayIsoDate } from "../../utils/date-utils";
 
 interface WatchSessionModalOptions {
   mediaId: string;
@@ -64,16 +65,17 @@ export class WatchSessionModal extends Modal {
       });
     }
 
-    new Setting(contentEl)
-      .setName(t("watchSession.watchDate"))
-      .addText((text) =>
-        text
-          .setValue(this.watchDate)
-          .onChange((value) => {
-            this.watchDate = value;
-          })
-          .inputEl.setAttribute("type", "date"),
-      );
+    new Setting(contentEl).setName(t("watchSession.watchDate")).addText((text) => {
+      text.setValue(this.watchDate).onChange((value) => {
+        this.watchDate = value;
+      });
+      text.inputEl.setAttribute("type", "date");
+      // Prevents picking a future date via the picker UI itself. Computed
+      // fresh on every open rather than hardcoded, and re-validated on
+      // save below since a value can still arrive manually/typed or from
+      // elsewhere.
+      text.inputEl.setAttribute("max", todayIsoDate());
+    });
 
     new Setting(contentEl).setName(t("watchSession.rating")).addText((text) =>
       text
@@ -153,6 +155,10 @@ export class WatchSessionModal extends Modal {
   private async save(): Promise<void> {
     if (!this.watchDate) {
       new Notice(t("notice.setWatchDate"));
+      return;
+    }
+    if (isFutureDate(this.watchDate)) {
+      new Notice(t("notice.futureDateNotAllowed"));
       return;
     }
     if (this.rating !== null && (this.rating < 0 || this.rating > 10)) {

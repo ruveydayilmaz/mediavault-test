@@ -4,6 +4,7 @@ import type { StorageService } from "../../services/storage";
 import { EpisodeWatch } from "../../models/episode";
 import { updateEpisodeWatch } from "../../services/episode-watch-service";
 import { t } from "../../i18n";
+import { isFutureDate, todayIsoDate } from "../../utils/date-utils";
 
 export interface EditEpisodeWatchModalOptions {
   watch: EpisodeWatch;
@@ -28,16 +29,13 @@ export class EditEpisodeWatchModal extends Modal {
     contentEl.addClass("mediavault-edit-episode-watch-modal");
     renderModalHeader(this, contentEl, t("detail.editWatchDate"), "h3");
 
-    new Setting(contentEl)
-      .setName(t("watchSession.watchDate"))
-      .addText((text) =>
-        text
-          .setValue(this.watchedAt)
-          .onChange((value) => {
-            this.watchedAt = value;
-          })
-          .inputEl.setAttribute("type", "date"),
-      );
+    new Setting(contentEl).setName(t("watchSession.watchDate")).addText((text) => {
+      text.setValue(this.watchedAt).onChange((value) => {
+        this.watchedAt = value;
+      });
+      text.inputEl.setAttribute("type", "date");
+      text.inputEl.setAttribute("max", todayIsoDate());
+    });
 
     const buttonRow = contentEl.createDiv({
       cls: "mediavault-modal-buttons",
@@ -58,6 +56,10 @@ export class EditEpisodeWatchModal extends Modal {
   private async handleSave(): Promise<void> {
     if (!this.watchedAt) {
       new Notice(t("notice.setWatchDate"));
+      return;
+    }
+    if (isFutureDate(this.watchedAt)) {
+      new Notice(t("notice.futureDateNotAllowed"));
       return;
     }
     await updateEpisodeWatch(this.storage, this.options.watch.id, {

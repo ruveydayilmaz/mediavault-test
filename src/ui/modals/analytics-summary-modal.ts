@@ -3,7 +3,7 @@ import { renderModalHeader } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
 import { computeAnalyticsMemoized } from "../../services/analytics/memoized";
 import { CountItem } from "../../services/analytics/types";
-import { t, i18n } from "../../i18n";
+import { t, tPlural, i18n } from "../../i18n";
 import type { TMDBService } from "../../api/tmdb";
 import { ActorDetailsModal } from "./actor-details-modal";
 
@@ -49,11 +49,11 @@ export class AnalyticsSummaryModal extends Modal {
     });
     headline.createDiv({
       cls: "mediavault-analytics-subline",
-      text: t("analytics.subline", {
-        movies: stats.moviesWatchedCount,
-        episodes: stats.episodesWatchedCount,
-        rewatches: stats.rewatchCount,
-      }),
+      text: [
+        tPlural("analytics.moviesCountLabel", stats.moviesWatchedCount),
+        tPlural("analytics.episodesCountLabel", stats.episodesWatchedCount),
+        tPlural("analytics.rewatchesCountLabel", stats.rewatchCount),
+      ].join(" · "),
     });
 
     const grid = contentEl.createDiv({ cls: "mediavault-analytics-grid" });

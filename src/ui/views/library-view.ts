@@ -122,6 +122,7 @@ export class LibraryView extends ItemView {
 
   private favoritesVisibleCount = 4;
   private lastAllMedia: MediaItem[] = [];
+  private showCarousels = true;
 
   constructor(leaf: WorkspaceLeaf, plugin: MediaVaultPlugin) {
     super(leaf);
@@ -191,7 +192,7 @@ export class LibraryView extends ItemView {
 
       const nextTier = screenTierForWidth(width);
       if (nextTier === this.screenTier) {
-        if (favoritesCountChanged)
+        if (favoritesCountChanged && this.showCarousels)
           void this.refreshFavorites(this.lastAllMedia);
         return;
       }
@@ -237,11 +238,30 @@ export class LibraryView extends ItemView {
       Math.ceil(result.total / result.pageSize) || 1,
     );
 
-    await Promise.all([
-      this.refreshStats(),
-      this.refreshFavorites(all),
-      this.refreshCustomLists(all),
-    ]);
+    this.applyCarouselVisibility();
+
+    const carouselRefreshes = this.showCarousels
+      ? [this.refreshFavorites(all), this.refreshCustomLists(all)]
+      : [];
+
+    await Promise.all([this.refreshStats(), ...carouselRefreshes]);
+  }
+
+  /**
+   * Purely a presentation toggle — never touches favorites/list data. When
+   * off, the parent grid itself is hidden (not just emptied) so its
+   * `min-height`/`gap` don't leave a blank reserved area in the Library.
+   * The underlying favorites/lists remain fully intact and reachable via
+   * the Lists view and Favorites filtering.
+   */
+  private applyCarouselVisibility(): void {
+    const show = this.plugin.storage.settings.get().showLibraryCarousels;
+    this.showCarousels = show;
+    this.parentEl.toggleClass("mediavault-carousels-hidden", !show);
+    if (!show) {
+      this.favoritesEl.empty();
+      this.customListsEl.empty();
+    }
   }
 
   private async refreshStats(): Promise<void> {

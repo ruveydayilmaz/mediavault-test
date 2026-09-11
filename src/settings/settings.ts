@@ -115,6 +115,7 @@ export interface MediaVaultSettings {
   commentsPrimaryLanguage: string;
   commentsAdditionalLanguages: string[];
   showAdultContent: boolean;
+  showLibraryCarousels: boolean;
   favoriteListSortModes: { movies: ListSortMode; tv: ListSortMode };
   favoriteListManualOrder: { movies: string[]; tv: string[] };
   genreImageCache: Record<string, string>;
@@ -165,6 +166,11 @@ export const DEFAULT_SETTINGS: MediaVaultSettings = {
   commentsPrimaryLanguage: "en",
   commentsAdditionalLanguages: [],
   showAdultContent: false,
+  // Existing users upgrading have no stored value for this (undefined),
+  // and mergeSettings() backfills any missing field from DEFAULT_SETTINGS
+  // on every read/write — so this must stay `true` to preserve the
+  // Library's current appearance for everyone already using MediaVault.
+  showLibraryCarousels: true,
   favoriteListSortModes: { movies: "recent", tv: "recent" },
   favoriteListManualOrder: { movies: [], tv: [] },
   genreImageCache: {},

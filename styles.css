@@ -457,8 +457,17 @@
 
 .mediavault-episode-notes-input {
   width: 100%;
-  min-height: 70px;
   margin-top: 0;
+}
+
+/* The actual <textarea> — makeClearable() wraps the original element in a
+   div that inherits this same class name (for layout classes like
+   width:100%), so the visual box styling has to live on the nested real
+   input instead of the wrapper. Putting it on both produced a double box:
+   an opaque wrapper background behind a visually-separate inner field. */
+.mediavault-episode-notes-input .mediavault-clearable-field {
+  width: 100%;
+  min-height: 70px;
   resize: vertical;
   font: inherit;
   padding: 8px 10px;
@@ -466,6 +475,7 @@
   border: 1px solid var(--background-modifier-border);
   background: var(--background-primary);
   color: var(--text-normal);
+  box-sizing: border-box;
 }
 
 .mediavault-episode-star-rating {
@@ -503,11 +513,11 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
-  width: 68px;
+  min-width: 60px;
   padding: 8px 4px;
   border-radius: 8px;
   border: 1px solid transparent;
-  background: var(--background-primary);
+  background: transparent;
   cursor: pointer;
 }
 
@@ -2163,6 +2173,14 @@ body.mediavault-android .mediavault-comfort-flags .setting-item {
   grid-template-columns: 1fr 1fr;
   gap: 8px;
   align-items: stretch;
+}
+
+/* Presentation-only toggle for "Show Library Carousels" (Settings). Hides
+   the whole grid rather than just emptying its children, so the
+   containers' own `min-height`/`gap` don't leave a blank reserved area in
+   the Library. Underlying favorites/list data is never touched. */
+.mediavault-parent-container.mediavault-carousels-hidden {
+  display: none;
 }
 
 @media (max-width: 700px) {

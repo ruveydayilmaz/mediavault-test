@@ -226,6 +226,23 @@ export class MediaVaultSettingTab extends PluginSettingTab {
           );
         },
       },
+      {
+        name: t("settings.showLibraryCarousels"),
+        desc: t("settings.showLibraryCarouselsDesc"),
+        render: (setting) => {
+          setting.addToggle((toggle) =>
+            toggle
+              .setValue(settings.get().showLibraryCarousels)
+              .onChange(async (value) => {
+                await settings.update({ showLibraryCarousels: value });
+                // Reflect the change in any Library view that's already
+                // open, without requiring a reload — same mechanism used
+                // elsewhere (e.g. after a Trakt sync) to refresh live views.
+                this.plugin.refreshLibraryViews();
+              }),
+          );
+        },
+      },
 
       {
         name: t("settings.traktSection"),
