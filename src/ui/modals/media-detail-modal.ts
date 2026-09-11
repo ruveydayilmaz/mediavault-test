@@ -2577,7 +2577,7 @@ export class MediaDetailModal extends Modal {
     MediaDetailModal.EMOTIONS.forEach((emotion) => {
       const label = t(emotion.labelKey);
       const btn = row.createEl("button", {
-        cls: "clickable-icon mediavault-emotion-btn",
+        cls: "mediavault-emotion-btn",
         attr: { "aria-label": label, title: label },
       });
 
