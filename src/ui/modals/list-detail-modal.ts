@@ -1,3 +1,4 @@
+import { recordListDeletion } from "../../services/sync-tombstones";
 import { App, Modal, Notice, Menu, setIcon } from "obsidian";
 import { renderInlineBackButton } from "./modal-chrome";
 import type { StorageService } from "../../services/storage";
@@ -391,6 +392,7 @@ export class ListDetailModal extends Modal {
   }
 
   private async deleteList(): Promise<void> {
+    await recordListDeletion(this.app, this.storage, this.list);
     await this.storage.customLists.delete(this.list.id);
     new Notice(t("lists.deletedNotice", { title: this.list.title }));
     this.notifyChanged();

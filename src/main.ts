@@ -1,4 +1,4 @@
-import { Notice, Plugin, WorkspaceLeaf } from "obsidian";
+import { Notice, Plugin, TFile, WorkspaceLeaf } from "obsidian";
 import { MediaVaultSettings } from "./settings/settings";
 import { MediaVaultSettingTab } from "./settings/settings-tab";
 
@@ -56,8 +56,11 @@ import {
 } from "./services/note-generator/media-note-generator";
 import { NoteSyncService } from "./services/note-sync-service";
 import {
+  FolderSyncService,
+  type SyncResult,
+} from "./services/folder-sync-service";
+import {
   generateAllListNotes,
-  reconstructListsFromNotes,
 } from "./services/list-note-generator";
 import { exportMediaToVault } from "./services/mediavault-export";
 import type { ExportCategoryOptions } from "./services/mediavault-export";
@@ -90,6 +93,7 @@ export default class MediaVaultPlugin extends Plugin {
   private notificationCheckIntervalHandle: number | null = null;
   private noteSyncIntervalHandle: number | null = null;
   noteSync!: NoteSyncService;
+  folderSync!: FolderSyncService;
   private mediaChangeDebounceHandle: number | null = null;
   private unsubscribeLocaleChange: (() => void) | null = null;
   private localeAwareModals: Set<{ rerenderForLocaleChange: () => void }> =
@@ -109,9 +113,18 @@ export default class MediaVaultPlugin extends Plugin {
     await this.ensureNotificationActivationDate();
 
     this.noteSync = new NoteSyncService(this.app, this.storage);
-    // A media edit (rating, status, platform, watch history, ...) schedules
-    // a debounced sync check rather than syncing immediately, so a burst of
-    // quick edits results in one note write instead of several.
+    this.folderSync = new FolderSyncService(
+      this.app,
+      this.storage,
+      () => this.tmdb ?? null,
+      () => {
+      this.refreshLibraryViews();
+      this.refreshListViews();
+        this.refreshExploreViews();
+      },
+    );
+    this.register(() => this.folderSync.dispose());
+
     this.storage.media.onUpdated = () => {
       if (this.mediaChangeDebounceHandle !== null) {
         window.clearTimeout(this.mediaChangeDebounceHandle);
@@ -426,18 +439,60 @@ export default class MediaVaultPlugin extends Plugin {
   }
 
   async runManualNoteSync(): Promise<void> {
-    if (this.noteSync.isRunning()) {
-      new Notice(t("noteSync.alreadyRunning"));
+    if (this.folderSync.isRunning()) {
+      new Notice(t("folderSync.alreadyRunning"));
       return;
     }
-    const notice = new Notice(t("noteSync.syncing"), 0);
-    await this.noteSync.runManualSync((done, total) => {
-      notice.setMessage(t("noteSync.syncingProgress", { done, total }));
-    });
-    notice.hide();
-    new Notice(t("noteSync.syncComplete"));
-    this.refreshLibraryViews();
-    this.refreshListViews();
+    const notice = new Notice(t("folderSync.syncing"), 0);
+    try {
+      const result = await this.folderSync.sync({
+        createMissingNotes: true,
+        onProgress: (done, total) => {
+          notice.setMessage(t("folderSync.syncingProgress", { done, total }));
+        },
+      });
+      notice.hide();
+      this.reportSync(result, true);
+    } catch (err) {
+      notice.hide();
+      console.error("MediaVault: sync failed", err);
+      new Notice(t("folderSync.syncFailed"));
+    }
+  }
+
+  private reportSync(result: SyncResult, verbose: boolean): void {
+    if (result.status === "folderNotFound") {
+      if (verbose) new Notice(t("folderSync.folderNotFound"));
+      return;
+    }
+    if (result.status === "noFiles") {
+      if (verbose) new Notice(t("folderSync.noFiles"));
+      return;
+    }
+    if (result.status === "busy") {
+      if (verbose) new Notice(t("folderSync.alreadyRunning"));
+      return;
+    }
+    const changed =
+      result.cacheUpdates > 0 ||
+      result.folderUpdates > 0 ||
+      result.artworkUpdates > 0;
+    if (changed) {
+      this.refreshLibraryViews();
+      this.refreshListViews();
+      this.refreshExploreViews();
+    }
+    if (verbose || changed || result.conflicts > 0) {
+      new Notice(
+        `${t("folderSync.syncComplete")}\n${t("folderSync.summary", {
+          checked: result.itemsChecked,
+          cache: result.cacheUpdates,
+          folder: result.folderUpdates,
+          artwork: result.artworkUpdates,
+          conflicts: result.conflicts,
+        })}`,
+      );
+    }
   }
 
   async runExportLibrary(): Promise<void> {
@@ -826,27 +881,32 @@ export default class MediaVaultPlugin extends Plugin {
   }
 
   private setupNoteSyncSchedule(): void {
-    // Delay the initial check so it never competes with normal startup
-    // rendering; this is a fast in-memory check unless real sync work is
-    // actually found.
-    window.setTimeout(() => void this.noteSync.checkOnStartup(), 3000);
-    // Cross-device list restore: cheap folder scan for list notes whose
-    // stable ID isn't in the local library yet (e.g. after syncing a vault
-    // from another device). Runs once per startup, after the sync check.
     window.setTimeout(() => {
-      void reconstructListsFromNotes(this.app, this.storage).then((count) => {
-        if (count > 0) {
-          this.refreshListViews();
-          new Notice(t("notice.listsReconstructed", { count }));
-        }
-      });
-    }, 3500);
+      void this.folderSync
+        .sync()
+        .then((result) => this.reportSync(result, false))
+        .catch((err) => console.warn("MediaVault: startup sync failed", err))
+        .finally(() => {
+          window.setTimeout(() => void this.noteSync.checkOnStartup(), 2000);
+        });
+    }, 1500);
 
     this.noteSyncIntervalHandle = window.setInterval(
       () => void this.noteSync.checkAndSyncIfNeeded(),
       60 * 60 * 1000,
     );
     this.registerInterval(this.noteSyncIntervalHandle);
+
+    this.setupNoteReconcileWatcher();
+  }
+
+  private setupNoteReconcileWatcher(): void {
+    this.registerEvent(
+      this.app.metadataCache.on("changed", (file) => {
+        if (!(file instanceof TFile) || file.extension !== "md") return;
+        this.folderSync.queuePath(file.path);
+      }),
+    );
   }
 
   private setupNotificationSchedule(): void {

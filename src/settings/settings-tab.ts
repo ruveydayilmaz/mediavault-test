@@ -235,9 +235,7 @@ export class MediaVaultSettingTab extends PluginSettingTab {
               .setValue(settings.get().showLibraryCarousels)
               .onChange(async (value) => {
                 await settings.update({ showLibraryCarousels: value });
-                // Reflect the change in any Library view that's already
-                // open, without requiring a reload — same mechanism used
-                // elsewhere (e.g. after a Trakt sync) to refresh live views.
+
                 this.plugin.refreshLibraryViews();
               }),
           );
@@ -500,8 +498,7 @@ export class MediaVaultSettingTab extends PluginSettingTab {
         name: t("settings.noteTemplateRequiredProperties"),
         desc: `${t("settings.noteTemplateRequiredPropertiesDesc")} (type, title, tmdb_id, year)`,
         render: () => {
-          // Informational only — these identify the note to MediaVault and
-          // are always written, so there is nothing to toggle here.
+          // Informational only
         },
       },
       ...OPTIONAL_PROPERTY_CATALOG.map(

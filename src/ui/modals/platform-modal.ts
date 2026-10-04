@@ -45,8 +45,6 @@ export class PlatformModal extends Modal {
         this.media.type === MediaType.Movie ? "movie" : "tv",
       );
     } catch {
-      // TMDB providers are a convenience suggestion only — if the request
-      // fails, the user can still enter a custom platform below.
       providers = [];
     }
 

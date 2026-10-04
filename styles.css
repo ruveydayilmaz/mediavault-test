@@ -460,11 +460,6 @@
   margin-top: 0;
 }
 
-/* The actual <textarea> — makeClearable() wraps the original element in a
-   div that inherits this same class name (for layout classes like
-   width:100%), so the visual box styling has to live on the nested real
-   input instead of the wrapper. Putting it on both produced a double box:
-   an opaque wrapper background behind a visually-separate inner field. */
 .mediavault-episode-notes-input .mediavault-clearable-field {
   width: 100%;
   min-height: 70px;
@@ -2176,10 +2171,6 @@ body.mediavault-android .mediavault-comfort-flags .setting-item {
   align-items: stretch;
 }
 
-/* Presentation-only toggle for "Show Library Carousels" (Settings). Hides
-   the whole grid rather than just emptying its children, so the
-   containers' own `min-height`/`gap` don't leave a blank reserved area in
-   the Library. Underlying favorites/list data is never touched. */
 .mediavault-parent-container.mediavault-carousels-hidden {
   display: none;
 }
@@ -4398,9 +4389,6 @@ body.mediavault-android.is-phone .mediavault-library-root {
   );
 }
 
-/* Invisible, non-interactive probe used to read the browser's own resolved
-   env(safe-area-inset-top) at runtime (see
-   utils/platform.ts::measureAndroidTopInset). Never shown, never laid out. */
 .mediavault-android-top-inset-sentinel {
   position: fixed;
   top: 0;
@@ -4414,13 +4402,6 @@ body.mediavault-android.is-phone .mediavault-library-root {
   padding-top: env(safe-area-inset-top);
 }
 
-/* Runtime-measured Android status-bar/cutout inset (see
-   utils/platform.ts::measureAndroidTopInset). This is the browser's own
-   resolved env(safe-area-inset-top) read back through a sentinel element,
-   so it reflects the real per-device value instead of a fixed guess. The
-   8px floor only applies on the rare WebView that reports 0 for both the
-   variable and env() directly — it is never added on top of a real
-   measurement, so the two sources are never double-counted. */
 body.mediavault-android
   .modal.mediavault-modal-shell:not(.mediavault-detail-modal)
   > .modal-content {

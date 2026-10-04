@@ -102,31 +102,8 @@ export class I18nService {
     return this.interpolate(str, params);
   }
 
-  /**
-   * Pluralization-aware translation lookup.
-   *
-   * Locale files store plural variants as sibling keys suffixed with the
-   * CLDR plural category, e.g. for `analytics.moviesLabel`:
-   *   analytics.moviesLabel_one: "{count} movie"
-   *   analytics.moviesLabel_other: "{count} movies"
-   *
-   * The category for `count` is resolved via `Intl.PluralRules`, which
-   * encodes each language's actual plural rules (English/Turkish/Italian
-   * etc. distinguish "one" vs "other"; Chinese/Korean always resolve to
-   * "other") rather than assuming English-style singular/plural. `count`
-   * is automatically added to `params` so `{count}` can be used in the
-   * string without the caller repeating it.
-   *
-   * Falls back: exact category → "_other" in current locale → exact
-   * category/"_other" in the default locale → the bare, unsuffixed key
-   * (so existing non-pluralized keys keep working untouched).
-   */
   tPlural(key: string, count: number, params?: TranslationParams): string {
     const category = this.pluralCategory(count);
-    // `count` is spread first so callers can override its *displayed*
-    // formatting (e.g. a locale-formatted string with thousands
-    // separators) via `params.count`, while the raw numeric `count`
-    // argument is always what drives the plural category above.
     const mergedParams: TranslationParams = { count, ...params };
 
     const current = LOCALES[this.locale];
@@ -142,8 +119,6 @@ export class I18nService {
     }
 
     if (str === undefined) {
-      // No plural-specific keys exist for this key; fall back to the plain
-      // key so callers that haven't been given plural variants still work.
       return this.t(key, mergedParams);
     }
 

@@ -73,6 +73,8 @@ export interface MediaItem {
 
   episodesLastSyncedAt: ISODateString | null;
 
+  syncVerified?: boolean;
+
   createdAt: ISODateString;
   updatedAt: ISODateString;
 }

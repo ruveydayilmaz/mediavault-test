@@ -9,6 +9,13 @@ import {
 } from "./media-frontmatter";
 import { mergeFrontmatter, serializeFrontmatter } from "./frontmatter";
 import { buildManagedBody, mergeManagedBody } from "./note-content";
+import {
+  applyMediaPayload,
+  buildMediaPayload,
+  deriveAggregates,
+  parseMediaPayload,
+  serializePayload,
+} from "../sync-payload";
 import { mapWithConcurrency } from "../importer/concurrency";
 import { maybeYield } from "../importer/yield";
 
@@ -52,11 +59,60 @@ export async function generateMediaNote(
   app: App,
   storage: StorageService,
   media: MediaItem,
+  opts: { respectNewerNote?: boolean } = {},
 ): Promise<{ notePath: string; changed: boolean }> {
   const settings = storage.settings.get();
   const baseFolder = settings.mediaFolderPath || "MediaVault";
   const template = settings.noteTemplate;
-  const notePath = resolveMediaNotePath(baseFolder, media);
+
+  const linked = media.notePath
+    ? app.vault.getAbstractFileByPath(media.notePath)
+    : null;
+  const notePath =
+    linked instanceof TFile ? linked.path : resolveMediaNotePath(baseFolder, media);
+
+  if (opts.respectNewerNote && linked instanceof TFile) {
+    const fm = app.metadataCache.getFileCache(linked)?.frontmatter;
+    const ts: unknown = fm?.mediavault_updated_at;
+    const noteTs =
+      typeof ts === "string"
+        ? ts
+        : ts instanceof Date
+          ? ts.toISOString()
+          : null;
+    if (noteTs && noteTs > media.updatedAt) {
+      return { notePath, changed: false };
+    }
+  }
+
+  if (linked instanceof TFile && !media.syncVerified) {
+    try {
+      const existing = parseMediaPayload(
+        await app.vault.adapter.read(linked.path),
+      );
+      if (existing) {
+        const stats = await storage.withoutTouch(() =>
+          applyMediaPayload(storage, media.id, existing),
+        );
+        if (stats.unresolved > 0) {
+          console.warn("MediaVault: skipped note write (cache not fully hydrated)");
+          return { notePath, changed: false };
+        }
+        const merged = stats.changed;
+        if (merged > 0) {
+          const aggs = await deriveAggregates(storage, media.id);
+          const refreshed = await storage.media.update(media.id, {
+            ...aggs,
+            updatedAt: media.updatedAt,
+          });
+          if (refreshed) media = refreshed;
+        }
+      }
+    } catch (err) {
+      console.warn("MediaVault: skipped note write (unverified)", err);
+      return { notePath, changed: false };
+    }
+  }
 
   const sessions = await storage.watchSessions.findWhere(
     (s) => s.mediaId === media.id,
@@ -71,7 +127,13 @@ export async function generateMediaNote(
     comfort,
     template,
   );
-  const managedBody = buildManagedBody(media, sessions, template.sections);
+  const dataBlock = serializePayload(await buildMediaPayload(storage, media));
+  const managedBody = buildManagedBody(
+    media,
+    sessions,
+    template.sections,
+    dataBlock,
+  );
 
   const existingFile = app.vault.getAbstractFileByPath(notePath);
   let finalContent: string;
@@ -82,10 +144,6 @@ export async function generateMediaNote(
     const bodyOnly = stripLeadingFrontmatter(existingContent);
     const mergedBody = mergeManagedBody(bodyOnly, managedBody);
 
-    // Preserve any frontmatter properties the user added themselves (or
-    // that MediaVault previously wrote under an option since disabled) by
-    // merging against Obsidian's parsed cache of the note's existing
-    // frontmatter, rather than blindly overwriting the whole block.
     const existingFrontmatter =
       app.metadataCache.getFileCache(existingFile)?.frontmatter ?? null;
     const mergedFrontmatterData = mergeFrontmatter(
@@ -97,9 +155,6 @@ export async function generateMediaNote(
 
     finalContent = `${frontmatter}\n\n${mergedBody}`;
 
-    // Avoid touching the file (and its mtime) when nothing MediaVault owns
-    // actually changed — important for sync passes over large libraries and
-    // for not fighting other plugins/processes over the file.
     if (finalContent === existingContent) {
       changed = false;
     } else {
@@ -112,8 +167,13 @@ export async function generateMediaNote(
     await app.vault.create(notePath, finalContent);
   }
 
-  if (media.notePath !== notePath) {
-    await storage.media.update(media.id, { notePath });
+  if (media.notePath !== notePath || !media.syncVerified) {
+    const latest = await storage.media.findById(media.id);
+    await storage.media.update(media.id, {
+      notePath,
+      syncVerified: true,
+      updatedAt: latest?.updatedAt ?? media.updatedAt,
+    });
   }
 
   return { notePath, changed };

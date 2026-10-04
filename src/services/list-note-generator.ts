@@ -8,24 +8,13 @@ import {
   serializeFrontmatter,
 } from "./note-generator/frontmatter";
 import { mergeManagedBody, MANAGED_START, MANAGED_END } from "./note-generator/note-content";
+import { extractPayloadJson, serializePayload } from "./sync-payload";
 import { maybeYield } from "./importer/yield";
-
-/**
- * Generates a Markdown representation of a MediaVault custom list —
- * mirroring the media-note-generator.ts pattern exactly (same frontmatter
- * merge/ownership rules, same managed-region markers) so lists participate
- * in the same cross-device-via-vault-sync workflow as media notes, without
- * introducing a second note format or ownership model.
- *
- * List identity is the list's own stable `id`, written into frontmatter as
- * `mediavault_list_id` — this is what lets another MediaVault installation
- * recognize "this note represents list X" and reconcile rather than
- * duplicate (see reconstructListsFromNotes below).
- */
 
 const LIST_MANAGED_FRONTMATTER_KEYS = new Set([
   "mediavault_list",
   "mediavault_list_id",
+  "mediavault_updated_at",
   "type",
   "title",
   "description",
@@ -39,6 +28,10 @@ function resolveListsFolder(baseFolder: string): string {
 
 function sanitizeFilename(name: string): string {
   return name.replace(/[/\\:*?"<>|]/g, "-").trim();
+}
+
+export function resolveListsFolderPath(baseFolder: string): string {
+  return resolveListsFolder(baseFolder);
 }
 
 export function resolveListNotePath(baseFolder: string, list: CustomList): string {
@@ -62,6 +55,7 @@ function buildListFrontmatterData(list: CustomList): FrontmatterData {
   return {
     mediavault_list: true,
     mediavault_list_id: list.id,
+    mediavault_updated_at: list.updatedAt,
     type: "list",
     title: list.title,
     description: list.description,
@@ -75,6 +69,7 @@ function buildListManagedBody(
   mediaTitles: Map<string, string>,
 ): string {
   const lines: string[] = [MANAGED_START, "", "## Items", ""];
+  const dataBlock = serializePayload({ v: 1, mediaIds: list.mediaIds });
   if (list.mediaIds.length === 0) {
     lines.push("_No items yet._");
   } else {
@@ -83,11 +78,11 @@ function buildListManagedBody(
       lines.push(title ? `- [[${title}]]` : `- (missing media: ${id})`);
     });
   }
-  lines.push("", MANAGED_END);
+  lines.push("", dataBlock, "", MANAGED_END);
   return lines.join("\n");
 }
 
-function stripLeadingFrontmatter(content: string): string {
+export function stripLeadingFrontmatter(content: string): string {
   if (!content.startsWith("---")) return content;
   const closingIdx = content.indexOf("\n---", 3);
   if (closingIdx === -1) return content;
@@ -95,13 +90,66 @@ function stripLeadingFrontmatter(content: string): string {
   return afterFrontmatter === -1 ? "" : content.slice(afterFrontmatter + 1);
 }
 
+export function buildMediaTitleIndex(
+  media: { id: string; title: string; year: number | null }[],
+): Map<string, string> {
+  const index = new Map<string, string>();
+  for (const m of media) {
+    const key = m.year ? `${m.title} (${m.year})` : m.title;
+    if (!index.has(key)) index.set(key, m.id);
+  }
+  return index;
+}
+
+export function parseListBody(
+  noteContent: string,
+  titleIndex: Map<string, string>,
+): { mediaIds: string[]; unresolved: number } {
+  const payload = extractPayloadJson(noteContent) as {
+    mediaIds?: unknown;
+  } | null;
+  if (payload && Array.isArray(payload.mediaIds)) {
+    const ids = payload.mediaIds.filter(
+      (x): x is string => typeof x === "string",
+    );
+    const known = new Set(titleIndex.values());
+    const resolved = ids.filter((id) => known.has(id));
+    return { mediaIds: resolved, unresolved: ids.length - resolved.length };
+  }
+  const body = stripLeadingFrontmatter(noteContent);
+  const titles = body
+    .split("\n")
+    .filter((line) => line.trim().startsWith("- [["))
+    .map((line) => line.trim().replace(/^- \[\[/, "").replace(/\]\]$/, ""));
+
+  const mediaIds: string[] = [];
+  let unresolved = 0;
+  for (const title of titles) {
+    const id = titleIndex.get(title);
+    if (id) mediaIds.push(id);
+    else unresolved++;
+  }
+  return { mediaIds, unresolved };
+}
+
+export async function parseListMediaIdsFromBody(
+  storage: StorageService,
+  noteContent: string,
+  titleIndex?: Map<string, string>,
+): Promise<string[]> {
+  const index =
+    titleIndex ?? buildMediaTitleIndex(await storage.media.getAll());
+  return parseListBody(noteContent, index).mediaIds;
+}
+
 export async function generateListNote(
   app: App,
   storage: StorageService,
   list: CustomList,
+  existingPath?: string,
 ): Promise<{ notePath: string; changed: boolean }> {
   const baseFolder = storage.settings.get().mediaFolderPath || "MediaVault";
-  const notePath = resolveListNotePath(baseFolder, list);
+  const notePath = existingPath ?? resolveListNotePath(baseFolder, list);
   await ensureFolderExists(app, resolveListsFolder(baseFolder));
 
   const mediaTitles = new Map<string, string>();
@@ -165,15 +213,42 @@ export async function generateAllListNotes(
   return { succeeded, failed: lists.length - succeeded, total: lists.length };
 }
 
-/**
- * Scans the Lists folder for MediaVault list notes (`mediavault_list_id` in
- * frontmatter) that don't correspond to a local list, and recreates them —
- * this is what makes a list "restorable" when a vault is synced to a
- * second device that generated the note but has no local list record yet
- * (see media-note-generator.ts's own note-sync story; this is the list
- * equivalent). Existing local lists are matched by their stable ID and are
- * never duplicated or overwritten by this scan.
- */
+export async function restoreListFromNote(
+  app: App,
+  storage: StorageService,
+  file: TFile,
+  fm: Record<string, unknown>,
+  titleIndex?: Map<string, string>,
+): Promise<void> {
+  const content = await app.vault.adapter.read(file.path);
+  const index =
+    titleIndex ?? buildMediaTitleIndex(await storage.media.getAll());
+  const { mediaIds, unresolved } = parseListBody(content, index);
+  const raw = fm.mediavault_updated_at;
+  const noteUpdatedAt =
+    typeof raw === "string" && raw
+      ? raw
+      : raw instanceof Date && !Number.isNaN(raw.getTime())
+        ? raw.toISOString()
+        : new Date().toISOString();
+  const version = unresolved > 0 ? new Date(0).toISOString() : noteUpdatedAt;
+
+  await storage.customLists.save({
+    id: fm.mediavault_list_id as string,
+    title: typeof fm.title === "string" ? fm.title : file.basename,
+    description: typeof fm.description === "string" ? fm.description : null,
+    mediaIds,
+    sortMode: (typeof fm.sort_mode === "string"
+      ? fm.sort_mode
+      : "manual") as CustomList["sortMode"],
+    owner: null,
+    isImported: true,
+    importSource: "note-reconstruction",
+    createdAt: noteUpdatedAt,
+    updatedAt: version,
+  });
+}
+
 export async function reconstructListsFromNotes(
   app: App,
   storage: StorageService,
@@ -197,35 +272,7 @@ export async function reconstructListsFromNotes(
     const existing = await storage.customLists.findById(listId);
     if (existing) continue;
 
-    const content = await app.vault.adapter.read(file.path);
-    const body = stripLeadingFrontmatter(content);
-    const itemLines = body
-      .split("\n")
-      .filter((line) => line.trim().startsWith("- [["));
-    const titles = itemLines.map((line) =>
-      line.trim().replace(/^- \[\[/, "").replace(/\]\]$/, ""),
-    );
-
-    const mediaIds: string[] = [];
-    for (const title of titles) {
-      const match = await storage.media.findWhere(
-        (m) => (m.year ? `${m.title} (${m.year})` : m.title) === title,
-      );
-      if (match[0]) mediaIds.push(match[0].id);
-    }
-
-    await storage.customLists.save({
-      id: listId,
-      title: typeof fm.title === "string" ? fm.title : file.basename,
-      description: typeof fm.description === "string" ? fm.description : null,
-      mediaIds,
-      sortMode: (typeof fm.sort_mode === "string" ? fm.sort_mode : "manual") as CustomList["sortMode"],
-      owner: null,
-      isImported: true,
-      importSource: "note-reconstruction",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
+    await restoreListFromNote(app, storage, file, fm);
     reconstructed++;
   }
 

@@ -166,17 +166,12 @@ export const DEFAULT_SETTINGS: MediaVaultSettings = {
   commentsPrimaryLanguage: "en",
   commentsAdditionalLanguages: [],
   showAdultContent: false,
-  // Existing users upgrading have no stored value for this (undefined),
-  // and mergeSettings() backfills any missing field from DEFAULT_SETTINGS
-  // on every read/write — so this must stay `true` to preserve the
-  // Library's current appearance for everyone already using MediaVault.
+
   showLibraryCarousels: true,
   favoriteListSortModes: { movies: "recent", tv: "recent" },
   favoriteListManualOrder: { movies: [], tv: [] },
   genreImageCache: {},
 
-  // Defaults preserve the exact previously-hardcoded generated-note
-  // behavior for users upgrading from before the template system existed.
   noteTemplate: {
     optionalProperties: {
       genres: true,
@@ -208,9 +203,6 @@ export const DEFAULT_SETTINGS: MediaVaultSettings = {
     },
   },
 
-  // No prior sync has run yet. `lastSuccessfulSyncAt: null` is treated as
-  // "sync state unknown" rather than "everything is in sync" — see
-  // note-sync-service.ts for how that distinction is used.
   noteSyncState: {
     createdAt: new Date(0).toISOString(),
     status: "idle",

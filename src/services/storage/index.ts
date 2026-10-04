@@ -58,6 +58,48 @@ export class StorageService {
     this.settings = new SettingsRepository(this.adapter);
     this.customLists = new CustomListRepository(this.adapter);
     this.notifications = new NotificationRepository(this.adapter);
+
+    const touch = (record: { mediaId: string }) => this.touchMedia(record.mediaId);
+    this.watchSessions.onMutated = touch;
+    this.episodeProgress.onMutated = touch;
+    this.episodeWatches.onMutated = touch;
+    this.movieProgress.onMutated = touch;
+    this.comfortProfiles.onMutated = touch;
+  }
+
+  pipelineBusy = false;
+
+  private touchQueue = new Set<string>();
+  private touchTimer: number | null = null;
+  private touchSuppressed = 0;
+
+  private touchMedia(mediaId: string): void {
+    if (this.touchSuppressed > 0) return;
+    this.touchQueue.add(mediaId);
+    if (this.touchTimer !== null) return;
+    this.touchTimer = window.setTimeout(() => {
+      this.touchTimer = null;
+      void this.flushTouches();
+    }, 250);
+  }
+
+  async flushTouches(): Promise<void> {
+    if (this.touchTimer !== null) {
+      window.clearTimeout(this.touchTimer);
+      this.touchTimer = null;
+    }
+    const ids = [...this.touchQueue];
+    this.touchQueue.clear();
+    for (const id of ids) await this.media.touch(id);
+  }
+
+  async withoutTouch<T>(fn: () => Promise<T>): Promise<T> {
+    this.touchSuppressed++;
+    try {
+      return await fn();
+    } finally {
+      this.touchSuppressed--;
+    }
   }
 
   async initialize(): Promise<void> {

@@ -10,24 +10,6 @@ export function applyAndroidBodyClass(): void {
 
 let androidSafeAreaCleanup: (() => void) | null = null;
 
-/**
- * Root cause of the top-inset bug: `env(safe-area-inset-top)` only resolves
- * to a non-zero value when the page's viewport meta tag declares
- * `viewport-fit=cover` (CSS Environment Variables spec). Obsidian's mobile
- * shell does not set that, so on every Android device `env(safe-area-inset-top)`
- * evaluates to 0 — the old `max(24px, env(safe-area-inset-top))` CSS was
- * therefore always just a flat 24px in practice, never the real device
- * value. That happened to be enough on devices with a ~24dp-or-shorter
- * status bar and broke on anything taller (display cutouts, punch-hole
- * cameras, higher-density status bars, some OEM skins).
- *
- * Setting `viewport-fit=cover` at runtime causes Chromium (the engine
- * behind Obsidian's Android WebView) to recompute `env()` against the
- * actual system inset, including in edge-to-edge/cutout configurations.
- * This is safe to do unconditionally on Android — it's a no-op on devices
- * where the WebView already reports a correct inset, and only changes
- * layout on ones where it was previously stuck at 0.
- */
 function ensureViewportFitCover(): void {
   const meta = document.querySelector('meta[name="viewport"]');
   if (!meta) return;
@@ -37,14 +19,6 @@ function ensureViewportFitCover(): void {
   meta.setAttribute("content", next);
 }
 
-/**
- * A persistent, invisible, non-interactive sentinel whose padding-top is
- * `env(safe-area-inset-top)`. Reading its *computed* padding gives the
- * browser's own resolved inset in real CSS pixels — the same mechanism the
- * CSS itself would use — rather than a value MediaVault has to guess at.
- * Created once and reused so measuring it never triggers a style/layout
- * write, only a read.
- */
 let topInsetSentinel: HTMLElement | null = null;
 
 function getTopInsetSentinel(): HTMLElement {
@@ -59,13 +33,6 @@ function getTopInsetSentinel(): HTMLElement {
   return el;
 }
 
-/**
- * Measures the actual usable top inset (status bar / display cutout) via
- * the sentinel above. Falls back to 0 when unsupported rather than a
- * hardcoded device guess — the CSS consuming this value keeps its own
- * small floor for the (now rare) case where a WebView reports nothing at
- * all, so buttons are never pinned to literal y=0.
- */
 function measureAndroidTopInset(): number {
   const sentinel = getTopInsetSentinel();
   const computed = window.getComputedStyle(sentinel).paddingTop;
@@ -203,11 +170,6 @@ export function setupAndroidSafeArea(app?: App): void {
       `${toolbarResult.obstruction}px`,
     );
 
-    // Top inset is measured independently of the bottom/toolbar/keyboard
-    // math above (see measureAndroidTopInset) — it must never be derived
-    // from or combined with the bottom calculation. Only write the custom
-    // property when the value actually changes so a read-only measurement
-    // doesn't turn into a repeated style write/reflow on every tick.
     const topInset = measureAndroidTopInset();
     if (topInset !== lastTopInset) {
       lastTopInset = topInset;

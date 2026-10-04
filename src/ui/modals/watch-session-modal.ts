@@ -70,10 +70,6 @@ export class WatchSessionModal extends Modal {
         this.watchDate = value;
       });
       text.inputEl.setAttribute("type", "date");
-      // Prevents picking a future date via the picker UI itself. Computed
-      // fresh on every open rather than hardcoded, and re-validated on
-      // save below since a value can still arrive manually/typed or from
-      // elsewhere.
       text.inputEl.setAttribute("max", todayIsoDate());
     });
 

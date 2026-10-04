@@ -27,6 +27,7 @@ export function buildManagedBody(
   media: MediaItem,
   sessions: WatchSession[],
   sections: NoteTemplateSettings["sections"],
+  dataBlock?: string,
 ): string {
   const lines: string[] = [MANAGED_START];
 
@@ -93,6 +94,8 @@ export function buildManagedBody(
       });
     }
   }
+
+  if (dataBlock) lines.push("", dataBlock);
 
   lines.push("", MANAGED_END);
   return lines.join("\n");

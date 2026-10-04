@@ -247,13 +247,6 @@ export class LibraryView extends ItemView {
     await Promise.all([this.refreshStats(), ...carouselRefreshes]);
   }
 
-  /**
-   * Purely a presentation toggle — never touches favorites/list data. When
-   * off, the parent grid itself is hidden (not just emptied) so its
-   * `min-height`/`gap` don't leave a blank reserved area in the Library.
-   * The underlying favorites/lists remain fully intact and reachable via
-   * the Lists view and Favorites filtering.
-   */
   private applyCarouselVisibility(): void {
     const show = this.plugin.storage.settings.get().showLibraryCarousels;
     this.showCarousels = show;

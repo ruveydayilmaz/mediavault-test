@@ -17,43 +17,11 @@ import { syncMediaAggregates } from "./watch-session-service";
 import { recalculateAndPersistStatus } from "./status-service";
 import { maybeYield } from "./importer/yield";
 
-/**
- * MediaVault's own export/import format — round-tripping MediaVault's own
- * canonical data model, as distinct from:
- *
- * - Canonical MediaVault data: the repositories under services/storage —
- *   the single authoritative application state.
- * - Generated Markdown: a synchronized *representation* of a subset of
- *   canonical data (services/note-generator + note-sync-service), with an
- *   explicit owned/unowned split.
- * - Cache: nothing MediaVault currently treats as a rebuildable index sits
- *   apart from the repositories themselves (BaseRepository's id index is
- *   an in-memory optimization only, already safely rebuildable — it is
- *   NOT part of the export).
- * - Export: a portable, versioned snapshot of canonical data plus the
- *   generated Markdown text, self-contained enough to reconstruct the
- *   library relationships without the original vault/cache.
- * - Sync state / import state: local, non-portable operational metadata
- *   (settings.noteSyncState, settings.importState) — never embedded in an
- *   export, and not treated as authoritative for canonical data.
- *
- * This is kept as its own module rather than folded into the TV Time
- * importer pipeline (services/importer/tvtime/*), which solves a different
- * problem: converting *foreign* data into MediaVault's model via TMDB
- * matching. This module round-trips MediaVault's *own* model, so none of
- * that matching/normalization machinery applies.
- */
-
 export const MEDIAVAULT_EXPORT_FORMAT = "mediavault-export";
 export const MEDIAVAULT_EXPORT_VERSION = 1;
 
 export interface MediaVaultExportNote {
-  /** Path relative to the exporting vault's MediaVault folder — recomputed
-   * against the importing vault's own folder settings on import, so the
-   * export never depends on the original vault's absolute layout. */
   relativePath: string;
-  /** Full raw file content, frontmatter and all — including anything the
-   * user authored outside the mediavault:start/end markers. */
   content: string;
 }
 
@@ -67,12 +35,6 @@ export interface MediaVaultExportItem {
   note: MediaVaultExportNote | null;
 }
 
-/** Settings safe to include in a portable export: user preferences only —
- * never credentials (tmdbApiKey, trakt client id/secret/tokens), and never
- * local-only operational/cache state (noteSyncState, genreImageCache,
- * notification*Date timestamps, dataVersion, traktLastSyncedAt). Kept as an
- * explicit whitelist rather than an exclude-list so a newly added settings
- * field is safe-by-default (excluded) until someone deliberately opts it in. */
 export const SETTINGS_EXPORT_WHITELIST: (keyof MediaVaultSettings)[] = [
   "language",
   "tmdbLanguage",
@@ -116,12 +78,6 @@ export function buildSettingsExport(
   return { type: "mediavault-settings", version: 1, settings };
 }
 
-/** Applies an imported settings block, restricted to the same whitelist
- * (defense in depth: even a hand-edited/malicious export can't smuggle a
- * credential field back in) and to only the keys actually present in the
- * import — an old export missing newer settings, or a partial/incomplete
- * settings object, leaves everything else at its current value rather than
- * resetting to defaults. */
 export async function applySettingsImport(
   storage: StorageService,
   settingsExport: MediaVaultSettingsExport,
@@ -149,26 +105,11 @@ export interface MediaVaultExportFile {
   exportedAt: string;
   itemCount: number;
   items: MediaVaultExportItem[];
-  /** Library-wide user-owned state that isn't tied to a single media item
-   * (see module doc comment). Included only for lists that reference at
-   * least one exported media item, and non-built-in comfort presets (the
-   * built-in ones are re-seeded locally on every plugin load, so they're
-   * cache-like and intentionally excluded). */
   lists: CustomList[];
   comfortPresets: ComfortPreset[];
-  /** Present only when the user opted into exporting Settings Preferences
-   * (see buildSettingsExport) — absent (not just empty) on exports that
-   * didn't include this category, which the importer treats as "category
-   * not present," not "reset to defaults." */
   settingsPreferences?: MediaVaultSettingsExport | null;
 }
 
-/**
- * Explicit, version-aware recognition of MediaVault's own export format.
- * Deliberately strict (exact marker + format name + numeric version + array
- * shape) so an arbitrary unrelated JSON/Markdown file is never mistaken for
- * one, and never inferred from the filename.
- */
 export function isMediaVaultExport(
   data: unknown,
 ): data is MediaVaultExportFile {
@@ -205,13 +146,6 @@ async function readNoteIfExists(
 
 export type ExportProgressCallback = (done: number, total: number) => void;
 
-/**
- * Builds the portable export payload for the given media items. Processes
- * items in a simple yielding loop (not full worker-pool concurrency, since
- * each item here is mostly cheap in-memory array filtering plus at most one
- * vault read) so a large-library export doesn't block the UI thread for an
- * extended stretch.
- */
 export interface ExportCategoryOptions {
   includeWatchHistory: boolean;
   includeLists: boolean;
@@ -304,7 +238,7 @@ async function ensureFolderExists(app: App, folderPath: string): Promise<void> {
     current = current ? `${current}/${part}` : part;
     if (!app.vault.getAbstractFileByPath(current)) {
       await app.vault.createFolder(current).catch(() => {
-        // Already exists (race with another creator) — fine.
+        // Already exists
       });
     }
   }
@@ -327,10 +261,6 @@ export async function exportMediaToVault(
   await app.vault.create(path, JSON.stringify(data, null, 2));
   return path;
 }
-
-// ---------------------------------------------------------------------------
-// Import: identity matching + non-destructive merge
-// ---------------------------------------------------------------------------
 
 export interface ImportSummary {
   mediaCreated: number;
@@ -398,11 +328,6 @@ function isEmptyValue(v: unknown): boolean {
   return false;
 }
 
-/** Fills only fields that are currently empty/default locally with the
- * imported value — never overwrites data the user or a TMDB refresh has
- * already populated. This is the deterministic conflict policy used for
- * every field where MediaVault has no reliable per-field timestamp to
- * arbitrate "who's newer" (see final report for rationale). */
 function fillMissing<T extends object>(
   existing: T,
   imported: T,
@@ -417,10 +342,6 @@ function fillMissing<T extends object>(
   return patch;
 }
 
-/** MediaVault-owned/TMDB-derived identity & metadata fields: safe to fill
- * in when locally empty, never overwritten once populated. Deliberately
- * excludes tmdbId/type (identity, already matched on) and every
- * derived/aggregate or sync/runtime field (see module doc comment). */
 const MEDIA_METADATA_FILL_FIELDS: (keyof MediaItem)[] = [
   "tvdbId",
   "imdbId",
@@ -453,9 +374,6 @@ function mergeMediaScalars(
 ): Partial<MediaItem> {
   const patch = fillMissing(existing, imported, MEDIA_METADATA_FILL_FIELDS);
 
-  // status/isFavorite/liked are booleans/enums whose "empty" state is a
-  // specific default rather than falsy-for-every-type, so they're handled
-  // explicitly rather than through the generic emptiness check.
   if (existing.status === MediaStatus.PlanToWatch && imported.status !== MediaStatus.PlanToWatch) {
     patch.status = imported.status;
   }
@@ -483,20 +401,11 @@ function episodeKey(seasonNumber: number, episodeNumber: number): string {
 }
 
 interface EpisodeReconcileResult {
-  /** imported episode id -> local episode id */
   idRemap: Map<string, string>;
   added: number;
   updated: number;
 }
 
-/**
- * Reconciles imported episodes against an existing media item's episodes,
- * matched by stable identity — (seasonNumber, episodeNumber) first (the
- * durable real-world identity within a show), falling back to
- * tmdbEpisodeId — never by array position. Unmatched local episodes are
- * left untouched (never removed by an import); unmatched imported episodes
- * are added, preserving their original ID.
- */
 async function reconcileEpisodes(
   storage: StorageService,
   localMediaId: string,
@@ -556,17 +465,6 @@ interface ProgressReconcileResult {
   updated: number;
 }
 
-/**
- * Reconciles imported episode progress against existing local progress,
- * matched by (mediaId, local episodeId) via the remap produced by
- * reconcileEpisodes. Conflict policy:
- *  - `watched` is monotonic: once true (on either side), stays true — an
- *    import can never silently un-mark an episode as watched.
- *  - `watchedDate` follows whichever side established `watched`.
- *  - User-owned fields (rating/review/emotion/comfortNote) use whichever
- *    side has the newer `updatedAt` — this is the one place MediaVault's
- *    schema actually has a reliable per-record timestamp to arbitrate with.
- */
 async function reconcileEpisodeProgress(
   storage: StorageService,
   localMediaId: string,
@@ -613,19 +511,12 @@ async function reconcileEpisodeProgress(
       if (imported.likedAt) patch.likedAt = imported.likedAt;
     }
     if (importIsNewer) {
-      // Newer side wins outright for these fields (not just fill-missing),
-      // since updatedAt gives us real evidence of recency here.
       for (const f of PROGRESS_USER_FIELDS) {
         if (!isEmptyValue(imported[f])) (patch as Record<string, unknown>)[f] = imported[f];
       }
     }
 
     if (Object.keys(patch).length > 0) {
-      // Note: EpisodeProgressRepository.update() always stamps its own
-      // `updatedAt = now` regardless of what's in the patch (existing
-      // repository behavior, unrelated to this feature) — which is fine
-      // here: a genuinely no-op second import produces an empty patch and
-      // never calls update() at all, so idempotency still holds.
       await storage.episodeProgress.update(existing.id, patch);
       updated++;
     }
@@ -646,16 +537,6 @@ const COMFORT_PROFILE_MERGE_FIELDS: (keyof ComfortProfile)[] = [
   "triggerWarnings",
 ];
 
-/**
- * Merges an imported comfort profile into the local one for the same
- * media. Unlike MediaItem (whose `updatedAt` bumps on any write, not just
- * user edits), ComfortProfile's `updatedAt` genuinely only changes on a
- * direct edit — so "newer wins outright" is a safe, deterministic policy
- * here: if the import is newer, its preference values replace the local
- * ones wholesale (these are singular preference fields that can't be
- * meaningfully field-merged, e.g. two different `comfortScore` values);
- * otherwise the existing local profile is left untouched.
- */
 async function reconcileComfortProfile(
   storage: StorageService,
   localMediaId: string,
@@ -675,10 +556,6 @@ async function reconcileComfortProfile(
   await storage.comfortProfiles.update(existing.id, patch);
 }
 
-/** Additively merges records that are de-duplicated purely by their own
- * stable ID (watch sessions, episode watches) — consistent with
- * MediaVault's existing "watch records are never overwritten" invariant.
- * Idempotent: importing the same record twice is a no-op the second time. */
 async function mergeAdditiveById<T extends { id: string }>(
   incoming: T[],
   findById: (id: string) => Promise<T | null>,
@@ -694,9 +571,6 @@ async function mergeAdditiveById<T extends { id: string }>(
   return addedCount;
 }
 
-/** Non-built-in comfort presets are additive-by-id, same as watch records —
- * ComfortPreset has no updatedAt to arbitrate recency, and presets aren't
- * tied to media so there's no natural "fill missing" merge either. */
 async function reconcileComfortPresets(
   storage: StorageService,
   presets: ComfortPreset[],
@@ -708,21 +582,6 @@ async function reconcileComfortPresets(
   );
 }
 
-/**
- * Reconciles imported lists against local ones, matched by stable list ID.
- * A missing local list is created (original ID preserved). An existing
- * list's own metadata (title/description/sortMode) is filled in only where
- * locally empty — the same non-destructive policy used for MediaItem,
- * since CustomList's `updatedAt` bumps on membership changes too and so
- * can't reliably distinguish "user renamed this" from "the app touched
- * it." Membership is merged additively: imported media IDs (remapped
- * through `mediaIdRemap`) are appended if the referenced media exists
- * locally and isn't already a member — existing local membership and
- * ordering are never disturbed, and membership referencing media absent
- * from both the import and the local library is safely skipped rather
- * than failing the whole list (see spec: absence must not crash or
- * silently corrupt the list).
- */
 async function reconcileLists(
   storage: StorageService,
   lists: CustomList[],
@@ -746,9 +605,6 @@ async function reconcileLists(
     const existing = await storage.customLists.findById(importedList.id);
 
     if (!existing) {
-      // Only include members that actually resolve to a media item that
-      // exists locally — anything else is silently dropped from this new
-      // list rather than left as a dangling reference.
       const resolvable: string[] = [];
       for (const id of remappedMemberIds) {
         if (await storage.media.findById(id)) resolvable.push(id);
@@ -788,18 +644,6 @@ export interface ImportProgressCallback {
   (done: number, total: number): void;
 }
 
-/**
- * Imports a MediaVault export. Existing media is matched by stable ID, then
- * TMDB ID + type, and is never overwritten wholesale or duplicated —
- * scalar fields are merged via `mergeMediaScalars`, episodes/progress via
- * identity-based reconciliation, and watch history/episode-watches
- * additively by stable ID. Every one of these merges is designed to be a
- * no-op on a second import of the same export (see reconcile* / mergeAdditive*
- * doc comments for exactly why each one is idempotent).
- *
- * Processes items sequentially with a yield every few items so a large
- * import doesn't block Obsidian's UI thread for an extended stretch.
- */
 export interface ImportCategoryOptions {
   includeMovies: boolean;
   includeTVShows: boolean;
@@ -826,10 +670,6 @@ export interface ExportContents {
   tvCount: number;
 }
 
-/** Inspects an already-parsed, already-recognized export to determine which
- * categories are actually present, so the import UI can only offer choices
- * that exist in this particular file (an old export with no Settings
- * Preferences simply won't show that checkbox). */
 export function describeExportContents(
   data: MediaVaultExportFile,
 ): ExportContents {
@@ -879,13 +719,10 @@ export async function importMediaVaultExport(
     const type = item?.media?.type;
     if (type === MediaType.Movie) return categories.includeMovies;
     if (type === MediaType.TVShow) return categories.includeTVShows;
-    return true; // unknown/other media types are not filtered out
+    return true;
   });
   const total = itemsToProcess.length;
-  /** original exported media ID -> local media ID, used after the item
-   * loop to remap list membership. Populated for both branches below (an
-   * existing-media match with a different local ID, and a freshly created
-   * media record that preserves its original ID). */
+
   const mediaIdRemap = new Map<string, string>();
 
   for (let i = 0; i < itemsToProcess.length; i++) {
@@ -991,12 +828,6 @@ export async function importMediaVaultExport(
         continue;
       }
 
-      // No existing media — reconstruct it, preserving the original
-      // stable media ID and every related record's original ID (episodes,
-      // progress, watch sessions, episode watches, comfort profile) rather
-      // than generating new ones, so relationships stay intact and a
-      // second import of the same export finds this exact record by ID and
-      // takes the "existing" branch above (idempotent).
       await storage.media.save(item.media);
       await Promise.all([
         ...item.episodes.map((e) => storage.episodes.save(e)),
@@ -1033,11 +864,6 @@ export async function importMediaVaultExport(
     await maybeYield(i + 1, IMPORT_YIELD_EVERY);
   }
 
-  // Lists/presets are library-wide, not per-media, so they're reconciled
-  // once after every media item has been processed and mediaIdRemap is
-  // complete. `?? []` keeps this forward/backward tolerant of exports
-  // written before these fields existed (still format/version 1 — see
-  // module doc comment for why that's treated as safe here).
   if (categories.includeLists) {
     summary.presetsAdded = await reconcileComfortPresets(
       storage,

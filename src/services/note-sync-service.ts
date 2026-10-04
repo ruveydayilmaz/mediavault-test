@@ -16,35 +16,6 @@ const MAX_RECONCILE_PASSES = 3;
 
 export type SyncProgressCallback = (done: number, total: number) => void;
 
-/**
- * Keeps MediaVault-generated Markdown notes in sync with the underlying
- * media data. See the class-level notes below for the design rationale.
- *
- * What "synced" means here: every syncable media item's MediaVault-owned
- * note content (see media-note-generator.ts / media-frontmatter.ts) has
- * been written to its note, without touching anything the user owns, as of
- * `noteSyncState.lastSuccessfulSyncAt`. It does NOT mean "the sync routine
- * ran" — `lastSuccessfulSyncAt` is only advanced once a full pass completes
- * with zero failures and no further changes are detected (see `runSync`).
- *
- * Persistence: sync state lives in `settings.noteSyncState`, alongside the
- * rest of MediaVault's settings — reusing the existing settings
- * persistence/backfill machinery rather than introducing a second storage
- * mechanism (e.g. a dedicated vault file) for what is, functionally,
- * exactly the kind of small structured app state settings already store.
- *
- * Change detection: rather than trusting `noteSyncState` alone, every check
- * recomputes "is anything actually out of date" from the real source of
- * truth — each MediaItem's `updatedAt` versus `lastSuccessfulSyncAt`. A
- * stale/incorrect `lastSuccessfulSyncAt` therefore self-corrects: it can
- * only under-trust (triggering an extra, harmless, no-op-writes sync pass)
- * never over-trust (silently skipping real changes).
- *
- * Loop safety: notes are only rewritten when their generated content
- * actually differs from what's on disk (see media-note-generator.ts), and a
- * note write does not touch `media.updatedAt`, so MediaVault's own writes
- * can never look like a "media change" that needs re-syncing.
- */
 export class NoteSyncService {
   private running = false;
   private deferredThisSession = false;
@@ -58,10 +29,6 @@ export class NoteSyncService {
     return this.running;
   }
 
-  /** Media eligible for sync: only items that already have a generated
-   * note. Sync never creates notes for items that were never generated —
-   * that would be unexpected file creation outside what the user asked
-   * for (see spec §22/§45). */
   private async syncableMedia(): Promise<MediaItem[]> {
     return this.storage.media.findWhere((m) => !!m.notePath);
   }
@@ -84,19 +51,10 @@ export class NoteSyncService {
     });
   }
 
-  /**
-   * Called once on plugin load. Cheap when nothing needs to happen: a
-   * single in-memory scan of already-loaded media, no file I/O, unless a
-   * sync (or a resume prompt) actually needs to run.
-   */
   async checkOnStartup(): Promise<void> {
     const state = this.state();
 
     if (state.status === "syncing") {
-      // A `syncing` state that survived a restart means the previous
-      // session ended (Obsidian closed, crashed, etc.) before the run
-      // reached a terminal state — Obsidian plugins cannot keep running
-      // after the app closes, so this is our only signal of interruption.
       await this.patchState({ status: "interrupted" });
     }
 
@@ -126,11 +84,9 @@ export class NoteSyncService {
     await this.checkAndSyncIfNeeded();
   }
 
-  /** Lightweight change check; starts a background sync only if something
-   * is actually out of date. Safe to call repeatedly (e.g. after media
-   * edits, from a debounce timer, or from the manual command). */
   async checkAndSyncIfNeeded(): Promise<void> {
     if (this.running) return;
+    if (this.storage.pipelineBusy) return;
 
     const state = this.state();
     if (state.status === "syncing") return;
@@ -147,7 +103,6 @@ export class NoteSyncService {
     await this.runSync({ resume: false });
   }
 
-  /** Manual trigger (command palette / settings button). */
   async runManualSync(onProgress?: SyncProgressCallback): Promise<void> {
     if (this.running) {
       new Notice(t("noteSync.alreadyRunning"));
@@ -171,9 +126,6 @@ export class NoteSyncService {
 
     if (!resume) return changed;
 
-    // Resuming: only items still pending from the interrupted run, plus
-    // anything that changed after that run started (so nothing that
-    // changed mid-interruption gets silently dropped).
     const pendingSet = new Set(state.pendingMediaIds);
     const startedAt = state.lastSyncStartedAt;
     return changed.filter(
@@ -224,7 +176,9 @@ export class NoteSyncService {
 
         await mapWithConcurrency(queue, SYNC_CONCURRENCY, async (media) => {
           try {
-            await generateMediaNote(this.app, this.storage, media);
+            await generateMediaNote(this.app, this.storage, media, {
+              respectNewerNote: true,
+            });
             allFailedIds.delete(media.id);
           } catch (err) {
             allFailedIds.add(media.id);
@@ -280,9 +234,6 @@ export class NoteSyncService {
           failedMediaIds: [],
         });
       } else if (allFailedIds.size > 0) {
-        // Some items failed — leave lastSuccessfulSyncAt where it was so
-        // the next check re-includes the failed items (their updatedAt is
-        // still newer than the last successful sync) and retries them.
         await this.patchState({
           status: "failed",
           lastSyncCompletedAt: completedAt,
@@ -292,10 +243,6 @@ export class NoteSyncService {
           failedMediaIds: [...allFailedIds],
         });
       } else {
-        // Media kept changing faster than we could converge within the
-        // reconciliation-pass budget — real progress was made and written,
-        // but we can't yet claim a fully clean state. Leave status idle so
-        // the next check picks up whatever is still outstanding.
         await this.patchState({
           status: "idle",
           lastSyncCompletedAt: completedAt,

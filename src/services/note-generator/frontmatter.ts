@@ -7,14 +7,6 @@ export type FrontmatterValue =
   | number[];
 export type FrontmatterData = Record<string, FrontmatterValue | undefined>;
 
-/**
- * Merges freshly-generated MediaVault frontmatter with whatever frontmatter
- * already exists in the note on disk, preserving any keys the user added
- * themselves (or MediaVault previously wrote under an option that's since
- * been disabled). MediaVault-managed keys (from `managedKeys`) are always
- * taken from `generated`; everything else in `existing` passes through
- * untouched. Managed keys come first so the note reads consistently.
- */
 export function mergeFrontmatter(
   generated: FrontmatterData,
   existing: Record<string, unknown> | null | undefined,
@@ -25,7 +17,7 @@ export function mergeFrontmatter(
   if (existing) {
     for (const [key, value] of Object.entries(existing)) {
       if (managedKeys.has(key)) continue;
-      if (key === "position") continue; // Obsidian metadata cache internal field
+      if (key === "position") continue;
       merged[key] = value as FrontmatterValue;
     }
   }
@@ -36,11 +28,39 @@ export function mergeFrontmatter(
 function needsQuoting(value: string): boolean {
   if (value === "") return true;
   return (
+    // eslint-disable-next-line no-control-regex -- control characters are matched on purpose
+    /[\u0000-\u001f\u007f\u0085\u2028\u2029]/.test(value) ||
+    /^[-?:](\s|$)/.test(value) ||
+    /\s#/.test(value) ||
+    /:$/.test(value) ||
+    /^[-+]?(\d[\d_]*\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(value) ||
+    /^0[xob][\da-f]+$/i.test(value) ||
+    /^(yes|no|on|off|y|n)$/i.test(value) ||
     /^[<[\]{}#&*!|>'"%@`]/.test(value) ||
     /^(true|false|null|~)$/i.test(value) ||
     /:\s/.test(value) ||
-    /^\s|\s$/.test(value)
+    /^\s|\s$/.test(value) ||
+    /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}|$)/.test(value)
   );
+}
+
+function escapeDoubleQuoted(value: string): string {
+  let out = "";
+  for (const ch of value) {
+    const code = ch.codePointAt(0) ?? 0;
+    if (ch === "\\") out += "\\\\";
+    else if (ch === '"') out += '\\"';
+    else if (ch === "\n") out += "\\n";
+    else if (ch === "\r") out += "\\r";
+    else if (ch === "\t") out += "\\t";
+    else if (code < 0x20 || code === 0x7f) {
+      out += `\\x${code.toString(16).padStart(2, "0")}`;
+    } else if (code === 0x85) out += "\\N";
+    else if (code === 0x2028) out += "\\L";
+    else if (code === 0x2029) out += "\\P";
+    else out += ch;
+  }
+  return out;
 }
 
 function serializeScalar(value: unknown): string {
@@ -49,13 +69,10 @@ function serializeScalar(value: unknown): string {
     return String(value);
   if (typeof value === "string") {
     if (needsQuoting(value)) {
-      return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+      return `"${escapeDoubleQuoted(value)}"`;
     }
     return value;
   }
-  // Fallback for shapes we don't explicitly model (e.g. arbitrary
-  // user-added frontmatter values) — stringify safely rather than emitting
-  // something that could corrupt the YAML block.
   return serializeScalar(JSON.stringify(value));
 }
 

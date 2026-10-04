@@ -5,7 +5,14 @@ import { MediaType } from "../../types/enums";
 import { NoteTemplateSettings } from "../../settings/settings";
 import { CREW_ROLE_JOBS, tmdbImageUrl } from "../../api/tmdb-normalize";
 
-const REQUIRED_FRONTMATTER_KEYS = ["type", "title", "year", "tmdb_id"];
+const REQUIRED_FRONTMATTER_KEYS = [
+  "mediavault_id",
+  "mediavault_updated_at",
+  "type",
+  "title",
+  "year",
+  "tmdb_id",
+];
 const COMFORT_FRONTMATTER_KEYS = [
   "comfort_score",
   "energy_level",
@@ -21,23 +28,15 @@ function crewNames(media: MediaItem, jobs: readonly string[]): string[] {
   return [...names];
 }
 
-/**
- * Builds the MediaVault-managed frontmatter data for a newly generated
- * (or regenerated) note. This only produces the properties MediaVault owns —
- * required identifiers plus whichever optional properties are enabled in the
- * user's note-template settings. Any additional frontmatter properties the
- * user has manually added to an existing note are merged in separately by
- * the note generator and are never touched here.
- */
 export function buildMediaFrontmatterData(
   media: MediaItem,
   comfort: ComfortProfile | null,
   template: NoteTemplateSettings,
 ): FrontmatterData {
-  // Required / MediaVault-managed properties: always present, never
-  // removable via the template settings, since MediaVault uses these to
-  // identify and (re)locate the note for a given media item.
+
   const data: FrontmatterData = {
+    mediavault_id: media.id,
+    mediavault_updated_at: media.updatedAt,
     type: media.type === MediaType.Movie ? "movie" : "tv",
     title: media.title,
     year: media.year,
@@ -95,13 +94,6 @@ export function buildMediaFrontmatter(
   );
 }
 
-/**
- * The full set of frontmatter keys MediaVault could ever write, regardless
- * of which optional properties are currently enabled. Used to merge
- * generated frontmatter with any pre-existing frontmatter in a note without
- * clobbering keys the user added themselves — MediaVault only ever
- * overwrites keys it recognizes as its own.
- */
 export function managedFrontmatterKeys(
   template: NoteTemplateSettings,
 ): Set<string> {
